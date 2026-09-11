@@ -4,6 +4,7 @@ import { defineDocs } from 'fumadocs-mdx/macro';
 import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
 import { z } from 'zod';
 import { readingMinutes } from './reading-minutes';
+import { themeGroupingPlugin } from './theme-tree';
 import { docsRoute } from './shared';
 
 export const docs = defineDocs({
@@ -43,7 +44,7 @@ export const docs = defineDocs({
 export const source = loader({
   source: docs.toFumadocsSource(),
   baseUrl: docsRoute,
-  plugins: [lucideIconsPlugin()],
+  plugins: [lucideIconsPlugin(), themeGroupingPlugin()],
 });
 
 export const docsLlms = llms(source, {
