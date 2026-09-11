@@ -159,12 +159,10 @@ export async function render(source: string, id: string) {
   const filename = segments.pop()!.replace(/\.md$/, '')
   const folder = segments.pop() ?? ''
 
-  // Only content/ is track-shaped. Any other .md the app happens to import
-  // keeps the plain chapter shape and skips the layout rules below.
-  const inContent = segments.at(-1) === 'content'
-
+  // The filename decides the shape: _track.md describes the folder it sits in,
+  // anything else is a chapter belonging to that folder.
   const meta: ChapterMeta | TrackMeta =
-    inContent && filename === '_track'
+    filename === '_track'
       ? {
           kind: 'track',
           slug: folder,
@@ -176,7 +174,7 @@ export async function render(source: string, id: string) {
         }
       : {
           kind: 'chapter',
-          track: inContent ? folder : '',
+          track: folder,
           title: data.title ?? filename,
           order: data.order ?? 999,
           slug: filename,
@@ -187,7 +185,7 @@ export async function render(source: string, id: string) {
   // The slug is the filename, so a URL is always findable from the tree. A
   // frontmatter slug is allowed only when it agrees, which keeps the field
   // from drifting into a second source of truth.
-  if (inContent && data.slug !== undefined && data.slug !== meta.slug) {
+  if (data.slug !== undefined && data.slug !== meta.slug) {
     throw new Error(
       `${id}: frontmatter slug "${data.slug}" does not match the filename "${meta.slug}"`,
     )
