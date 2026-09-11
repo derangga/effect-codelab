@@ -51,3 +51,41 @@ test('a frontmatter slug that disagrees with the filename fails the build', asyn
     ),
   ).rejects.toThrow('does not match the filename')
 })
+
+test('a track carries its theme and level', async () => {
+  const { meta } = await render(
+    chapter(
+      'title: T\norder: 1\ntheme: foundations\nlevel: intermediate\nsummary: s',
+    ),
+    '/content/mental-model/_track.md',
+  )
+
+  expect(meta).toMatchObject({ theme: 'foundations', level: 'intermediate' })
+})
+
+test('level falls back to beginner rather than passing a typo through', async () => {
+  const { meta } = await render(
+    chapter('title: T\norder: 1\nlevel: expert\nsummary: s'),
+    '/content/mental-model/_track.md',
+  )
+
+  expect(meta).toMatchObject({ level: 'beginner' })
+})
+
+test('reading time rounds up, so no page reports zero minutes', async () => {
+  const { minutes } = await render(chapter('title: T\norder: 1\nsummary: s'), '/content/t/01-x.md')
+
+  expect(minutes).toBe(1)
+})
+
+test('reading time counts code by the line, not as prose', async () => {
+  const lines = Array.from({ length: 60 }, (_, i) => `const a${i} = ${i}`)
+  const { minutes } = await render(
+    `---\ntitle: T\norder: 1\nsummary: s\n---\n\n\`\`\`ts\n${lines.join('\n')}\n\`\`\`\n`,
+    '/content/t/01-x.md',
+  )
+
+  // 62 fenced lines at 15 a minute is over four, where the same tokens read as
+  // prose would have rounded to one.
+  expect(minutes).toBeGreaterThan(3)
+})

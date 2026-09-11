@@ -1,6 +1,8 @@
 ---
 title: Anti-patterns
 order: 3
+theme: foundations
+level: intermediate
 icon: TriangleAlert
 prereq: Assumes the Basic Effect track
 summary: The mistakes this material makes easy to make, grouped by the part of Effect they spoil.

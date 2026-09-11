@@ -1,6 +1,8 @@
 ---
 title: Mental Model
 order: 1
+theme: foundations
+level: beginner
 icon: Brain
 prereq: No Effect experience needed
 summary: What has to change in how you think before Effect starts feeling like an improvement rather than a tax.

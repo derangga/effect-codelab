@@ -1,6 +1,8 @@
 ---
 title: Basic Effect
 order: 2
+theme: foundations
+level: beginner
 icon: BookOpen
 prereq: Some TypeScript, no Effect
 summary: A ten chapter course on Effect for TypeScript, read in order, each chapter building on the one before it.

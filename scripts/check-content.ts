@@ -123,10 +123,10 @@ assert.deepEqual(
   `content/ holds loose chapters, every .md belongs to a track folder: ${strayFiles.join(', ')}`,
 )
 
-// Track order is global: it decides the sequence of cards on the home page.
-// Tracks are validated first so the chapter output below can read in course
-// order rather than whatever order readdir handed back.
-const trackOrders = new Map<number, string>()
+// Track order sequences a track within its theme, not across the site, so two
+// themes may each hold an order 1. Tracks are validated first so the chapter
+// output below can read in course order rather than readdir order.
+const trackOrders = new Map<string, string>()
 const validated = []
 
 for (const track of trackDirs) {
@@ -162,11 +162,12 @@ for (const track of trackDirs) {
     trackMeta.prereq,
     `${trackLabel}: missing frontmatter prereq, one line on what this track assumes`,
   )
+  const orderKey = `${trackMeta.theme}/${trackMeta.order}`
   assert.ok(
-    !trackOrders.has(trackMeta.order),
-    `${trackLabel}: order ${trackMeta.order} is already used by ${trackOrders.get(trackMeta.order)}`,
+    !trackOrders.has(orderKey),
+    `${trackLabel}: order ${trackMeta.order} is already used within theme "${trackMeta.theme}" by ${trackOrders.get(orderKey)}`,
   )
-  trackOrders.set(trackMeta.order, trackLabel)
+  trackOrders.set(orderKey, trackLabel)
 
   checkRendered(trackPage, trackSource, trackLabel)
   validated.push({ track, files, meta: trackMeta })
@@ -176,10 +177,13 @@ let chapterCount = 0
 let draftCount = 0
 
 for (const { track, files, meta: trackMeta } of validated.sort(
-  (a, b) => a.meta.order - b.meta.order,
+  (a, b) =>
+    a.meta.theme.localeCompare(b.meta.theme) || a.meta.order - b.meta.order,
 )) {
   const trackDir = join(dir, track)
-  console.log(`\n${trackMeta.title}  (${track}, order=${trackMeta.order})`)
+  console.log(
+    `\n${trackMeta.title}  (${track}, ${trackMeta.theme} ${trackMeta.order}, ${trackMeta.level})`,
+  )
 
   // Slugs and orders are unique within a track, not across the app, so two
   // tracks can both open with an 01.

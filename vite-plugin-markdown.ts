@@ -28,13 +28,19 @@ export type ChapterMeta = {
   draft: boolean
 }
 
+export type Level = 'beginner' | 'intermediate'
+
 /** The `_track.md` in a track folder. Its body renders as the track page. */
 export type TrackMeta = {
   kind: 'track'
   /** Folder name under content/. */
   slug: string
   title: string
+  /** Orders this track within its theme, not across the site. */
   order: number
+  /** A slug from content/themes.json. */
+  theme: string
+  level: Level
   summary: string
   /** A lucide icon name, shown on the home card and in the sidebar switcher. */
   icon: string
@@ -43,6 +49,25 @@ export type TrackMeta = {
 }
 
 export type Heading = { depth: number; id: string; text: string }
+
+/**
+ * Minutes to read a page, from its word count. Prose goes at 200 words a
+ * minute, and code is counted by the line instead, because 15 lines a minute
+ * is closer to how a reader actually works through a snippet than treating its
+ * tokens as prose. Both are estimates, and the point is only that a two minute
+ * page and a twenty minute page look different on a card.
+ */
+function readingMinutes(markdown: string) {
+  const fences = [...markdown.matchAll(/^```[\s\S]*?^```$/gm)]
+  const codeLines = fences.reduce(
+    (total, [block]) => total + block.split('\n').length,
+    0,
+  )
+  const prose = markdown.replace(/^```[\s\S]*?^```$/gm, ' ')
+  const words = prose.split(/\s+/).filter(Boolean).length
+
+  return Math.max(1, Math.ceil(words / 200 + codeLines / 15))
+}
 
 /**
  * Pull `pre > code.language-mermaid` out of the tree before shiki sees it.
@@ -168,6 +193,8 @@ export async function render(source: string, id: string) {
           slug: folder,
           title: data.title ?? folder,
           order: data.order ?? 999,
+          theme: data.theme ?? '',
+          level: data.level === 'intermediate' ? 'intermediate' : 'beginner',
           summary: data.summary ?? '',
           icon: data.icon ?? 'BookOpen',
           prereq: data.prereq ?? '',
@@ -194,7 +221,13 @@ export async function render(source: string, id: string) {
   // A chapter with a diagram pays for mermaid; one without must not.
   const hasMermaid = String(file).includes('class="mermaid"')
 
-  return { meta, headings, hasMermaid, html: String(file) }
+  return {
+    meta,
+    headings,
+    hasMermaid,
+    minutes: readingMinutes(content),
+    html: String(file),
+  }
 }
 
 export function markdown(): Plugin {
@@ -203,12 +236,16 @@ export function markdown(): Plugin {
     enforce: 'pre',
     async transform(source, id) {
       if (!id.endsWith('.md')) return null
-      const { meta, headings, hasMermaid, html } = await render(source, id)
+      const { meta, headings, hasMermaid, minutes, html } = await render(
+        source,
+        id,
+      )
       return {
         code: [
           `export const meta = ${JSON.stringify(meta)}`,
           `export const headings = ${JSON.stringify(headings)}`,
           `export const hasMermaid = ${JSON.stringify(hasMermaid)}`,
+          `export const minutes = ${JSON.stringify(minutes)}`,
           `export const html = ${JSON.stringify(html)}`,
           `export default html`,
         ].join('\n'),

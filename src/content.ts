@@ -1,8 +1,11 @@
+import themeList from '../content/themes.json'
 import type { ChapterMeta, Heading, TrackMeta } from '../vite-plugin-markdown'
 
 type Rendered = {
   headings: Array<Heading>
   hasMermaid: boolean
+  /** Estimated minutes to read this page, derived from its word count. */
+  minutes: number
   html: string
 }
 
@@ -12,10 +15,19 @@ export type Chapter = Rendered & { meta: ChapterMeta }
 export type Track = Rendered & {
   meta: TrackMeta
   chapters: Array<Chapter>
+  /** Minutes to read the whole track, its own page included. */
+  totalMinutes: number
+}
+
+/** A section of the catalog, from content/themes.json. */
+export type Theme = {
+  slug: string
+  title: string
+  tracks: Array<Track>
 }
 
 // Adding a chapter is one step: drop a .md file in a track folder. Adding a
-// track is two: make the folder, drop a _track.md in it.
+// track is two: make the folder, drop a _track.md in it naming its theme.
 const modules = import.meta.glob<Rendered & { meta: ChapterMeta | TrackMeta }>(
   '/content/*/*.md',
   { eager: true },
@@ -28,22 +40,43 @@ const entries = Object.values(modules)
 
 const isTrack = (
   m: (typeof entries)[number],
-): m is Rendered & {
-  meta: TrackMeta
-} => m.meta.kind === 'track'
+): m is Rendered & { meta: TrackMeta } => m.meta.kind === 'track'
 
 const chapters = entries
   .filter((m): m is Chapter => m.meta.kind === 'chapter')
   .sort(byOrder)
 
-/** Every track, in reading order. */
-export const tracks: Array<Track> = entries
-  .filter(isTrack)
-  .sort(byOrder)
-  .map((track) => ({
+const allTracks: Array<Track> = entries.filter(isTrack).map((track) => {
+  const own = chapters.filter((c) => c.meta.track === track.meta.slug)
+  return {
     ...track,
-    chapters: chapters.filter((c) => c.meta.track === track.meta.slug),
-  }))
+    chapters: own,
+    totalMinutes: own.reduce((total, c) => total + c.minutes, track.minutes),
+  }
+})
+
+/**
+ * The catalog, in the order themes.json lists them, each theme holding its own
+ * tracks ordered within it. Track order is only meaningful inside a theme, so
+ * adding a track means picking a number among its siblings.
+ */
+export const themes: Array<Theme> = themeList.map(({ slug, title }) => ({
+  slug,
+  title,
+  tracks: allTracks.filter((t) => t.meta.theme === slug).sort(byOrder),
+}))
+
+/**
+ * Every track. A track naming a theme that themes.json does not list would
+ * otherwise vanish from the site with no error, so it lands here at the end
+ * until check:content rejects the typo.
+ */
+export const tracks: Array<Track> = [
+  ...themes.flatMap((theme) => theme.tracks),
+  ...allTracks
+    .filter((t) => !themeList.some((theme) => theme.slug === t.meta.theme))
+    .sort(byOrder),
+]
 
 export const trackBySlug = (track: string) =>
   tracks.find((t) => t.meta.slug === track)

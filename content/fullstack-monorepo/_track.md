@@ -1,6 +1,8 @@
 ---
 title: Fullstack Monorepo
-order: 4
+order: 1
+theme: applications
+level: intermediate
 icon: Server
 prereq: Assumes the Basic Effect track
 summary: A todo app with an Effect backend and an Effect frontend, sharing one schema across a workspace.

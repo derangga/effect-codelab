@@ -14,8 +14,8 @@ const run = promisify(execFile)
 
 const script = join(import.meta.dirname, 'check-content.ts')
 
-const track = (title: string, order: number) =>
-  `---\ntitle: ${title}\norder: ${order}\nicon: Brain\nprereq: none\nsummary: s\n---\n\nBody.\n`
+const track = (title: string, order: number, theme = 'foundations') =>
+  `---\ntitle: ${title}\norder: ${order}\ntheme: ${theme}\nlevel: beginner\nicon: Brain\nprereq: none\nsummary: s\n---\n\nBody.\n`
 
 const chapter = (order: number, extra = '', body = '```ts twoslash\nconst a = 1\n```') =>
   `---\ntitle: T\norder: ${order}\nsummary: s\n${extra}---\n\n${body}\n`
@@ -66,16 +66,27 @@ test('two tracks may each open with an 01', async () => {
   expect(ok).toBe(true)
 })
 
-test('two tracks cannot share an order, since it sequences the home page', async () => {
+test('two tracks in one theme cannot share an order', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/_track.md': track('T1', 1, 'foundations'),
     't1/01-x.md': chapter(1),
-    't2/_track.md': track('T2', 1),
+    't2/_track.md': track('T2', 1, 'foundations'),
     't2/01-x.md': chapter(1),
   })
 
   expect(ok).toBe(false)
-  expect(stderr).toContain('order 1 is already used by t1/_track.md')
+  expect(stderr).toContain('already used within theme "foundations"')
+})
+
+test('two tracks in different themes may share an order', async () => {
+  const { ok } = await check({
+    't1/_track.md': track('T1', 1, 'foundations'),
+    't1/01-x.md': chapter(1),
+    't2/_track.md': track('T2', 1, 'applications'),
+    't2/01-x.md': chapter(1),
+  })
+
+  expect(ok).toBe(true)
 })
 
 test('a chapter with no compiled snippet is rejected', async () => {

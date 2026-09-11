@@ -1,13 +1,66 @@
 import { expect, test } from 'vitest'
-import { chapterBySlug, neighbours, nextTrack, tracks } from './content.ts'
+import {
+  chapterBySlug,
+  neighbours,
+  nextTrack,
+  themes,
+  trackBySlug,
+  tracks,
+} from './content.ts'
 
-test('every track folder is found, in reading order', () => {
+test('every track folder is found, in catalog order', () => {
   expect(tracks.map((t) => t.meta.slug)).toEqual([
     'mental-model',
     'basic-effect',
     'anti-patterns',
     'fullstack-monorepo',
   ])
+})
+
+test('the catalog is two themes holding four tracks between them', () => {
+  expect(themes.map((t) => t.slug)).toEqual(['foundations', 'applications'])
+  expect(themes.flatMap((t) => t.tracks)).toHaveLength(4)
+  expect(themes[0].tracks.map((t) => t.meta.title)).toEqual([
+    'Mental Model',
+    'Basic Effect',
+    'Anti-patterns',
+  ])
+  expect(themes[1].tracks.map((t) => t.meta.title)).toEqual([
+    'Fullstack Monorepo',
+  ])
+})
+
+test('track order is per theme, so two themes may share an order', () => {
+  const firsts = themes.map((t) => t.tracks.at(0)?.meta.order)
+
+  expect(firsts).toEqual([1, 1])
+})
+
+test('a level is carried on every track', () => {
+  expect(trackBySlug('basic-effect')?.meta.level).toBe('beginner')
+  expect(trackBySlug('anti-patterns')?.meta.level).toBe('intermediate')
+})
+
+test('reading time is per page and sums over a track', () => {
+  const basic = trackBySlug('basic-effect')
+  const longest = Math.max(...(basic?.chapters.map((c) => c.minutes) ?? []))
+
+  // Every page reports something, and no page reports zero.
+  for (const chapter of basic?.chapters ?? []) {
+    expect(chapter.minutes).toBeGreaterThan(0)
+  }
+  // The track total covers all ten chapters plus its own page, so it has to
+  // exceed the single longest chapter by a wide margin.
+  expect(basic?.totalMinutes).toBeGreaterThan(longest)
+  expect(basic?.totalMinutes).toBeGreaterThan(30)
+})
+
+test('an empty track still reports the time to read its own page', () => {
+  const fullstack = trackBySlug('fullstack-monorepo')
+
+  expect(fullstack?.chapters).toHaveLength(0)
+  expect(fullstack?.totalMinutes).toBe(fullstack?.minutes)
+  expect(fullstack?.totalMinutes).toBeGreaterThan(0)
 })
 
 test('a track collects its own chapters, ordered', () => {
