@@ -93,12 +93,6 @@ test('every chapter row on a track page carries its own time', async () => {
   expect(rows.length).toBe(10)
 })
 
-test('an empty track says so rather than rendering a bare list', async () => {
-  const { text } = await render('/learn/fullstack-monorepo')
-
-  expect(text).toContain('no pages yet')
-})
-
 test('a chapter page links back to its track and on to the next chapter', async () => {
   const { html, text } = await render('/learn/basic-effect/02-three-channels')
 

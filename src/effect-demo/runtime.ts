@@ -7,7 +7,7 @@
  *
  * Those values are inlined into the bundle at build time and are readable by
  * anyone with devtools. Fine for a base URL, never fine for a secret. See
- * chapter eight.
+ * Layers and Config in the Basic Effect track.
  */
 import { ConfigProvider, Layer, ManagedRuntime } from 'effect'
 import type { Attempts, Fetcher } from './products'

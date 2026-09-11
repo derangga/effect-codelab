@@ -55,12 +55,17 @@ test('reading time is per page and sums over a track', () => {
   expect(basic?.totalMinutes).toBeGreaterThan(30)
 })
 
-test('an empty track still reports the time to read its own page', () => {
-  const fullstack = trackBySlug('fullstack-monorepo')
+test("a track's total covers its own page as well as its chapters", () => {
+  // Fullstack Monorepo was the empty track this used to pin the behaviour on.
+  // It has chapters now, so the invariant is stated for every track instead:
+  // the total is the page plus its chapters, and a track with no chapters
+  // still reports the time to read the page itself.
+  for (const track of tracks) {
+    const chapters = track.chapters.reduce((sum, c) => sum + c.minutes, 0)
 
-  expect(fullstack?.chapters).toHaveLength(0)
-  expect(fullstack?.totalMinutes).toBe(fullstack?.minutes)
-  expect(fullstack?.totalMinutes).toBeGreaterThan(0)
+    expect(track.totalMinutes).toBe(track.minutes + chapters)
+    expect(track.minutes).toBeGreaterThan(0)
+  }
 })
 
 test('a track collects its own chapters, ordered', () => {
