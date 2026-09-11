@@ -14,8 +14,18 @@ const run = promisify(execFile)
 
 const script = join(import.meta.dirname, 'check-content.ts')
 
-const track = (title: string, order: number, theme = 'foundations') =>
-  `---\ntitle: ${title}\norder: ${order}\ntheme: ${theme}\nlevel: beginner\nicon: Brain\nprereq: none\nsummary: s\n---\n\nBody.\n`
+const track = (
+  title: string,
+  order: number,
+  theme = 'foundations',
+  level = 'beginner',
+) =>
+  `---\ntitle: ${title}\norder: ${order}\ntheme: ${theme}\nlevel: ${level}\nicon: Brain\nprereq: none\nsummary: s\n---\n\nBody.\n`
+
+const THEMES = JSON.stringify([
+  { slug: 'foundations', title: 'Foundations' },
+  { slug: 'applications', title: 'Building applications' },
+])
 
 const chapter = (order: number, extra = '', body = '```ts twoslash\nconst a = 1\n```') =>
   `---\ntitle: T\norder: ${order}\nsummary: s\n${extra}---\n\n${body}\n`
@@ -23,17 +33,21 @@ const chapter = (order: number, extra = '', body = '```ts twoslash\nconst a = 1\
 /** Writes a content tree from a path -> contents map and runs the check on it. */
 async function check(files: Record<string, string>) {
   const dir = await mkdtemp(join(tmpdir(), 'content-check-'))
-  for (const [path, contents] of Object.entries(files)) {
+  for (const [path, contents] of Object.entries({
+    'themes.json': THEMES,
+    ...files,
+  })) {
     const full = join(dir, path)
     await mkdir(join(full, '..'), { recursive: true })
     await writeFile(full, contents)
   }
 
   try {
-    await run('bun', [script, dir])
-    return { ok: true, stderr: '' }
+    const { stdout } = await run('bun', [script, dir])
+    return { ok: true, stdout, stderr: '' }
   } catch (error) {
-    return { ok: false, stderr: String((error as { stderr?: string }).stderr) }
+    const { stdout, stderr } = error as { stdout?: string; stderr?: string }
+    return { ok: false, stdout: String(stdout), stderr: String(stderr) }
   }
 }
 
@@ -137,4 +151,38 @@ test('a frontmatter slug that disagrees with the filename is rejected', async ()
 
   expect(ok).toBe(false)
   expect(stderr).toContain('does not match the filename')
+})
+
+test('a track naming a theme themes.json does not list is rejected', async () => {
+  const { ok, stderr } = await check({
+    't1/_track.md': track('T1', 1, 'foundatoins'),
+    't1/01-x.md': chapter(1),
+  })
+
+  expect(ok).toBe(false)
+  expect(stderr).toContain('t1/_track.md: theme "foundatoins" is not in themes.json')
+})
+
+test('a level outside the allowed set is rejected', async () => {
+  const { ok, stderr } = await check({
+    't1/_track.md': track('T1', 1, 'foundations', 'advanced'),
+    't1/01-x.md': chapter(1),
+  })
+
+  expect(ok).toBe(false)
+  expect(stderr).toContain('level "advanced" is not one of beginner, intermediate')
+})
+
+test('the run output names each theme and the tracks under it', async () => {
+  const { ok, stdout } = await check({
+    't1/_track.md': track('T1', 1, 'foundations'),
+    't1/01-x.md': chapter(1),
+    't2/_track.md': track('T2', 1, 'applications'),
+    't2/01-x.md': chapter(1),
+  })
+
+  expect(ok).toBe(true)
+  expect(stdout).toContain('== Foundations  (foundations)')
+  expect(stdout).toContain('== Building applications  (applications)')
+  expect(stdout).toContain('2 theme(s), 2 track(s)')
 })

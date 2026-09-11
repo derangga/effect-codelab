@@ -9,7 +9,8 @@
 import assert from 'node:assert/strict'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { render } from '../vite-plugin-markdown.ts'
+import matter from 'gray-matter'
+import { LEVELS, render, type TrackMeta } from '../vite-plugin-markdown.ts'
 
 type Rendered = Awaited<ReturnType<typeof render>>
 
@@ -106,6 +107,14 @@ function checkRendered(
   return headings.length
 }
 
+// The catalog groups tracks by theme, so themes.json is what decides whether a
+// track is reachable at all. Reading it here is what turns a typo in a theme
+// slug from a track silently missing off the home page into a failed run.
+const themes: Array<{ slug: string; title: string }> = JSON.parse(
+  await readFile(join(dir, 'themes.json'), 'utf8'),
+)
+const themeSlugs = themes.map((theme) => theme.slug)
+
 const trackDirs = (await readdir(dir, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
@@ -127,7 +136,11 @@ assert.deepEqual(
 // themes may each hold an order 1. Tracks are validated first so the chapter
 // output below can read in course order rather than readdir order.
 const trackOrders = new Map<string, string>()
-const validated = []
+const validated: Array<{
+  track: string
+  files: Array<string>
+  meta: TrackMeta
+}> = []
 
 for (const track of trackDirs) {
   const files = (await readdir(join(dir, track))).filter((f) =>
@@ -162,6 +175,19 @@ for (const track of trackDirs) {
     trackMeta.prereq,
     `${trackLabel}: missing frontmatter prereq, one line on what this track assumes`,
   )
+  assert.ok(
+    themeSlugs.includes(trackMeta.theme),
+    `${trackLabel}: theme "${trackMeta.theme}" is not in themes.json, which lists ${themeSlugs.join(', ')}`,
+  )
+
+  // render() falls back to beginner for anything it does not recognise, so the
+  // raw frontmatter is the only place a misspelled level is still visible.
+  const rawLevel = matter(trackSource).data.level
+  assert.ok(
+    LEVELS.includes(rawLevel),
+    `${trackLabel}: level "${rawLevel}" is not one of ${LEVELS.join(', ')}`,
+  )
+
   const orderKey = `${trackMeta.theme}/${trackMeta.order}`
   assert.ok(
     !trackOrders.has(orderKey),
@@ -176,11 +202,18 @@ for (const track of trackDirs) {
 let chapterCount = 0
 let draftCount = 0
 
-for (const { track, files, meta: trackMeta } of validated.sort(
-  (a, b) =>
-    a.meta.theme.localeCompare(b.meta.theme) || a.meta.order - b.meta.order,
-)) {
+// Read out in catalog order: themes as themes.json lists them, tracks ordered
+// within their theme. The run output then reads the way the home page does.
+const inCatalogOrder = themes.flatMap((theme) =>
+  validated
+    .filter((entry) => entry.meta.theme === theme.slug)
+    .sort((a, b) => a.meta.order - b.meta.order)
+    .map((entry, index) => ({ ...entry, theme, first: index === 0 })),
+)
+
+for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
   const trackDir = join(dir, track)
+  if (first) console.log(`\n== ${theme.title}  (${theme.slug})`)
   console.log(
     `\n${trackMeta.title}  (${track}, ${trackMeta.theme} ${trackMeta.order}, ${trackMeta.level})`,
   )
@@ -240,6 +273,9 @@ for (const { track, files, meta: trackMeta } of validated.sort(
 }
 
 const drafts = draftCount > 0 ? `, ${draftCount} of them draft` : ''
+const themed = themes.filter((theme) =>
+  validated.some((entry) => entry.meta.theme === theme.slug),
+).length
 console.log(
-  `\n${trackDirs.length} track(s), ${chapterCount} chapter(s) rendered clean${drafts}.`,
+  `\n${themed} theme(s), ${trackDirs.length} track(s), ${chapterCount} chapter(s) rendered clean${drafts}.`,
 )

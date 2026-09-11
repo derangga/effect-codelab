@@ -28,7 +28,10 @@ export type ChapterMeta = {
   draft: boolean
 }
 
-export type Level = 'beginner' | 'intermediate'
+/** The levels a track may declare. check:content rejects anything else. */
+export const LEVELS = ['beginner', 'intermediate'] as const
+
+export type Level = (typeof LEVELS)[number]
 
 /** The `_track.md` in a track folder. Its body renders as the track page. */
 export type TrackMeta = {
@@ -194,7 +197,7 @@ export async function render(source: string, id: string) {
           title: data.title ?? folder,
           order: data.order ?? 999,
           theme: data.theme ?? '',
-          level: data.level === 'intermediate' ? 'intermediate' : 'beginner',
+          level: LEVELS.includes(data.level) ? data.level : 'beginner',
           summary: data.summary ?? '',
           icon: data.icon ?? 'BookOpen',
           prereq: data.prereq ?? '',
