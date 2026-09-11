@@ -34,16 +34,19 @@ export function AppSidebar() {
           <SidebarGroupLabel>Chapters</SidebarGroupLabel>
           <SidebarMenu>
             {allChapters.map(({ meta }: Chapter) => (
-              <SidebarMenuItem key={meta.slug}>
+              <SidebarMenuItem key={`${meta.track}/${meta.slug}`}>
                 <SidebarMenuButton
                   isActive={
                     !!matchRoute({
-                      to: '/learn/$slug',
-                      params: { slug: meta.slug },
+                      to: '/learn/$track/$slug',
+                      params: { track: meta.track, slug: meta.slug },
                     })
                   }
                   render={
-                    <Link to="/learn/$slug" params={{ slug: meta.slug }}>
+                    <Link
+                      to="/learn/$track/$slug"
+                      params={{ track: meta.track, slug: meta.slug }}
+                    >
                       <span className="text-muted-foreground tabular-nums">
                         {String(meta.order).padStart(2, '0')}
                       </span>

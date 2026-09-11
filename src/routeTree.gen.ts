@@ -11,7 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DemoRouteImport } from './routes/demo'
-import { Route as LearnSlugRouteImport } from './routes/learn.$slug'
+import { Route as LearnTrackIndexRouteImport } from './routes/learn.$track.index'
+import { Route as LearnTrackSlugRouteImport } from './routes/learn.$track.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,40 +24,49 @@ const DemoRoute = DemoRouteImport.update({
   path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LearnSlugRoute = LearnSlugRouteImport.update({
-  id: '/learn/$slug',
-  path: '/learn/$slug',
+const LearnTrackIndexRoute = LearnTrackIndexRouteImport.update({
+  id: '/learn/$track/',
+  path: '/learn/$track/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LearnTrackSlugRoute = LearnTrackSlugRouteImport.update({
+  id: '/learn/$track/$slug',
+  path: '/learn/$track/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
-  '/learn/$slug': typeof LearnSlugRoute
+  '/learn/$track/$slug': typeof LearnTrackSlugRoute
+  '/learn/$track/': typeof LearnTrackIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
-  '/learn/$slug': typeof LearnSlugRoute
+  '/learn/$track/$slug': typeof LearnTrackSlugRoute
+  '/learn/$track': typeof LearnTrackIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
-  '/learn/$slug': typeof LearnSlugRoute
+  '/learn/$track/$slug': typeof LearnTrackSlugRoute
+  '/learn/$track/': typeof LearnTrackIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/demo' | '/learn/$slug'
+  fullPaths: '/' | '/demo' | '/learn/$track/$slug' | '/learn/$track/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/demo' | '/learn/$slug'
-  id: '__root__' | '/' | '/demo' | '/learn/$slug'
+  to: '/' | '/demo' | '/learn/$track/$slug' | '/learn/$track'
+  id: '__root__' | '/' | '/demo' | '/learn/$track/$slug' | '/learn/$track/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DemoRoute: typeof DemoRoute
-  LearnSlugRoute: typeof LearnSlugRoute
+  LearnTrackSlugRoute: typeof LearnTrackSlugRoute
+  LearnTrackIndexRoute: typeof LearnTrackIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +85,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/learn/$slug': {
-      id: '/learn/$slug'
-      path: '/learn/$slug'
-      fullPath: '/learn/$slug'
-      preLoaderRoute: typeof LearnSlugRouteImport
+    '/learn/$track/': {
+      id: '/learn/$track/'
+      path: '/learn/$track'
+      fullPath: '/learn/$track/'
+      preLoaderRoute: typeof LearnTrackIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/learn/$track/$slug': {
+      id: '/learn/$track/$slug'
+      path: '/learn/$track/$slug'
+      fullPath: '/learn/$track/$slug'
+      preLoaderRoute: typeof LearnTrackSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -88,7 +105,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DemoRoute: DemoRoute,
-  LearnSlugRoute: LearnSlugRoute,
+  LearnTrackSlugRoute: LearnTrackSlugRoute,
+  LearnTrackIndexRoute: LearnTrackIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
