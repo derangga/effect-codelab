@@ -11,7 +11,7 @@ type Rendered = {
 
 export type Chapter = Rendered & { meta: ChapterMeta }
 
-/** A track folder: its `_track.md` page, plus its chapters in reading order. */
+/** A track folder: its `index.md` page, plus its chapters in reading order. */
 export type Track = Rendered & {
   meta: TrackMeta
   chapters: Array<Chapter>
@@ -27,7 +27,7 @@ export type Theme = {
 }
 
 // Adding a chapter is one step: drop a .md file in a track folder. Adding a
-// track is two: make the folder, drop a _track.md in it naming its theme.
+// track is two: make the folder, drop an index.md in it naming its theme.
 const modules = import.meta.glob<Rendered & { meta: ChapterMeta | TrackMeta }>(
   '/content/*/*.md',
   { eager: true },

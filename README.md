@@ -12,7 +12,7 @@ bun run dev
 
 ## How it fits together
 
-`content/` holds one folder per track, each with a `_track.md` and its
+`content/` holds one folder per track, each with an `index.md` and its
 chapters. `content/themes.json` groups the tracks into the sections the home
 page renders. Nothing is registered anywhere: `vite-plugin-markdown.ts` turns
 each file into a module at build time, `src/content.ts` assembles them into
@@ -26,7 +26,7 @@ megabyte.
 ## Adding things
 
 Adding a **chapter** is dropping a `.md` file into a track folder. Adding a
-**track** is making a folder with a `_track.md` in it, naming a theme from
+**track** is making a folder with an `index.md` in it, naming a theme from
 `themes.json`. Adding a **theme** is one line in `themes.json`.
 
 `scripts/chapter-template.md` is a chapter skeleton worth copying.

@@ -33,7 +33,7 @@ export const LEVELS = ['beginner', 'intermediate'] as const
 
 export type Level = (typeof LEVELS)[number]
 
-/** The `_track.md` in a track folder. Its body renders as the track page. */
+/** The `index.md` in a track folder. Its body renders as the track page. */
 export type TrackMeta = {
   kind: 'track'
   /** Folder name under content/. */
@@ -187,10 +187,10 @@ export async function render(source: string, id: string) {
   const filename = segments.pop()!.replace(/\.md$/, '')
   const folder = segments.pop() ?? ''
 
-  // The filename decides the shape: _track.md describes the folder it sits in,
+  // The filename decides the shape: index.md describes the folder it sits in,
   // anything else is a chapter belonging to that folder.
   const meta: ChapterMeta | TrackMeta =
-    filename === '_track'
+    filename === 'index'
       ? {
           kind: 'track',
           slug: folder,

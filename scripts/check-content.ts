@@ -148,13 +148,13 @@ for (const track of trackDirs) {
   )
 
   assert.ok(
-    files.includes('_track.md'),
-    `content/${track}: missing _track.md, which every track folder needs`,
+    files.includes('index.md'),
+    `content/${track}: missing index.md, which every track folder needs`,
   )
 
-  const trackPath = join(dir, track, '_track.md')
+  const trackPath = join(dir, track, 'index.md')
   const trackSource = await readFile(trackPath, 'utf8')
-  const trackLabel = `${track}/_track.md`
+  const trackLabel = `${track}/index.md`
   const trackPage = await renderOrBlame(trackSource, trackPath, trackLabel)
   const trackMeta = trackPage.meta
 
@@ -227,8 +227,8 @@ for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
   const trackDir = join(dir, track)
   pages.add(`/learn/${track}`)
   collectLinks(
-    await readFile(join(trackDir, '_track.md'), 'utf8'),
-    `${track}/_track.md`,
+    await readFile(join(trackDir, 'index.md'), 'utf8'),
+    `${track}/index.md`,
   )
   if (first) console.log(`\n== ${theme.title}  (${theme.slug})`)
   console.log(
@@ -240,7 +240,7 @@ for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
   const seenSlugs = new Set<string>()
   const seenOrders = new Map<number, string>()
 
-  for (const file of files.filter((f) => f !== '_track.md').sort()) {
+  for (const file of files.filter((f) => f !== 'index.md').sort()) {
     const path = join(trackDir, file)
     const source = await readFile(path, 'utf8')
     const label = `${track}/${file}`

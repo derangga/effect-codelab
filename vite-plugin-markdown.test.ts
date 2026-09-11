@@ -4,10 +4,10 @@ import { render } from './vite-plugin-markdown.ts'
 const chapter = (frontmatter: string) =>
   `---\n${frontmatter}\n---\n\nBody.\n`
 
-test('a _track.md renders as a track, keyed by its folder name', async () => {
+test('an index.md renders as a track, keyed by its folder name', async () => {
   const { meta } = await render(
     chapter('title: Mental Model\norder: 1\nsummary: s\nicon: Brain\nprereq: none'),
-    '/content/mental-model/_track.md',
+    '/content/mental-model/index.md',
   )
 
   expect(meta).toMatchObject({
@@ -57,7 +57,7 @@ test('a track carries its theme and level', async () => {
     chapter(
       'title: T\norder: 1\ntheme: foundations\nlevel: intermediate\nsummary: s',
     ),
-    '/content/mental-model/_track.md',
+    '/content/mental-model/index.md',
   )
 
   expect(meta).toMatchObject({ theme: 'foundations', level: 'intermediate' })
@@ -66,7 +66,7 @@ test('a track carries its theme and level', async () => {
 test('level falls back to beginner rather than passing a typo through', async () => {
   const { meta } = await render(
     chapter('title: T\norder: 1\nlevel: expert\nsummary: s'),
-    '/content/mental-model/_track.md',
+    '/content/mental-model/index.md',
   )
 
   expect(meta).toMatchObject({ level: 'beginner' })

@@ -38,7 +38,7 @@ referential transparency.
 
 ## How content is organised
 
-`content/` holds one folder per track, and every folder holds a `_track.md`
+`content/` holds one folder per track, and every folder holds an `index.md`
 describing it plus one `.md` per chapter. A loose `.md` at the top of
 `content/` is an error.
 
@@ -75,7 +75,7 @@ with an `order: 1`. `slug` is optional, and when present must match the
 filename without the extension. Add `draft: true` for an outline with no prose
 yet: it is badged in the sidebar and exempt from the runnable-snippet rule.
 
-A `_track.md` needs seven, and takes its slug from the folder name.
+An `index.md` needs seven, and takes its slug from the folder name.
 
 ```yaml
 ---
@@ -249,7 +249,7 @@ the file.
 
 ## Adding a track
 
-Make a folder under `content/` and put a `_track.md` in it. The folder name is
+Make a folder under `content/` and put an `index.md` in it. The folder name is
 the URL. Pick a `theme` from `themes.json` and an `order` among the tracks
 already in that theme.
 

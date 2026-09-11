@@ -51,16 +51,16 @@ async function check(files: Record<string, string>) {
   }
 }
 
-test('a track folder without a _track.md is rejected', async () => {
+test('a track folder without an index.md is rejected', async () => {
   const { ok, stderr } = await check({ 't1/01-x.md': chapter(1) })
 
   expect(ok).toBe(false)
-  expect(stderr).toContain('missing _track.md')
+  expect(stderr).toContain('missing index.md')
 })
 
 test('two chapters in one track cannot share an order', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(1),
     't1/02-y.md': chapter(1),
   })
@@ -71,9 +71,9 @@ test('two chapters in one track cannot share an order', async () => {
 
 test('two tracks may each open with an 01', async () => {
   const { ok } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(1),
-    't2/_track.md': track('T2', 2),
+    't2/index.md': track('T2', 2),
     't2/01-x.md': chapter(1),
   })
 
@@ -82,9 +82,9 @@ test('two tracks may each open with an 01', async () => {
 
 test('two tracks in one theme cannot share an order', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1, 'foundations'),
+    't1/index.md': track('T1', 1, 'foundations'),
     't1/01-x.md': chapter(1),
-    't2/_track.md': track('T2', 1, 'foundations'),
+    't2/index.md': track('T2', 1, 'foundations'),
     't2/01-x.md': chapter(1),
   })
 
@@ -94,9 +94,9 @@ test('two tracks in one theme cannot share an order', async () => {
 
 test('two tracks in different themes may share an order', async () => {
   const { ok } = await check({
-    't1/_track.md': track('T1', 1, 'foundations'),
+    't1/index.md': track('T1', 1, 'foundations'),
     't1/01-x.md': chapter(1),
-    't2/_track.md': track('T2', 1, 'applications'),
+    't2/index.md': track('T2', 1, 'applications'),
     't2/01-x.md': chapter(1),
   })
 
@@ -105,7 +105,7 @@ test('two tracks in different themes may share an order', async () => {
 
 test('a chapter with no compiled snippet is rejected', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(1, '', 'Prose only.'),
   })
 
@@ -115,7 +115,7 @@ test('a chapter with no compiled snippet is rejected', async () => {
 
 test('a draft is exempt from needing a snippet', async () => {
   const { ok } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(1, 'draft: true\n', 'Prose only.'),
   })
 
@@ -124,7 +124,7 @@ test('a draft is exempt from needing a snippet', async () => {
 
 test('a chapter loose at the top of content/ is rejected', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(1),
     'loose.md': chapter(1),
   })
@@ -135,7 +135,7 @@ test('a chapter loose at the top of content/ is rejected', async () => {
 
 test('an em dash is rejected, draft or not', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(1, 'draft: true\n', 'Effect is lazy — nothing runs.'),
   })
 
@@ -145,7 +145,7 @@ test('an em dash is rejected, draft or not', async () => {
 
 test('a frontmatter slug that disagrees with the filename is rejected', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(1, 'slug: renamed\n'),
   })
 
@@ -155,17 +155,17 @@ test('a frontmatter slug that disagrees with the filename is rejected', async ()
 
 test('a track naming a theme themes.json does not list is rejected', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1, 'foundatoins'),
+    't1/index.md': track('T1', 1, 'foundatoins'),
     't1/01-x.md': chapter(1),
   })
 
   expect(ok).toBe(false)
-  expect(stderr).toContain('t1/_track.md: theme "foundatoins" is not in themes.json')
+  expect(stderr).toContain('t1/index.md: theme "foundatoins" is not in themes.json')
 })
 
 test('a level outside the allowed set is rejected', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1, 'foundations', 'advanced'),
+    't1/index.md': track('T1', 1, 'foundations', 'advanced'),
     't1/01-x.md': chapter(1),
   })
 
@@ -175,9 +175,9 @@ test('a level outside the allowed set is rejected', async () => {
 
 test('the run output names each theme and the tracks under it', async () => {
   const { ok, stdout } = await check({
-    't1/_track.md': track('T1', 1, 'foundations'),
+    't1/index.md': track('T1', 1, 'foundations'),
     't1/01-x.md': chapter(1),
-    't2/_track.md': track('T2', 1, 'applications'),
+    't2/index.md': track('T2', 1, 'applications'),
     't2/01-x.md': chapter(1),
   })
 
@@ -189,7 +189,7 @@ test('the run output names each theme and the tracks under it', async () => {
 
 test('a chapter linking to a page that does not exist is rejected', async () => {
   const { ok, stderr } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(
       1,
       '',
@@ -203,13 +203,13 @@ test('a chapter linking to a page that does not exist is rejected', async () => 
 
 test('a chapter linking to another track resolves', async () => {
   const { ok } = await check({
-    't1/_track.md': track('T1', 1),
+    't1/index.md': track('T1', 1),
     't1/01-x.md': chapter(
       1,
       '',
       'See [there](/learn/t2/01-y).\n\n```ts twoslash\nconst a = 1\n```',
     ),
-    't2/_track.md': track('T2', 2),
+    't2/index.md': track('T2', 2),
     't2/01-y.md': chapter(1),
   })
 
