@@ -1,0 +1,16 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+# .env is committed on purpose: it holds a public base URL that ships inside
+# the bundle anyway. Anything that must stay private goes in .env.local.
+.env.local
+.env.*.local
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+todos.json
