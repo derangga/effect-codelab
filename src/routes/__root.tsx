@@ -1,5 +1,5 @@
 import { TanStackDevtools } from '@tanstack/react-devtools'
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet, useMatchRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 
 import { AppSidebar } from '@/components/app-sidebar'
@@ -18,12 +18,16 @@ export const Route = createRootRoute({
 })
 
 function RootComponent() {
+  // The home page is the catalog, so it is its own navigation. A sidebar there
+  // would only repeat what the page already lists.
+  const isHome = !!useMatchRoute()({ to: '/' })
+
   return (
     <SidebarProvider>
-      <AppSidebar />
+      {isHome ? null : <AppSidebar />}
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur">
-          <SidebarTrigger />
+          {isHome ? null : <SidebarTrigger />}
           <div className="ml-auto">
             <ThemeToggle />
           </div>

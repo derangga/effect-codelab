@@ -36,7 +36,36 @@ test('the home page offers all four tracks', async () => {
     expect(html).toContain(`/learn/${track}`)
   }
   expect(text).toContain('Mental Model')
-  expect(text).toContain('Assumes the Basic Effect track')
+  // The hero opens the first track and points at the demo.
+  expect(text).toContain('Start with Mental Model')
+  expect(html).toContain('/demo')
+})
+
+test('the home page groups its tracks under theme headings', async () => {
+  const { text } = await render('/')
+
+  expect(text).toContain('Foundations')
+  expect(text).toContain('Building applications')
+  // Foundations is listed first, as themes.json orders it.
+  expect(text.indexOf('Foundations')).toBeLessThan(
+    text.indexOf('Building applications'),
+  )
+})
+
+test('a track card carries a level and a reading time', async () => {
+  const { text } = await render('/')
+
+  expect(text).toMatch(/Basic Effect .*beginner \d+ min/)
+  // The prereq belongs on the track page, not on the card.
+  expect(text).not.toContain('Assumes the Basic Effect track')
+})
+
+test('the home page carries no sidebar, every other page does', async () => {
+  const home = await render('/')
+  const chapter = await render('/learn/basic-effect/01-why-effect')
+
+  expect(home.text).not.toContain('All tracks')
+  expect(chapter.text).toContain('All tracks')
 })
 
 test('a track page lists its chapters', async () => {
