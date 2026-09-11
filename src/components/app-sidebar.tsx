@@ -1,13 +1,6 @@
 import { Link, useMatchRoute, useParams } from '@tanstack/react-router'
-import { ChevronsUpDown, FlaskConical, LayoutGrid } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { TrackIcon } from '@/components/track-icon'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -19,65 +12,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import { trackBySlug, tracks } from '@/content'
-
-function TrackSwitcher({ current }: { current?: string }) {
-  const track = current ? trackBySlug(current) : undefined
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <SidebarMenuButton size="lg">
-            {track ? (
-              <TrackIcon name={track.meta.icon} className="size-4 shrink-0" />
-            ) : (
-              <LayoutGrid className="size-4 shrink-0" />
-            )}
-            <span className="grid flex-1 text-left leading-tight">
-              <span className="truncate font-medium">
-                {track?.meta.title ?? 'Learning Effect'}
-              </span>
-              <span className="text-muted-foreground truncate text-xs">
-                {track
-                  ? `${track.chapters.length} page${track.chapters.length === 1 ? '' : 's'}`
-                  : `${tracks.length} tracks`}
-              </span>
-            </span>
-            <ChevronsUpDown className="ml-auto size-4 shrink-0" />
-          </SidebarMenuButton>
-        }
-      />
-      <DropdownMenuContent className="w-(--anchor-width) min-w-56">
-        {tracks.map(({ meta }) => (
-          <DropdownMenuItem
-            key={meta.slug}
-            render={
-              <Link to="/learn/$track" params={{ track: meta.slug }}>
-                <TrackIcon name={meta.icon} className="size-4 shrink-0" />
-                <span className="truncate">{meta.title}</span>
-              </Link>
-            }
-          />
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          render={
-            <Link to="/">
-              <LayoutGrid className="size-4 shrink-0" />
-              <span>All tracks</span>
-            </Link>
-          }
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
+import { trackBySlug } from '@/content'
 
 export function AppSidebar() {
   const matchRoute = useMatchRoute()
-  // The sidebar renders above the route, so the track is read loosely: on /
-  // and /demo there is no track, and the switcher says so instead of guessing.
+  // The sidebar renders above the route, so the track is read loosely: on
+  // /demo there is no track, and all that is left is the way back out.
   const { track: current } = useParams({ strict: false })
   const track = current ? trackBySlug(current) : undefined
 
@@ -86,18 +26,44 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <TrackSwitcher current={current} />
+            <SidebarMenuButton
+              render={
+                <Link to="/">
+                  <ChevronLeft className="size-4 shrink-0" />
+                  <span className="truncate">All tracks</span>
+                </Link>
+              }
+            />
           </SidebarMenuItem>
+          {track ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="lg"
+                render={
+                  <Link to="/learn/$track" params={{ track: track.meta.slug }}>
+                    <TrackIcon
+                      name={track.meta.icon}
+                      className="size-4 shrink-0"
+                    />
+                    <span className="grid flex-1 text-left leading-tight">
+                      <span className="truncate font-medium">
+                        {track.meta.title}
+                      </span>
+                      <span className="text-muted-foreground truncate text-xs">
+                        {`${track.chapters.length} page${track.chapters.length === 1 ? '' : 's'}`}
+                      </span>
+                    </span>
+                  </Link>
+                }
+              />
+            </SidebarMenuItem>
+          ) : null}
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
-        {track ? (
+      {track ? (
+        <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel>
-              <Link to="/learn/$track" params={{ track: track.meta.slug }}>
-                Overview
-              </Link>
-            </SidebarGroupLabel>
+            <SidebarGroupLabel>Chapters</SidebarGroupLabel>
             <SidebarMenu>
               {track.chapters.map(({ meta }) => (
                 <SidebarMenuItem key={meta.slug}>
@@ -127,45 +93,8 @@ export function AppSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroup>
-        ) : (
-          <SidebarGroup>
-            <SidebarGroupLabel>Tracks</SidebarGroupLabel>
-            <SidebarMenu>
-              {tracks.map(({ meta }) => (
-                <SidebarMenuItem key={meta.slug}>
-                  <SidebarMenuButton
-                    render={
-                      <Link to="/learn/$track" params={{ track: meta.slug }}>
-                        <TrackIcon name={meta.icon} className="size-4" />
-                        <span className="truncate">{meta.title}</span>
-                      </Link>
-                    }
-                  />
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        )}
-
-        {/* Pinned outside the chapter list, so the demo stays one click away
-            from every track rather than belonging to one of them. */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Try it</SidebarGroupLabel>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                isActive={!!matchRoute({ to: '/demo' })}
-                render={
-                  <Link to="/demo">
-                    <FlaskConical className="size-4" />
-                    <span className="truncate">Live demo</span>
-                  </Link>
-                }
-              />
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
-      </SidebarContent>
+        </SidebarContent>
+      ) : null}
     </Sidebar>
   )
 }

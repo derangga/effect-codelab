@@ -100,24 +100,29 @@ test('the sidebar lists only the track being read', async () => {
   expect(html).toContain('/learn/anti-patterns/05-testing-and-retries')
   // Another track's chapters are not, which is the whole point of scoping it.
   expect(html).not.toContain('/learn/basic-effect/01-why-effect')
-  // The switcher is present. Its menu items are portalled in on open, so
-  // server markup carries the trigger rather than the other tracks' links.
-  expect(html).toContain('aria-haspopup="menu"')
-  // A link up to the track's own page, and the demo pinned outside the list.
+  // A way back out to the catalog, and up to the track's own page.
   expect(html).toContain('/learn/anti-patterns"')
-  expect(html).toContain('/demo')
-  expect(text).toContain('Live demo')
+  expect(text).toContain('All tracks')
 })
 
-test('the switcher names the track and its size', async () => {
+test('the sidebar header names the track and its size', async () => {
   const { text } = await render('/learn/basic-effect/01-why-effect')
 
   expect(text).toContain('Basic Effect 10 pages')
 })
 
-test('off a track, the sidebar offers the tracks instead of chapters', async () => {
-  const { html, text } = await render('/')
+test('nothing in the sidebar grows with the number of tracks', async () => {
+  const { html } = await render('/learn/basic-effect/01-why-effect')
 
-  expect(text).toContain('Learning Effect 4 tracks')
-  expect(html).not.toContain('/learn/basic-effect/01-why-effect')
+  // Every other track's page would be listed by a switcher. None are.
+  for (const track of ['mental-model', 'anti-patterns', 'fullstack-monorepo']) {
+    expect(html).not.toContain(`/learn/${track}`)
+  }
+})
+
+test('off a track the sidebar is just the way back', async () => {
+  const { html, text } = await render('/demo')
+
+  expect(text).toContain('All tracks')
+  expect(html).not.toContain('/learn/')
 })
