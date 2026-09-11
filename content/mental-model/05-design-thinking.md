@@ -1,8 +1,7 @@
 ---
 title: Design Thinking
-order: 12
-group: bonus
-slug: 12-design-thinking
+order: 5
+slug: 05-design-thinking
 summary: A way to design a program before you write it, by drawing what flows, what breaks, and what each step needs.
 ---
 
