@@ -1,9 +1,11 @@
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import type { MDXComponents } from 'mdx/types';
+import { Mermaid } from './mermaid';
 
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
+    Mermaid,
     // A type reveal carries its own <pre>. Rendering it through CodeBlock
     // would nest a bordered figure and a second copy button inside the
     // reveal, so those render bare.

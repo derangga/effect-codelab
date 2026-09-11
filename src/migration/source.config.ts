@@ -18,6 +18,44 @@ const twoslashCompilerOptions: ts.CompilerOptions = {
   types: ['vite/client'],
 };
 
+// Mermaid strips anything that looks like a tag from a label, so a label like
+// Effect<A, E, R> renders as "Effect". Its own escape is a numeric entity.
+// Rewrite only inside quoted labels, because the > in an arrow like --> must
+// survive.
+function escapeMermaidLabels(source: string) {
+  return source.replace(
+    /"([^"]*)"/g,
+    (_, label: string) =>
+      `"${label.replaceAll('<', '#60;').replaceAll('>', '#62;')}"`,
+  );
+}
+
+// rehypeCode is always the first rehype plugin, so a mermaid fence would be
+// syntax highlighted before any rehype pass of ours could claim it. Taking it
+// at the remark stage gets there first.
+function remarkMermaid() {
+  const walk = (node: any) => {
+    if (!Array.isArray(node.children)) return;
+    node.children.forEach((child: any, i: number) => {
+      if (child.type === 'code' && child.lang === 'mermaid') {
+        node.children[i] = {
+          type: 'mdxJsxFlowElement',
+          name: 'Mermaid',
+          attributes: [
+            {
+              type: 'mdxJsxAttribute',
+              name: 'chart',
+              value: escapeMermaidLabels(child.value),
+            },
+          ],
+          children: [],
+        };
+      } else walk(child);
+    });
+  };
+  return (tree: any) => walk(tree);
+}
+
 // Twoslash renders a type reveal as its own <pre> inside the popup. Fumadocs
 // maps every <pre> to a CodeBlock, which would put a bordered figure and a
 // copy button inside the reveal. Mark those so the MDX `pre` component can
@@ -39,6 +77,7 @@ function rehypeMarkTwoslashPopups() {
 
 export default defineConfig({
   mdxOptions: {
+    remarkPlugins: (v) => [...v, remarkMermaid],
     rehypePlugins: (v) => [...v, rehypeMarkTwoslashPopups],
     rehypeCodeOptions: {
       themes: { light: 'github-light', dark: 'github-dark' },
