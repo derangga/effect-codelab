@@ -181,3 +181,20 @@ test('a finished chapter carries no draft banner', async () => {
 
   expect(text).not.toContain('This page is an outline')
 })
+
+test('a chapter renders a table of contents from its headings', async () => {
+  const { html, text } = await render('/learn/basic-effect/02-three-channels')
+
+  expect(text).toContain('On this page')
+  // The plugin already collected these; the rail is what finally shows them.
+  expect(html).toContain('href="#a-is-what-you-get"')
+  expect(html).toContain('href="#r-is-what-it-needs"')
+  // Hidden below xl, so the prose column is unaffected on a narrow screen.
+  expect(html).toMatch(/class="[^"]*hidden[^"]*xl:block/)
+})
+
+test('the prose column keeps its width beside the rail', async () => {
+  const { html } = await render('/learn/basic-effect/02-three-channels')
+
+  expect(html).toContain('<article class="w-full max-w-3xl px-6 py-10">')
+})
