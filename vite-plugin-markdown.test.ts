@@ -89,3 +89,23 @@ test('reading time counts code by the line, not as prose', async () => {
   // prose would have rounded to one.
   expect(minutes).toBeGreaterThan(3)
 })
+
+test('a type reveal nests its own pre inside a popup container', async () => {
+  // chapter-content.tsx skips pre.shiki inside .twoslash-popup-container, so a
+  // `^?` block does not get a Copy button covering the type it is revealing.
+  // If a twoslash upgrade renames that class, the guard silently stops
+  // matching and the button comes back. This is what fails first.
+  const source = `---\ntitle: T\norder: 1\nsummary: s\n---\n\n\`\`\`ts twoslash
+import { Effect } from 'effect'
+
+const config = Effect.succeed({ retries: 3 })
+//    ^?
+\`\`\`\n`
+
+  const { html } = await render(source, '/content/t/01-x.md')
+
+  expect(html).toContain('twoslash-popup-container')
+  // The reveal really does carry a nested pre, which is why the guard exists.
+  const popup = html.slice(html.indexOf('twoslash-popup-container'))
+  expect(popup).toContain('<pre class="shiki')
+})

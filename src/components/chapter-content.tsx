@@ -26,6 +26,11 @@ function addCopyButtons(root: HTMLElement) {
   for (const pre of root.querySelectorAll('pre.shiki')) {
     if (!(pre instanceof HTMLElement)) continue
 
+    // A `^?` type reveal renders its own highlighted pre inside the popup.
+    // That is a caption on the line above, not something a reader copies, and
+    // a button there covers the type it is captioning.
+    if (pre.closest('.twoslash-popup-container')) continue
+
     // The button lives on a wrapper, not inside the pre. The pre is the
     // scrolling box, so a button inside it slides away with the code.
     const wrapper = document.createElement('div')
