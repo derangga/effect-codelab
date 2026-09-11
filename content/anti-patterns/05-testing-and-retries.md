@@ -7,7 +7,8 @@ summary: A test that only tests its own stub, and a retry policy that is not a p
 
 ## Tests that only test the stub
 
-From chapter ten. The test passes, and it proves nothing.
+From [Testing](/learn/basic-effect/10-testing). The test passes, and it proves
+nothing.
 
 ```ts twoslash
 import { Context, Effect, Layer, Schema } from 'effect'
@@ -40,7 +41,8 @@ request itself, the URL or the headers, a stub cannot answer it, so use MSW.
 
 ## Retrying because retrying sounds good
 
-From chapter nine. Three versions of the same misunderstanding.
+From [The Capstone](/learn/basic-effect/09-capstone). Three versions of the
+same misunderstanding.
 
 ```ts twoslash
 import { Effect, Schedule } from 'effect'

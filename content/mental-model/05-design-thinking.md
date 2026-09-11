@@ -5,15 +5,15 @@ slug: 05-design-thinking
 summary: A way to design a program before you write it, by drawing what flows, what breaks, and what each step needs.
 ---
 
-This chapter is bonus reading, and it is deliberately last. The course taught
-you what the three channels are. This is about deciding what to put in them,
-before any code exists.
+This page assumes you have read [Basic Effect](/learn/basic-effect). It is
+about deciding what to put in the three channels before any code exists, and
+every example is something that track built.
 
 It is adapted, with thanks, from
 [Design Thinking](https://gist.github.com/r17x/90eb2f7be93932b5693753aedb09c01a)
 by [r17x](https://github.com/r17x). The ideas and the order of the steps are
-theirs. The plainer language and the examples from this course were added here,
-along with any mistakes that came with them. The original is shorter and
+theirs. The plainer language and the examples from Basic Effect were added
+here, along with any mistakes that came with them. The original is shorter and
 sharper, and covers designing user interfaces as well, so read that too.
 
 ## The one sentence version
@@ -33,7 +33,8 @@ flowchart LR
   D --> E["decode with schema"]
 ```
 
-That is the capstone service from chapter nine, drawn before it was written.
+That is the capstone service from
+[The Capstone](/learn/basic-effect/09-capstone), drawn before it was written.
 Everything below is a question you ask about that picture.
 
 ## 1. Name the things first
@@ -48,7 +49,8 @@ There are four kinds of things worth naming:
   wanted.
 - **Variants.** The states something can be in. Pending, active, cancelled. A
   step that is either "keep going" or "finished".
-- **Errors.** The named ways things go wrong, from chapter five. Not strings.
+- **Errors.** The named ways things go wrong, from
+  [Errors](/learn/basic-effect/05-errors). Not strings.
 
 Do this first and the rest of the design has words to use. Skip it and you will
 find yourself writing `any` and hoping.
@@ -69,11 +71,11 @@ picture is cheap to redraw. A program is not.
 Ask this of each step, because it decides which tool you reach for.
 
 - **One value.** The step runs, produces a result, done. That is an `Effect`,
-  and it is everything this course covered.
+  and it is everything Basic Effect covered.
 - **Many values over time.** The step keeps producing: a list of events, a
   subscription, pages pulled one after another. Effect has a `Stream` for this.
-  This course did not cover it, so treat this as a signpost rather than a
-  lesson. The three channels work the same way there.
+  Nothing on this site covers it yet, so treat this as a signpost rather than
+  a lesson. The three channels work the same way there.
 
 Mark it on the picture. A step that produces many values has a different shape
 from one that produces a single value, and finding that out after writing the
@@ -88,7 +90,8 @@ of three answers, and choosing is the whole job.
 - **Fall back.** The failure is expected and you have something else to offer.
   A cached value, a default, an empty list.
 - **Let it die.** This is not a normal failure. It means an assumption you made
-  is false, and the honest response is to crash and fix the code. Chapter five
+  is false, and the honest response is to crash and fix the code.
+  [Errors](/learn/basic-effect/05-errors)
   called this a defect.
 
 Everything in the first two groups belongs in `E` as a value. Errors travel
@@ -103,7 +106,8 @@ again", a 404 is not, and a decode failure never will be.
 For each box, ask: what must exist for this to work at all?
 
 A database connection, an HTTP client, the current time, a config value. Write
-it next to the box. That list is `R`, and chapter seven is how you say it in
+it next to the box. That list is `R`, and
+[Services](/learn/basic-effect/07-services) is how you say it in
 the type.
 
 The useful phrasing from the original is "we cannot do X if we don't have Y".
@@ -117,7 +121,8 @@ Find every place untrusted data enters the picture. An HTTP response, a form,
 a file, an environment variable, anything from a third party.
 
 Those are your boundaries, and they are the only places you check. Use a schema
-there, from chapter six, and inside the boundary trust the types completely.
+there, from [Schema](/learn/basic-effect/06-schema), and inside the boundary
+trust the types completely.
 
 The failure mode to avoid is checking a little bit everywhere: a `?.` here, a
 default there, a `typeof` check three layers in. That is the same work spread
@@ -151,7 +156,7 @@ sockets, child processes.
 
 Effect has `Scope` for this, so closing is a guarantee rather than a `finally`
 block somebody has to remember, and it holds even when the program fails or is
-interrupted partway. This course did not cover it, so again, a signpost. The
+interrupted partway. Nothing here covers it yet, so again, a signpost. The
 design question is the one to keep: which steps open something, and when should
 it close?
 
@@ -162,7 +167,8 @@ Here is the test of whether the design is any good.
 The picture must not change between production and a test. Same boxes, same
 arrows, same failures. The only difference is what sits behind `R`.
 
-Chapter ten is this step in practice. If a test needs a real server, or has to
+[Testing](/learn/basic-effect/10-testing) is this step in practice. If a test
+needs a real server, or has to
 patch a global, the design has a dependency it never admitted to. And if
 testing one box means faking the whole world, that box is doing too much.
 
@@ -171,7 +177,8 @@ testing one box means faking the whole world, that box is doing too much.
 The last step is the one that shows up in every file you write.
 
 `Effect.gen` is the picture. Each `yield*` is one box, in order, top to bottom.
-`.pipe` after it is the failure handling. Chapter four gave this as a style
+`.pipe` after it is the failure handling.
+[Effect.gen](/learn/basic-effect/04-effect-gen) gave this as a style
 tip. Here is the reason behind it: they are two different drawings, and mixing
 them means neither can be read.
 
@@ -253,10 +260,10 @@ once the shape is right.
 
 ## Why this is worth reading twice
 
-The first time through the course, these steps would have been abstract advice.
-Now every one of them has something concrete behind it: `isRetryable` is step
+Read before Basic Effect, these steps would have been abstract advice. After
+it, every one of them has something concrete behind it: `isRetryable` is step
 four, the `Fetcher` service is step nine, the schema at the boundary is step
 six.
 
-That is the reason this chapter is at the end rather than the beginning. You
-cannot design with tools you have not used.
+That is why this page asks for the other track first. You cannot design with
+tools you have not used.

@@ -186,3 +186,32 @@ test('the run output names each theme and the tracks under it', async () => {
   expect(stdout).toContain('== Building applications  (applications)')
   expect(stdout).toContain('2 theme(s), 2 track(s)')
 })
+
+test('a chapter linking to a page that does not exist is rejected', async () => {
+  const { ok, stderr } = await check({
+    't1/_track.md': track('T1', 1),
+    't1/01-x.md': chapter(
+      1,
+      '',
+      'See [gone](/learn/t1/99-gone).\n\n```ts twoslash\nconst a = 1\n```',
+    ),
+  })
+
+  expect(ok).toBe(false)
+  expect(stderr).toContain('links to /learn/t1/99-gone')
+})
+
+test('a chapter linking to another track resolves', async () => {
+  const { ok } = await check({
+    't1/_track.md': track('T1', 1),
+    't1/01-x.md': chapter(
+      1,
+      '',
+      'See [there](/learn/t2/01-y).\n\n```ts twoslash\nconst a = 1\n```',
+    ),
+    't2/_track.md': track('T2', 2),
+    't2/01-y.md': chapter(1),
+  })
+
+  expect(ok).toBe(true)
+})

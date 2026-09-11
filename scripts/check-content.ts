@@ -202,6 +202,18 @@ for (const track of trackDirs) {
 let chapterCount = 0
 let draftCount = 0
 
+// Chapters link across tracks now, so a link is a reference that can rot. Both
+// sides are collected here and matched at the end, which is what stops a
+// renamed chapter leaving a dead link in another track.
+const internalLinks: Array<{ label: string; href: string }> = []
+const pages = new Set<string>(['/', '/demo'])
+
+function collectLinks(source: string, label: string) {
+  for (const [, href] of source.matchAll(/\]\((\/[^)\s]*)\)/g)) {
+    internalLinks.push({ label, href })
+  }
+}
+
 // Read out in catalog order: themes as themes.json lists them, tracks ordered
 // within their theme. The run output then reads the way the home page does.
 const inCatalogOrder = themes.flatMap((theme) =>
@@ -213,6 +225,11 @@ const inCatalogOrder = themes.flatMap((theme) =>
 
 for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
   const trackDir = join(dir, track)
+  pages.add(`/learn/${track}`)
+  collectLinks(
+    await readFile(join(trackDir, '_track.md'), 'utf8'),
+    `${track}/_track.md`,
+  )
   if (first) console.log(`\n== ${theme.title}  (${theme.slug})`)
   console.log(
     `\n${trackMeta.title}  (${track}, ${trackMeta.theme} ${trackMeta.order}, ${trackMeta.level})`,
@@ -250,6 +267,8 @@ for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
     )
     seenSlugs.add(meta.slug)
     seenOrders.set(meta.order, label)
+    pages.add(`/learn/${track}/${meta.slug}`)
+    collectLinks(source, label)
 
     const headings = checkRendered(chapter, source, label)
 
@@ -270,6 +289,13 @@ for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
       `  ok  ${String(meta.order).padStart(2, '0')} ${file}  headings=${headings}  mermaid=${chapter.hasMermaid}${meta.draft ? '  DRAFT' : ''}`,
     )
   }
+}
+
+for (const { label, href } of internalLinks) {
+  assert.ok(
+    pages.has(href),
+    `${label}: links to ${href}, which is not a page on this site`,
+  )
 }
 
 const drafts = draftCount > 0 ? `, ${draftCount} of them draft` : ''

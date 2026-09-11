@@ -7,7 +7,8 @@ summary: A service for something that is not a dependency, and a layer rebuilt o
 
 ## A service for something that is not a dependency
 
-From chapter seven. Once services click, everything looks like one.
+From [Services](/learn/basic-effect/07-services). Once services click,
+everything looks like one.
 
 ```ts twoslash
 import { Context, Effect } from 'effect'
@@ -32,7 +33,8 @@ randomness, config, file system: yes. Formatting a number: no.
 
 ## Rebuilding the layer on every call
 
-From chapter eight. This one is easy to write and hard to notice, because the
+From [Layers and Config](/learn/basic-effect/08-layers-and-config). This one
+is easy to write and hard to notice, because the
 program is correct, only wasteful.
 
 ```ts twoslash

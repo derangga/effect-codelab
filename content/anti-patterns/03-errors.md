@@ -7,8 +7,8 @@ summary: One error type for everything, and catching everything too early. Both 
 
 ## One error type with a message inside
 
-From chapter five. This looks tidy and it costs you everything the chapter was
-about.
+From [Errors](/learn/basic-effect/05-errors). This looks tidy and it costs you
+everything that chapter was about.
 
 ```ts twoslash
 import { Schema } from 'effect'
@@ -23,14 +23,17 @@ and the compiler cannot tell you which cases you have handled. Sooner or later
 somebody writes `if (error.message.includes('404'))`, and that is string
 matching on prose.
 
-The test is chapter nine's retry function. If you cannot write "retry this one,
-not that one" without reading a string, your errors are not separate enough.
+The test is the retry function from
+[The Capstone](/learn/basic-effect/09-capstone). If you cannot write "retry
+this one, not that one" without reading a string, your errors are not separate
+enough.
 
 Give each failure its own tag and the fields a handler needs.
 
 ## Catching everything, too early
 
-From chapter five. `Effect.catch` at the bottom of a helper is the same mistake
+From [Errors](/learn/basic-effect/05-errors). `Effect.catch` at the bottom of
+a helper is the same mistake
 as a bare `catch {}` in ordinary code.
 
 ```ts twoslash

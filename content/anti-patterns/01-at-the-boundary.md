@@ -7,8 +7,8 @@ summary: Running early, promising code cannot throw, and casting untrusted data.
 
 ## Running the program too early
 
-From chapter one. The whole idea is that an Effect is a description, and this
-throws that away on the first line.
+From [Why Effect](/learn/basic-effect/01-why-effect). The whole idea is that
+an Effect is a description, and this throws that away on the first line.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -49,7 +49,8 @@ wrong.
 
 ## Promising that code cannot throw
 
-From chapter three. `Effect.sync` and `Effect.promise` are promises you make to
+From [Building Effects](/learn/basic-effect/03-building-effects).
+`Effect.sync` and `Effect.promise` are promises you make to
 the compiler, and it believes you.
 
 ```ts twoslash
@@ -85,7 +86,8 @@ const parse = (raw: string) =>
 
 ## Casting at the border
 
-From chapter six. This is the habit the whole chapter exists to break.
+From [Schema](/learn/basic-effect/06-schema). This is the habit that whole
+chapter exists to break.
 
 ```ts twoslash
 declare const response: Response

@@ -1,3 +1,4 @@
+import { useRouter } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 
 /** Watch the html element for the dark class, so mermaid can re-theme. */
@@ -91,6 +92,37 @@ function drawMermaid(root: HTMLElement, dark: boolean) {
   }
 }
 
+/**
+ * Chapters link to each other across tracks, and this markup is written by
+ * innerHTML rather than by the router, so those anchors would otherwise reload
+ * the whole app. Modified clicks and anything with a target are left alone, so
+ * open-in-new-tab still works.
+ */
+function useInternalLinks(ref: React.RefObject<HTMLDivElement | null>) {
+  const router = useRouter()
+
+  useEffect(() => {
+    const root = ref.current
+    if (!root) return
+
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0) return
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+        return
+
+      const anchor = (event.target as Element | null)?.closest('a')
+      const href = anchor?.getAttribute('href')
+      if (!href?.startsWith('/') || anchor?.target) return
+
+      event.preventDefault()
+      void router.navigate({ to: href })
+    }
+
+    root.addEventListener('click', onClick)
+    return () => root.removeEventListener('click', onClick)
+  }, [ref, router])
+}
+
 export function ChapterContent({
   html,
   hasMermaid,
@@ -100,6 +132,8 @@ export function ChapterContent({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const dark = useIsDark()
+
+  useInternalLinks(ref)
 
   /**
    * The markup is written here rather than with dangerouslySetInnerHTML, and

@@ -236,11 +236,11 @@ which failures retry, what the schema rejects, what happens when config is
 missing, which branch a caller takes. Those are decisions a person made, and a
 person can change them by accident.
 
-Everything the types already guarantee is not worth a test, and this course
+Everything the types already guarantee is not worth a test, and this track
 spent nine chapters moving as much as possible into that category.
 
 ## Next
 
-Chapter eleven is the last one, and it is the shortest to use: the mistakes
-this course has now made possible, each one paired with the chapter it comes
-from and the fix.
+That is the whole track. The shortest thing to read next is
+[Anti-patterns](/learn/anti-patterns): the mistakes these ten chapters have now
+made possible, each one paired with the chapter it comes from and the fix.
