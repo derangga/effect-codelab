@@ -76,6 +76,23 @@ test('a track page lists its chapters', async () => {
   expect(html).toContain('/learn/basic-effect/10-testing')
 })
 
+test('a track page carries the level, the prereq and the total time', async () => {
+  const { text } = await render('/learn/anti-patterns')
+
+  expect(text).toContain('intermediate')
+  expect(text).toContain('Assumes the Basic Effect track')
+  expect(text).toMatch(/\d+ min in total/)
+  // The theme it sits under, as a way back to the catalog.
+  expect(text).toContain('Foundations')
+})
+
+test('every chapter row on a track page carries its own time', async () => {
+  const { text } = await render('/learn/basic-effect')
+
+  const rows = text.match(/\d+ min(?! in total)/g) ?? []
+  expect(rows.length).toBe(10)
+})
+
 test('an empty track says so rather than rendering a bare list', async () => {
   const { text } = await render('/learn/fullstack-monorepo')
 

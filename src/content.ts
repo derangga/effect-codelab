@@ -78,6 +78,13 @@ export const tracks: Array<Track> = [
     .sort(byOrder),
 ]
 
+/**
+ * The theme a track sits under. Undefined only when the track names a theme
+ * themes.json does not list, which check:content rejects.
+ */
+export const themeOf = (track: Track) =>
+  themes.find((theme) => theme.slug === track.meta.theme)
+
 export const trackBySlug = (track: string) =>
   tracks.find((t) => t.meta.slug === track)
 
