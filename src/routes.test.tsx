@@ -45,9 +45,6 @@ test('a track page lists its chapters', async () => {
   expect(text).toContain('Basic Effect')
   expect(html).toContain('/learn/basic-effect/01-why-effect')
   expect(html).toContain('/learn/basic-effect/10-testing')
-  // That a chapter belongs to exactly one track is asserted against the
-  // content model in src/content.test.ts. Asserting it on rendered markup
-  // would also be reading the sidebar, which is not this page's business.
 })
 
 test('an empty track says so rather than rendering a bare list', async () => {
@@ -93,4 +90,34 @@ test('an unknown track is not found', async () => {
   const { text } = await render('/learn/nope')
 
   expect(text).toContain('No such track')
+})
+
+test('the sidebar lists only the track being read', async () => {
+  const { html, text } = await render('/learn/anti-patterns/03-errors')
+
+  // Its own chapters are there.
+  expect(html).toContain('/learn/anti-patterns/01-at-the-boundary')
+  expect(html).toContain('/learn/anti-patterns/05-testing-and-retries')
+  // Another track's chapters are not, which is the whole point of scoping it.
+  expect(html).not.toContain('/learn/basic-effect/01-why-effect')
+  // The switcher is present. Its menu items are portalled in on open, so
+  // server markup carries the trigger rather than the other tracks' links.
+  expect(html).toContain('aria-haspopup="menu"')
+  // A link up to the track's own page, and the demo pinned outside the list.
+  expect(html).toContain('/learn/anti-patterns"')
+  expect(html).toContain('/demo')
+  expect(text).toContain('Live demo')
+})
+
+test('the switcher names the track and its size', async () => {
+  const { text } = await render('/learn/basic-effect/01-why-effect')
+
+  expect(text).toContain('Basic Effect 10 pages')
+})
+
+test('off a track, the sidebar offers the tracks instead of chapters', async () => {
+  const { html, text } = await render('/')
+
+  expect(text).toContain('Learning Effect 4 tracks')
+  expect(html).not.toContain('/learn/basic-effect/01-why-effect')
 })
