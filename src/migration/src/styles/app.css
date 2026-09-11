@@ -3,6 +3,16 @@
 @import 'fumadocs-ui/css/preset.css';
 @import '@shikijs/twoslash/style-rich.css';
 
+/* The twoslash stylesheet hard-codes a light popup on :root and ships no dark
+   variant, so a type reveal renders as a white box on a dark page. Pointing
+   its variables at the Fumadocs tokens themes it in both directions, and this
+   block sits after the import so it wins on equal specificity. */
+:root {
+  --twoslash-popup-bg: var(--color-fd-card);
+  --twoslash-popup-color: var(--color-fd-card-foreground);
+  --twoslash-border-color: var(--color-fd-border);
+}
+
 html {
   scrollbar-gutter: stable;
 }

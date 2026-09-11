@@ -53,5 +53,10 @@ export function Mermaid({ chart }: { chart: string }) {
     };
   }, [chart, dark, id]);
 
-  return <div ref={ref} className="my-6 flex justify-center" />;
+  return (
+    <div
+      ref={ref}
+      className="my-6 flex justify-center overflow-x-auto rounded-lg border p-6"
+    />
+  );
 }
