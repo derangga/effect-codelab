@@ -17,6 +17,23 @@ database.
 The tagged template for queries, and what it does about escaping. Note that it
 is a service, so a handler asking for it says so in `R`.
 
+The driver is the only new dependency the track needs, and it builds a layer
+providing `SqlClient` to everything above it:
+
+```ts twoslash
+import { Schema } from 'effect'
+import { SqliteClient } from '@effect/sql-sqlite-bun'
+
+const Todo = Schema.Struct({
+  id: Schema.Number,
+  title: Schema.String,
+  done: Schema.Boolean,
+})
+
+const SqliteLive = SqliteClient.layer({ filename: 'todos.db' })
+//    ^?
+```
+
 ## Rows are foreign data
 
 A row is `unknown` until something checks it. `SqlSchema` decodes it into the

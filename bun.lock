@@ -22,6 +22,7 @@
       },
       "devDependencies": {
         "@biomejs/biome": "2.4.5",
+        "@effect/sql-sqlite-bun": "4.0.0-rc.113",
         "@shikijs/rehype": "4.4.3",
         "@shikijs/twoslash": "4.4.3",
         "@tanstack/devtools-vite": "0.8.3",
@@ -112,6 +113,8 @@
     "@braintree/sanitize-url": ["@braintree/sanitize-url@7.1.2", "", {}, "sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA=="],
 
     "@chevrotain/types": ["@chevrotain/types@11.1.2", "", {}, "sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw=="],
+
+    "@effect/sql-sqlite-bun": ["@effect/sql-sqlite-bun@4.0.0-rc.113", "", { "peerDependencies": { "effect": "^4.0.0-rc.113" } }, "sha512-gh3k27MMq/MDqPqpQYoNw1BgXgPIxZtQQsF9W321Ml20lbIzEBdOA6LgEEbA1sX7wy8/710bDBgXvDcm27ioAA=="],
 
     "@emnapi/core": ["@emnapi/core@1.11.3", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.3", "tslib": "^2.4.0" } }, "sha512-zLpS5asjEb7lq8jYLq37N6XKaE41DIexlY1rF/z4/tIl3wo13Sqm28fRyfIsKZD+NZ8mM5RoKkpW/rBcuoSZSg=="],
 

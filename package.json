@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.5",
+    "@effect/sql-sqlite-bun": "4.0.0-rc.113",
     "@shikijs/rehype": "4.4.3",
     "@shikijs/twoslash": "4.4.3",
     "@tanstack/devtools-vite": "0.8.3",
