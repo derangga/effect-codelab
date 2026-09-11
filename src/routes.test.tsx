@@ -172,3 +172,18 @@ test('off a track the sidebar is just the way back', async () => {
   expect(text).toContain('All tracks')
   expect(html).not.toContain('/learn/')
 })
+
+test('a draft chapter is badged in the sidebar and banners itself', async () => {
+  const { text } = await render('/learn/mental-model/01-you-describe')
+
+  // Neither of these code paths had a draft to render until Mental Model got
+  // its stubs, so the test is what proves they work at all.
+  expect(text).toContain('Draft')
+  expect(text).toContain('This page is an outline')
+})
+
+test('a finished chapter carries no draft banner', async () => {
+  const { text } = await render('/learn/mental-model/05-design-thinking')
+
+  expect(text).not.toContain('This page is an outline')
+})
