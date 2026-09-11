@@ -2,7 +2,7 @@
 title: Chapter title
 order: 0
 slug: 00-chapter-slug
-summary: One sentence, shown in the sidebar and on the home page.
+summary: One sentence, shown on the track page.
 ---
 
 Open with the problem. Two or three sentences on what is annoying or unsafe

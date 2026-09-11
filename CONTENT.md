@@ -36,21 +36,69 @@ service, layer, fiber, defect, schedule. Words to avoid entirely unless the
 chapter is about them: monad, bind, functor, higher kinded, variance,
 referential transparency.
 
+## How content is organised
+
+`content/` holds one folder per track, and every folder holds a `_track.md`
+describing it plus one `.md` per chapter. A loose `.md` at the top of
+`content/` is an error.
+
+Tracks are grouped into themes, and `content/themes.json` is the list of them.
+It decides both which themes the home page shows and what order they appear
+in:
+
+```json
+[
+  { "slug": "foundations", "title": "Foundations" },
+  { "slug": "applications", "title": "Building applications" }
+]
+```
+
+A track naming a theme that is not in this list fails `check:content`, because
+the home page renders by theme and the track would otherwise be reachable only
+by typing its URL.
+
 ## Frontmatter
 
-Every file in `content/` needs all four fields.
+A chapter needs four fields.
 
 ```yaml
 ---
 title: Errors
 order: 5
 slug: 05-errors
-summary: One sentence, shown in the sidebar and on the home page.
+summary: One sentence, shown on the track page.
 ---
 ```
 
-`order` sets the reading order and must be unique. `slug` is the URL and must
-match the filename without the extension.
+`order` sequences the chapter within its track, and two tracks may both open
+with an `order: 1`. `slug` is optional, and when present must match the
+filename without the extension. Add `draft: true` for an outline with no prose
+yet: it is badged in the sidebar and exempt from the runnable-snippet rule.
+
+A `_track.md` needs seven, and takes its slug from the folder name.
+
+```yaml
+---
+title: Basic Effect
+order: 2
+theme: foundations
+level: beginner
+icon: BookOpen
+prereq: Some TypeScript, no Effect
+summary: One sentence, shown on the track's card on the home page.
+---
+```
+
+`order` sequences the track within its theme, so two themes may each hold an
+`order: 1`. `level` is `beginner` or `intermediate`, shown as a badge on the
+card and on the track page. `icon` is a lucide icon name, and it has to be in
+the map in `src/components/track-icon.tsx`, which is explicit so the bundle
+does not pull in the whole icon set. `prereq` is one line on what the track
+assumes, and it appears on the track page only, not on the card.
+
+There is no reading time field. Minutes are counted from the page itself,
+prose at 200 words a minute and code by the line, and a track's total is the
+sum of its chapters plus its own page.
 
 ## Code blocks
 
@@ -172,7 +220,8 @@ enough to finish in a sitting.
 1. What problem this chapter solves, in two or three sentences.
 2. The idea, built up in small steps with a runnable snippet at each step.
 3. The part people get wrong, stated plainly.
-4. One or two sentences pointing at the next chapter.
+4. One or two sentences pointing at the next chapter, or at the next track
+   if this is the last one.
 
 Do not open with a definition. Open with the problem, then earn the
 definition.
@@ -180,7 +229,33 @@ definition.
 Every chapter must leave the reader able to run something. If a chapter has no
 snippet they can paste into a file and execute, it is not finished.
 
+## Linking between chapters
+
+Write an ordinary markdown link to the path,
+`[Errors](/learn/basic-effect/05-errors)`, or `[Basic Effect](/learn/basic-effect)`
+for a track. `check:content` matches
+every one of these against the pages it just rendered, so a renamed chapter
+fails the run rather than leaving a dead link somewhere else.
+
+Do not refer to a chapter by its number in prose. Chapters get renumbered and
+moved between tracks, and a link survives that while "chapter eleven" does
+not.
+
 ## Adding a chapter
 
-Drop a `.md` file into `content/`. That is the whole process. The sidebar,
-home page, previous and next links, and routing all come from the file.
+Drop a `.md` file into the track's folder. That is the whole process. The
+sidebar, the track page, previous and next links, and routing all come from
+the file.
+
+## Adding a track
+
+Make a folder under `content/` and put a `_track.md` in it. The folder name is
+the URL. Pick a `theme` from `themes.json` and an `order` among the tracks
+already in that theme.
+
+## Adding a theme
+
+Add a `{ slug, title }` to `content/themes.json`. Position in the array is the
+order the section appears on the home page. A theme with no tracks yet is left
+out of the page rather than rendered as an empty heading, so it is fine to add
+the theme first.
