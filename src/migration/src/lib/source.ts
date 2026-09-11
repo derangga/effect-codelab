@@ -3,6 +3,7 @@ import { pageSchema } from 'fumadocs-core/source/schema';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
 import { z } from 'zod';
+import { readingMinutes } from './reading-minutes';
 import { docsRoute } from './shared';
 
 export const docs = defineDocs({
@@ -13,16 +14,25 @@ export const docs = defineDocs({
     postprocess: {
       includeProcessedMarkdown: true,
     },
+    // The schema is handed the raw file, so reading time is computed here
+    // rather than from compiled output. The collection is async, so anything
+    // read off compiled content would force all 28 chapters to compile just
+    // to draw the sidebar.
+    //
     // unknown frontmatter keys are dropped silently without an explicit schema
-    schema: pageSchema.extend({
-      order: z.number().optional(),
-      slug: z.string().optional(),
-      summary: z.string().optional(),
-      draft: z.boolean().optional(),
-      theme: z.string().optional(),
-      level: z.string().optional(),
-      prereq: z.string().optional(),
-    }),
+    schema: ({ source }) =>
+      pageSchema.extend({
+        order: z.number().optional(),
+        slug: z.string().optional(),
+        summary: z.string().optional(),
+        draft: z.boolean().optional(),
+        theme: z.string().optional(),
+        level: z.string().optional(),
+        prereq: z.string().optional(),
+      }).transform((frontmatter) => ({
+        ...frontmatter,
+        minutes: readingMinutes(source),
+      })),
   },
   meta: {
     // content/themes.json is a top-level array, not a fumadocs meta file
