@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import { createServerFn } from '@tanstack/react-start';
+import { staticFunctionMiddleware } from '@tanstack/start-static-server-functions';
 import { docs, source } from '@/lib/source';
 import {
   DocsBody,
@@ -23,9 +24,14 @@ export const Route = createFileRoute('/learn/$')({
   },
 });
 
+// The site is static, so there is no server left to answer this on a client
+// side navigation. The middleware runs it during prerender instead and writes
+// the result next to the html, keyed by the slugs, which is why every chapter
+// gets its own cache file rather than one shared page tree.
 const serverLoader = createServerFn({
   method: 'GET',
 })
+  .middleware([staticFunctionMiddleware])
   .validator((slugs: string[]) => slugs)
   .handler(async ({ data: slugs }) => {
     const page = source.getPage(slugs);

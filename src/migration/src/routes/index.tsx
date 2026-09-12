@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
+import { staticFunctionMiddleware } from '@tanstack/start-static-server-functions';
 import { HomeLayout } from 'fumadocs-ui/layouts/home';
 import { Clock } from 'lucide-react';
 import { TrackIcon } from '@/components/track-icon';
@@ -42,7 +43,9 @@ function catalog() {
   });
 }
 
-const loadCatalog = createServerFn({ method: 'GET' }).handler(() => catalog());
+const loadCatalog = createServerFn({ method: 'GET' })
+  .middleware([staticFunctionMiddleware])
+  .handler(() => catalog());
 
 export const Route = createFileRoute('/')({
   component: Home,

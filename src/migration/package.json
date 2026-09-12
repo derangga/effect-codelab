@@ -12,9 +12,10 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@tanstack/react-router": "1.170.33",
+    "@tanstack/react-router": "1.170.34",
     "@tanstack/react-router-devtools": "1.167.1",
-    "@tanstack/react-start": "1.168.50",
+    "@tanstack/react-start": "1.168.51",
+    "@tanstack/start-static-server-functions": "1.167.34",
     "cn": "^0.2.6",
     "fumadocs-core": "16.15.9",
     "fumadocs-mdx": "15.4.0",
