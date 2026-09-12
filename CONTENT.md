@@ -1,13 +1,18 @@
 # Writing chapters
 
-Run `bun run check:content` before committing. It renders every chapter and
-fails on anything listed here that can be checked automatically.
+Run `bun run check:content` before committing. It reads the markdown and
+fails on the rules below that a machine can check. It does not compile
+anything: `bun run build` does that, and a `twoslash` snippet that does not
+typecheck fails there.
+
+Rules marked **checked** fail the run. The rest are judgement calls, and the
+only thing enforcing them is review.
 
 ## Prose rules
 
-These two are not style preferences. They are requirements.
+Neither is a style preference. Only the first can be checked.
 
-### 1. No em dash
+### 1. No em dash (checked)
 
 Use a comma, a full stop, or parentheses.
 
@@ -17,9 +22,9 @@ Good: Effect is lazy. Nothing runs until you ask it to.
 Good: Effect is lazy, so nothing runs until you ask it to.
 ```
 
-`check:content` fails on any em dash in a chapter file.
+`check:content` fails on any em dash in a chapter file, draft or not.
 
-### 2. No unexplained jargon
+### 2. No unexplained jargon (judgement call)
 
 Write for someone who has never used Effect. If a term is unavoidable, define
 it in one plain sentence the first time it appears, then use it consistently.
@@ -59,21 +64,24 @@ by typing its URL.
 
 ## Frontmatter
 
-A chapter needs four fields.
+A chapter needs three fields, plus an optional `slug`.
 
 ```yaml
 ---
 title: Errors
 order: 5
 slug: 05-errors
-summary: One sentence, shown on the track page.
+summary: One sentence, shown under the title and indexed for search.
 ---
 ```
 
 `order` sequences the chapter within its track, and two tracks may both open
 with an `order: 1`. `slug` is optional, and when present must match the
 filename without the extension. Add `draft: true` for an outline with no prose
-yet: it is badged in the sidebar and exempt from the runnable-snippet rule.
+yet. It is badged in the sidebar, exempt from the runnable-snippet rule, and
+left out of the search index, since a hit on an outline sends a reader
+somewhere that cannot answer what they asked. Every other rule here still
+applies to it.
 
 An `index.md` needs seven, and takes its slug from the folder name.
 
@@ -91,22 +99,23 @@ summary: One sentence, shown on the track's card on the home page.
 
 `order` sequences the track within its theme, so two themes may each hold an
 `order: 1`. `level` is `beginner` or `intermediate`, shown as a badge on the
-card and on the track page. `icon` is a lucide icon name, and it has to be in
-the map in `src/components/track-icon.tsx`, which is explicit so the bundle
-does not pull in the whole icon set. `prereq` is one line on what the track
-assumes, and it appears on the track page only, not on the card.
+track's card. `icon` is a lucide icon name, and it has to be in the map in
+`src/migration/src/components/track-icon.tsx`, which is explicit so the
+bundle does not pull in the whole icon set. `prereq` is one line on what the
+track assumes, and it shows on the card too.
 
 There is no reading time field. Minutes are counted from the page itself,
-prose at 200 words a minute and code by the line, and a track's total is the
-sum of its chapters plus its own page.
+prose at 200 words a minute and code by the line. Each chapter shows its own
+figure in the sidebar, and a track's card on the home page shows the sum of
+its chapters plus its own page.
 
 ## Code blocks
 
 Two kinds, and the difference matters.
 
-**Tagged with `twoslash`.** Compiled at build time against `effect@rc` with
-`strict` on. If it does not typecheck, the build fails. Readers get hover
-types. Use this for anything you are claiming is correct.
+**Tagged with `twoslash`.** Compiled by `bun run build` against `effect@rc`
+with `strict` on. If it does not typecheck, the build fails. Use this for
+anything you are claiming is correct.
 
 ````
 ```ts twoslash
@@ -159,9 +168,8 @@ annotation fails the build. That is a stronger guarantee than a reveal.
 `// ---cut---` hides everything above it from the reader while still
 compiling it. Use it to skip imports and setup that were already shown.
 
-When a snippet does fail to compile, `bun run check:content` prints which file
-and which numbered twoslash block broke, followed by the compiler error. Line
-numbers in the error count from the start of that block, after the cut.
+When a snippet does fail to compile, `bun run build` names the file and the
+error. Line numbers count from the start of that block, after the cut.
 
 Snippets compile with `strict` on, DOM types available, and `vite/client`
 loaded, so `fetch` and `import.meta.env` are both real. Nothing else from the
@@ -186,14 +194,15 @@ Bad:  A["Effect&lt;A, E, R&gt;"]
 ```
 
 Two separate things bite here and the build handles both for you, as long as
-the label is quoted.
+the label is quoted. Neither is checked: read the diagram once in the browser.
 
 First, writing `&lt;` by hand gets the ampersand escaped again, and the reader
-sees the raw entity on screen. `check:content` fails on this.
+sees the raw entity on screen.
 
 Second, mermaid strips anything that looks like an HTML tag from a label, so
-an unquoted `Effect<A, E, R>` renders as just `Effect`. The plugin rewrites
-`<` and `>` to mermaid's numeric entities, but only inside quoted labels,
+an unquoted `Effect<A, E, R>` renders as just `Effect`. A remark plugin in
+`src/migration/source.config.ts` rewrites `<` and `>` to mermaid's numeric
+entities, but only inside quoted labels,
 because the `>` in an arrow like `-->` has to survive. An unquoted label skips
 that rewrite and loses its brackets.
 
@@ -214,6 +223,8 @@ something that a paragraph does not.
 
 ## Shape of a chapter
 
+Judgement calls, all of it, except the last paragraph.
+
 Roughly 600 to 1200 words. Long enough to teach one idea properly, short
 enough to finish in a sitting.
 
@@ -226,26 +237,29 @@ enough to finish in a sitting.
 Do not open with a definition. Open with the problem, then earn the
 definition.
 
-Every chapter must leave the reader able to run something. If a chapter has no
-snippet they can paste into a file and execute, it is not finished.
+Every chapter must leave the reader able to run something (**checked**). A
+chapter with no `ts twoslash` fence fails `check:content` unless it is marked
+`draft: true`.
 
 ## Linking between chapters
 
 Write an ordinary markdown link to the path,
 `[Errors](/learn/basic-effect/05-errors)`, or `[Basic Effect](/learn/basic-effect)`
-for a track. `check:content` matches
-every one of these against the pages it just rendered, so a renamed chapter
-fails the run rather than leaving a dead link somewhere else.
+for a track. This is **checked**:
+`check:content` matches every one of these against the urls the site serves,
+built from the filenames the same way Fumadocs routes them, so a renamed
+chapter fails the run rather than leaving a dead link somewhere else.
 
-Do not refer to a chapter by its number in prose. Chapters get renumbered and
-moved between tracks, and a link survives that while "chapter eleven" does
-not.
+Do not refer to a chapter by its number in prose (judgement call). Chapters
+get renumbered and moved between tracks, and a link survives that while
+"chapter eleven" does not.
 
 ## Adding a chapter
 
 Drop a `.md` file into the track's folder. That is the whole process. The
-sidebar, the track page, previous and next links, and routing all come from
-the file.
+sidebar, previous and next links, reading time and routing all come from the
+file. Ordering is the `01-` prefix on the filename, so there is no `meta.json`
+to edit and nothing to register.
 
 ## Adding a track
 

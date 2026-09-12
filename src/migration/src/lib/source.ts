@@ -34,6 +34,11 @@ export const docs = defineDocs({
       }).transform((frontmatter) => ({
         ...frontmatter,
         minutes: readingMinutes(source),
+        // The chapters spell it `summary`. Fumadocs renders `description`
+        // under the title and indexes it for search, so without this the 32
+        // authored summaries are dead data and every page has a blank
+        // subtitle.
+        description: frontmatter.description ?? frontmatter.summary,
         // statusBadgesPlugin badges any page whose data carries a `status`
         // string. The chapters spell it `draft: true`, so the mapping happens
         // here rather than across 12 frontmatter blocks.
