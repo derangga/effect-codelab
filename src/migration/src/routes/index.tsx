@@ -71,14 +71,19 @@ function Home() {
             front to back. Anti-patterns is worth a pass once the basics stick,
             and Fullstack Monorepo is where it all gets wired into an app.
           </p>
-          {first ? (
-            <Link
-              to={first.url}
-              className="mt-6 inline-flex rounded-lg bg-fd-primary px-3 py-2 font-medium text-fd-primary-foreground text-sm"
-            >
-              Start with {first.title}
+          <div className="mt-6 flex items-center gap-4">
+            {first ? (
+              <Link
+                to={first.url}
+                className="inline-flex rounded-lg bg-fd-primary px-3 py-2 font-medium text-fd-primary-foreground text-sm"
+              >
+                Start with {first.title}
+              </Link>
+            ) : null}
+            <Link to="/demo" className="text-sm underline underline-offset-4">
+              See it running
             </Link>
-          ) : null}
+          </div>
         </header>
 
         {themed.map((theme) => (

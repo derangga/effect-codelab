@@ -17,7 +17,7 @@ const contentDir = join(import.meta.dirname, '../../content');
  * partly declared is a list nobody can check. This one is the whole set.
  */
 function prerenderPages() {
-  const paths = ['/'];
+  const paths = ['/', '/demo'];
 
   for (const track of readdirSync(contentDir, { withFileTypes: true })) {
     if (!track.isDirectory()) continue;
@@ -48,9 +48,8 @@ export default defineConfig({
       prerender: {
         enabled: true,
         failOnError: true,
-        // Off, so `pages` below is the whole set rather than a starting point.
-        // Chapters link to /demo, which has no route yet, and a crawl turns
-        // that into a failed build instead of one dead link.
+        // Off, so `pages` below is the whole set rather than a starting point
+        // that is partly crawled and partly declared.
         crawlLinks: false,
       },
       pages: prerenderPages(),
