@@ -2,6 +2,7 @@ import { llms, loader } from 'fumadocs-core/source';
 import { pageSchema } from 'fumadocs-core/source/schema';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
+import { statusBadgesPlugin } from 'fumadocs-core/source/plugins/status-badges';
 import { z } from 'zod';
 import { readingMinutes } from './reading-minutes';
 import { themeGroupingPlugin } from './theme-tree';
@@ -33,6 +34,10 @@ export const docs = defineDocs({
       }).transform((frontmatter) => ({
         ...frontmatter,
         minutes: readingMinutes(source),
+        // statusBadgesPlugin badges any page whose data carries a `status`
+        // string. The chapters spell it `draft: true`, so the mapping happens
+        // here rather than across 12 frontmatter blocks.
+        status: frontmatter.draft ? 'Draft' : undefined,
       })),
   },
   meta: {
@@ -44,7 +49,11 @@ export const docs = defineDocs({
 export const source = loader({
   source: docs.toFumadocsSource(),
   baseUrl: docsRoute,
-  plugins: [lucideIconsPlugin(), themeGroupingPlugin()],
+  // statusBadgesPlugin wraps the sidebar label in JSX. serializePageTree runs
+  // every `name` through renderToString, so the badge crosses the server
+  // boundary as HTML and the client re-inflates it. Styled in app.css off the
+  // `data-status` attribute the default badge writes.
+  plugins: [lucideIconsPlugin(), themeGroupingPlugin(), statusBadgesPlugin()],
 });
 
 export const docsLlms = llms(source, {
