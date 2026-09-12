@@ -1,24 +1,61 @@
-import tailwindcss from '@tailwindcss/vite'
-import { devtools } from '@tanstack/devtools-vite'
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import react from '@vitejs/plugin-react';
+import { tanstackStart } from '@tanstack/react-start/plugin/vite';
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+import { fumadocsMdx } from 'fumadocs-mdx/vite';
 
-import { tanstackRouter } from '@tanstack/router-plugin/vite'
+const contentDir = join(import.meta.dirname, 'content');
 
-import viteReact from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
-import { markdown } from './vite-plugin-markdown.ts'
+/**
+ * Every page the build must emit, globbed rather than listed, so adding a
+ * chapter does not mean remembering to add it here too.
+ *
+ * crawlLinks would find most of these from the sidebar, but the three data
+ * routes are not linked from any page, and a list that is partly crawled and
+ * partly declared is a list nobody can check. This one is the whole set.
+ */
+function prerenderPages() {
+  const paths = ['/', '/demo'];
 
-const config = defineConfig({
-  resolve: { tsconfigPaths: true },
-  // src/migration is a separate project with its own vitest, and its tests
-  // need the fumadocs plugins this config does not load
-  test: { exclude: ['**/node_modules/**', 'src/migration/**'] },
+  for (const track of readdirSync(contentDir, { withFileTypes: true })) {
+    if (!track.isDirectory()) continue;
+    for (const file of readdirSync(join(contentDir, track.name))) {
+      if (!file.endsWith('.md')) continue;
+      const slug = file.replace(/\.md$/, '');
+      paths.push(
+        slug === 'index' ? `/learn/${track.name}` : `/learn/${track.name}/${slug}`,
+      );
+    }
+  }
+
+  paths.push('/api/search', '/llms.txt', '/llms-full.txt');
+
+  return paths.map((path) => ({ path, prerender: { enabled: true } }));
+}
+
+export default defineConfig({
+  server: { port: 3000 },
   plugins: [
-    markdown(),
-    devtools(),
+    fumadocsMdx(),
     tailwindcss(),
-    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
-    viteReact(),
+    tanstackStart({
+      prerender: {
+        enabled: true,
+        failOnError: true,
+        // Off, so `pages` below is the whole set rather than a starting point
+        // that is partly crawled and partly declared.
+        crawlLinks: false,
+      },
+      pages: prerenderPages(),
+    }),
+    react(),
   ],
-})
-
-export default config
+  resolve: {
+    tsconfigPaths: true,
+    alias: {
+      tslib: 'tslib/tslib.es6.js',
+    },
+  },
+});

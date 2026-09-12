@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DemoRouteImport } from './routes/demo'
-import { Route as LearnTrackIndexRouteImport } from './routes/learn.$track.index'
-import { Route as LearnTrackSlugRouteImport } from './routes/learn.$track.$slug'
+import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as LearnSplatRouteImport } from './routes/learn/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -24,49 +26,76 @@ const DemoRoute = DemoRouteImport.update({
   path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LearnTrackIndexRoute = LearnTrackIndexRouteImport.update({
-  id: '/learn/$track/',
-  path: '/learn/$track/',
+const LlmsFullDottxtRoute = LlmsFullDottxtRouteImport.update({
+  id: '/llms-full.txt',
+  path: '/llms-full.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LearnTrackSlugRoute = LearnTrackSlugRouteImport.update({
-  id: '/learn/$track/$slug',
-  path: '/learn/$track/$slug',
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LearnSplatRoute = LearnSplatRouteImport.update({
+  id: '/learn/$',
+  path: '/learn/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
-  '/learn/$track/$slug': typeof LearnTrackSlugRoute
-  '/learn/$track/': typeof LearnTrackIndexRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/api/search': typeof ApiSearchRoute
+  '/learn/$': typeof LearnSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
-  '/learn/$track/$slug': typeof LearnTrackSlugRoute
-  '/learn/$track': typeof LearnTrackIndexRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/api/search': typeof ApiSearchRoute
+  '/learn/$': typeof LearnSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
-  '/learn/$track/$slug': typeof LearnTrackSlugRoute
-  '/learn/$track/': typeof LearnTrackIndexRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/api/search': typeof ApiSearchRoute
+  '/learn/$': typeof LearnSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/demo' | '/learn/$track/$slug' | '/learn/$track/'
+  fullPaths:
+    '/' | '/demo' | '/llms-full.txt' | '/llms.txt' | '/api/search' | '/learn/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/demo' | '/learn/$track/$slug' | '/learn/$track'
-  id: '__root__' | '/' | '/demo' | '/learn/$track/$slug' | '/learn/$track/'
+  to:
+    '/' | '/demo' | '/llms-full.txt' | '/llms.txt' | '/api/search' | '/learn/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/demo'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/api/search'
+    | '/learn/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DemoRoute: typeof DemoRoute
-  LearnTrackSlugRoute: typeof LearnTrackSlugRoute
-  LearnTrackIndexRoute: typeof LearnTrackIndexRoute
+  LlmsFullDottxtRoute: typeof LlmsFullDottxtRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
+  ApiSearchRoute: typeof ApiSearchRoute
+  LearnSplatRoute: typeof LearnSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -85,18 +114,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/learn/$track/': {
-      id: '/learn/$track/'
-      path: '/learn/$track'
-      fullPath: '/learn/$track/'
-      preLoaderRoute: typeof LearnTrackIndexRouteImport
+    '/llms-full.txt': {
+      id: '/llms-full.txt'
+      path: '/llms-full.txt'
+      fullPath: '/llms-full.txt'
+      preLoaderRoute: typeof LlmsFullDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/learn/$track/$slug': {
-      id: '/learn/$track/$slug'
-      path: '/learn/$track/$slug'
-      fullPath: '/learn/$track/$slug'
-      preLoaderRoute: typeof LearnTrackSlugRouteImport
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/learn/$': {
+      id: '/learn/$'
+      path: '/learn/$'
+      fullPath: '/learn/$'
+      preLoaderRoute: typeof LearnSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -105,9 +148,20 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DemoRoute: DemoRoute,
-  LearnTrackSlugRoute: LearnTrackSlugRoute,
-  LearnTrackIndexRoute: LearnTrackIndexRoute,
+  LlmsFullDottxtRoute: LlmsFullDottxtRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
+  ApiSearchRoute: ApiSearchRoute,
+  LearnSplatRoute: LearnSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

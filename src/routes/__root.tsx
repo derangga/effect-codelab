@@ -1,50 +1,40 @@
-import { TanStackDevtools } from '@tanstack/react-devtools'
-import { createRootRoute, Outlet, useMatchRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-
-import { AppSidebar } from '@/components/app-sidebar'
-import { ThemeToggle } from '@/components/theme-toggle'
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from '@/components/ui/sidebar'
-
-import '../styles.css'
-import '@shikijs/twoslash/style-rich.css'
+import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
+import * as React from 'react';
+import appCss from '@/styles/app.css?url';
+import { RootProvider } from 'fumadocs-ui/provider/tanstack';
+import StaticSearchDialog from '@/components/search-dialog';
 
 export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      {
+        charSet: 'utf-8',
+      },
+      {
+        name: 'viewport',
+        content: 'width=device-width, initial-scale=1',
+      },
+      {
+        title: 'Fumadocs on TanStack Start',
+      },
+    ],
+    links: [{ rel: 'stylesheet', href: appCss }],
+  }),
   component: RootComponent,
-})
+});
 
 function RootComponent() {
-  // The home page is the catalog, so it is its own navigation. A sidebar there
-  // would only repeat what the page already lists.
-  const isHome = !!useMatchRoute()({ to: '/' })
-
   return (
-    <SidebarProvider>
-      {isHome ? null : <AppSidebar />}
-      <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur">
-          {isHome ? null : <SidebarTrigger />}
-          <div className="ml-auto">
-            <ThemeToggle />
-          </div>
-        </header>
-        <Outlet />
-      </SidebarInset>
-      <TanStackDevtools
-        config={{
-          position: 'bottom-right',
-        }}
-        plugins={[
-          {
-            name: 'TanStack Router',
-            render: <TanStackRouterDevtoolsPanel />,
-          },
-        ]}
-      />
-    </SidebarProvider>
-  )
+    <html suppressHydrationWarning>
+      <head>
+        <HeadContent />
+      </head>
+      <body className="flex flex-col min-h-screen">
+        <RootProvider search={{ SearchDialog: StaticSearchDialog }}>
+          <Outlet />
+        </RootProvider>
+        <Scripts />
+      </body>
+    </html>
+  );
 }

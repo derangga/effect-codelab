@@ -100,7 +100,7 @@ summary: One sentence, shown on the track's card on the home page.
 `order` sequences the track within its theme, so two themes may each hold an
 `order: 1`. `level` is `beginner` or `intermediate`, shown as a badge on the
 track's card. `icon` is a lucide icon name, and it has to be in the map in
-`src/migration/src/components/track-icon.tsx`, which is explicit so the
+`src/components/track-icon.tsx`, which is explicit so the
 bundle does not pull in the whole icon set. `prereq` is one line on what the
 track assumes, and it shows on the card too.
 
@@ -201,7 +201,7 @@ sees the raw entity on screen.
 
 Second, mermaid strips anything that looks like an HTML tag from a label, so
 an unquoted `Effect<A, E, R>` renders as just `Effect`. A remark plugin in
-`src/migration/source.config.ts` rewrites `<` and `>` to mermaid's numeric
+`source.config.ts` rewrites `<` and `>` to mermaid's numeric
 entities, but only inside quoted labels,
 because the `>` in an arrow like `-->` has to survive. An unquoted label skips
 that rewrite and loses its brackets.

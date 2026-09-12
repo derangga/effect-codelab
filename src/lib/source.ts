@@ -9,8 +9,7 @@ import { themeGroupingPlugin } from './theme-tree';
 import { docsRoute } from './shared';
 
 export const docs = defineDocs({
-  // the course content stays at the repo root, shared with the old app
-  dir: '../../content',
+  dir: 'content',
   docs: {
     async: true,
     postprocess: {

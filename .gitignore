@@ -13,4 +13,7 @@ dist-ssr
 .output
 .vinxi
 __unconfig*
+.source
+.cache
+.vercel
 todos.json

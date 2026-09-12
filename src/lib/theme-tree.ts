@@ -1,6 +1,6 @@
 import type * as PageTree from 'fumadocs-core/page-tree';
 import type { LoaderPlugin } from 'fumadocs-core/source';
-import themes from '../../../../content/themes.json';
+import themes from '../../content/themes.json';
 
 type TrackData = {
   theme?: string;

@@ -6,7 +6,6 @@ TypeScript. The content is markdown in `content/`, and every snippet marked
 fails the build instead of reaching a reader.
 
 ```bash
-cd src/migration
 bun install
 bun run dev
 ```
@@ -49,19 +48,10 @@ judgement calls.
 
 ## Commands
 
-From the repo root:
-
 ```bash
-bun run check:content  # the writing rules, over the markdown source
-bun run test           # vitest, the old app
-bun run check          # biome, the old app
-```
-
-From `src/migration`:
-
-```bash
-bun run dev            # dev server
+bun run dev            # dev server on :3000
 bun run build          # static build, compiles every snippet
+bun run check:content  # the writing rules, over the markdown source
 bun run test           # vitest
 bun run lint           # oxlint
 bun run types:check    # tsc
@@ -77,12 +67,14 @@ twice. It compiles nothing, so run `bun run build` for the snippets.
 
 Fumadocs on TanStack Start, built with Vite and prerendered to static files.
 Tailwind, shiki and twoslash for the code, mermaid for the diagrams. oxlint
-and vitest in `src/migration`, biome and vitest at the root for the old app,
-bun as the runtime.
+for lint, vitest for tests, bun as the runtime.
+
+Dependency versions are pinned exactly, with no ranges. The chapters compile
+against `effect` at an rc, and a range there moves the types out from under a
+snippet that was passing yesterday.
 
 ## Repository layout
 
-`src/migration/` is the site. The root is the previous app, still here while
-the migration finishes, with its own toolchain. The two do not share
-configuration: the root's biome, tsconfig and vitest all exclude
-`src/migration`.
+`content/` is the writing, `src/` is the site, `scripts/check-content.ts` is
+the gate over the writing, and everything else is configuration. There is no
+separate app directory: the Fumadocs migration finished and moved in here.

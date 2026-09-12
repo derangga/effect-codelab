@@ -1,8 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { Effect, Layer } from 'effect'
-import { useMemo, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { type Fault, faultLabels, fetcherLayer } from '@/effect-demo/faults'
+import { createFileRoute } from '@tanstack/react-router';
+import { Effect, Layer } from 'effect';
+import { HomeLayout } from 'fumadocs-ui/layouts/home';
+import { useMemo, useRef, useState } from 'react';
+import { type Fault, faultLabels, fetcherLayer } from '@/effect-demo/faults';
 import {
   type Attempt,
   Attempts,
@@ -10,10 +10,20 @@ import {
   type Product,
   ProductsApi,
   requestTimeout,
-} from '@/effect-demo/products'
-import { makeRuntime } from '@/effect-demo/runtime'
+} from '@/effect-demo/products';
+import { makeRuntime } from '@/effect-demo/runtime';
+import { baseOptions } from '@/lib/layout.shared';
+import { cn } from '@/lib/cn';
 
-export const Route = createFileRoute('/demo')({ component: Demo })
+export const Route = createFileRoute('/demo')({ component: Demo });
+
+// The old app reached for its shadcn Button here. Two variants and one size is
+// less than a component's worth, and the migration has no ui/ directory.
+const button =
+  'inline-flex items-center justify-center rounded-md font-medium text-sm transition-colors disabled:pointer-events-none disabled:opacity-50';
+const small = 'px-3 py-1.5';
+const primary = 'bg-fd-primary text-fd-primary-foreground hover:bg-fd-primary/90';
+const outline = 'border border-fd-border hover:bg-fd-accent';
 
 type Outcome =
   | { readonly kind: 'idle' }
@@ -103,13 +113,14 @@ function Demo() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-10">
+    <HomeLayout {...baseOptions()}>
+      <div className="mx-auto w-full max-w-3xl px-6 py-10">
       <header className="mb-8">
-        <p className="text-muted-foreground text-sm">Live demo</p>
+        <p className="text-fd-muted-foreground text-sm">Live demo</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight">
           Break it on purpose
         </h1>
-        <p className="text-muted-foreground mt-2 text-lg">
+        <p className="text-fd-muted-foreground mt-2 text-lg">
           The same service, the same call. Pick a way for it to go wrong and
           watch which branch handles it.
         </p>
@@ -117,10 +128,10 @@ function Demo() {
 
       <div className="flex flex-wrap gap-2">
         {faults.map((option) => (
-          <Button
+          <button
+            type="button"
             key={option}
-            variant={option === fault ? 'default' : 'outline'}
-            size="sm"
+            className={cn(button, small, option === fault ? primary : outline)}
             onClick={() => {
               setFault(option)
               setOutcome({ kind: 'idle' })
@@ -128,19 +139,24 @@ function Demo() {
             }}
           >
             {faultLabels[option]}
-          </Button>
+          </button>
         ))}
       </div>
 
-      <p className="text-muted-foreground mt-3 text-sm">
+      <p className="text-fd-muted-foreground mt-3 text-sm">
         {explanations[fault]}
       </p>
 
       <div className="mt-6 flex items-center gap-3">
-        <Button onClick={run} disabled={outcome.kind === 'running'}>
+        <button
+          type="button"
+          className={cn(button, primary, 'px-4 py-2')}
+          onClick={run}
+          disabled={outcome.kind === 'running'}
+        >
           {outcome.kind === 'running' ? 'Running' : 'Run the call'}
-        </Button>
-        <span className="text-muted-foreground text-sm">
+        </button>
+        <span className="text-fd-muted-foreground text-sm">
           Retries: {retryNote(fault)}
         </span>
       </div>
@@ -148,7 +164,7 @@ function Demo() {
       <section className="mt-8">
         <h2 className="text-sm font-semibold">Attempts</h2>
         {attempts.length === 0 ? (
-          <p className="text-muted-foreground mt-2 text-sm">
+          <p className="text-fd-muted-foreground mt-2 text-sm">
             Nothing yet. Run the call.
           </p>
         ) : (
@@ -158,10 +174,10 @@ function Demo() {
                 key={`${attempt.n}-${attempt.at}`}
                 className="flex items-baseline gap-3 rounded-md border px-3 py-2 text-sm"
               >
-                <span className="text-muted-foreground tabular-nums">
+                <span className="text-fd-muted-foreground tabular-nums">
                   #{attempt.n}
                 </span>
-                <span className="text-muted-foreground tabular-nums text-xs">
+                <span className="text-fd-muted-foreground tabular-nums text-xs">
                   {index === 0
                     ? '+0ms'
                     : `+${attempt.at - attempts[index - 1].at}ms`}
@@ -176,13 +192,13 @@ function Demo() {
       <section className="mt-8">
         <h2 className="text-sm font-semibold">Result</h2>
         {outcome.kind === 'idle' ? (
-          <p className="text-muted-foreground mt-2 text-sm">Not run yet.</p>
+          <p className="text-fd-muted-foreground mt-2 text-sm">Not run yet.</p>
         ) : outcome.kind === 'running' ? (
-          <p className="text-muted-foreground mt-2 text-sm">Working on it.</p>
+          <p className="text-fd-muted-foreground mt-2 text-sm">Working on it.</p>
         ) : outcome.kind === 'failed' ? (
           <div className="mt-2 rounded-md border p-4">
             <p className="font-mono text-sm font-semibold">{outcome.tag}</p>
-            <p className="text-muted-foreground mt-1 font-mono text-xs break-words">
+            <p className="text-fd-muted-foreground mt-1 font-mono text-xs break-words">
               {outcome.detail}
             </p>
           </div>
@@ -193,7 +209,7 @@ function Demo() {
                 <p className="line-clamp-2 text-sm font-medium">
                   {product.title}
                 </p>
-                <p className="text-muted-foreground mt-1 text-xs">
+                <p className="text-fd-muted-foreground mt-1 text-xs">
                   {product.category} · ${product.price.toFixed(2)} ·{' '}
                   {product.rating.rate}/5
                 </p>
@@ -201,8 +217,9 @@ function Demo() {
             ))}
           </ul>
         )}
-      </section>
-    </div>
+        </section>
+      </div>
+    </HomeLayout>
   )
 }
 
