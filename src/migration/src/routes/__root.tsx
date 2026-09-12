@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-r
 import * as React from 'react';
 import appCss from '@/styles/app.css?url';
 import { RootProvider } from 'fumadocs-ui/provider/tanstack';
+import StaticSearchDialog from '@/components/search-dialog';
 
 export const Route = createRootRoute({
   head: () => ({
@@ -29,7 +30,7 @@ function RootComponent() {
         <HeadContent />
       </head>
       <body className="flex flex-col min-h-screen">
-        <RootProvider>
+        <RootProvider search={{ SearchDialog: StaticSearchDialog }}>
           <Outlet />
         </RootProvider>
         <Scripts />
