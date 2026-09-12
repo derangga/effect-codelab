@@ -54,6 +54,13 @@ export function themeGroupingPlugin(): LoaderPlugin {
           return [
             {
               type: 'folder',
+              // The loader rebuilds the page tree on every navigation, so the
+              // folder the sidebar tab points at is never the same object as
+              // the one on the current page's path. Fumadocs falls back to
+              // comparing `$id`, which it otherwise hands out lazily per tree,
+              // so without a stable one here no tab matches and the theme
+              // dropdown disappears until a reload.
+              $id: theme.slug,
               name: theme.title,
               root: true,
               index: first && { ...first, name: theme.title },
