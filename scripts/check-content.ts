@@ -1,110 +1,49 @@
 /**
- * Renders every track page and chapter through the markdown pipeline and
- * asserts the things that must hold. Run with `bun run check:content`.
+ * Checks every track page and chapter against the rules that must hold, from
+ * the markdown source alone. Run with `bun run check:content`.
  *
- * This is the smallest thing that fails if the pipeline breaks. A twoslash
- * error in any chapter throws here, which is the point: broken teaching code
- * must not reach a reader.
+ * Nothing here renders. Fumadocs owns rendering now, and its build compiles
+ * every `ts twoslash` fence, so a snippet that does not typecheck fails there
+ * rather than here. What is left is the set of rules a renderer would never
+ * catch: frontmatter that is missing or disagrees with the filename, an order
+ * used twice, a link to a page that does not exist.
  */
 import assert from 'node:assert/strict'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import matter from 'gray-matter'
-import { LEVELS, render, type TrackMeta } from '../vite-plugin-markdown.ts'
 
-type Rendered = Awaited<ReturnType<typeof render>>
+/** The levels a track may declare. */
+const LEVELS = ['beginner', 'intermediate']
 
 // Defaults to the real content/. A directory argument lets the failure paths
 // be exercised against fixtures.
 const dir = process.argv[2] ?? join(import.meta.dirname, '..', 'content')
 
+const stripFences = (markdown: string) =>
+  markdown.replace(/^```[\s\S]*?^```$/gm, '')
+
 /**
- * Twoslash failures name a line number inside one snippet, with no hint as to
- * which snippet or file. Re-rendering each fence alone finds the one that
- * throws and points at it, which turns a guessing game into a fix. Slower than
- * the single pass, so it only runs on the failure path.
+ * Read a page and apply the rules that hold for a track and a chapter alike.
+ *
+ * The em dash rule lives here rather than beside the prose rules below because
+ * it is the one check a draft is not exempt from.
  */
-async function blameFence(source: string, path: string) {
-  const fences = [
-    ...source.matchAll(/^```(\w+[^\n]*)\n([\s\S]*?)^```$/gm),
-  ].filter((f) => f[1].includes('twoslash'))
+async function read(path: string, label: string) {
+  const source = await readFile(path, 'utf8')
 
-  for (const [index, fence] of fences.entries()) {
-    // No slug in this frontmatter: render derives it from the filename, and a
-    // slug that disagrees with the filename is itself an error.
-    const only = `---\ntitle: t\nsummary: s\norder: 0\n---\n\n\`\`\`${fence[1]}\n${fence[2]}\`\`\`\n`
-    try {
-      await render(only, path)
-    } catch {
-      const numbered = fence[2]
-        .split('\n')
-        .map((line, i) => `${String(i + 1).padStart(3)} | ${line}`)
-        .join('\n')
-      console.error(
-        `twoslash block ${index + 1} of ${fences.length} is the one that fails:\n${numbered}`,
-      )
-      return
-    }
-  }
-}
-
-async function renderOrBlame(source: string, path: string, label: string) {
-  try {
-    return await render(source, path)
-  } catch (error) {
-    console.error(`\nFAILED in ${label}`)
-    await blameFence(source, path)
-    console.error(
-      `\nLine numbers in the error below count from the start of that snippet,\nafter any \`// ---cut---\`.\n`,
-    )
-    throw error
-  }
-}
-
-/** Rules that hold for a track page and a chapter alike. */
-function checkRendered(
-  { headings, hasMermaid, html }: Rendered,
-  source: string,
-  label: string,
-) {
-  // Mermaid source must survive untouched, not get syntax highlighted.
-  if (hasMermaid) {
-    assert.match(
-      html,
-      /<pre class="mermaid">[^<]/,
-      `${label}: mermaid block was mangled`,
-    )
-    assert.ok(
-      !/<pre class="mermaid">\s*<span/.test(html),
-      `${label}: mermaid block got highlighted`,
-    )
-    // Write literal < and > in diagram labels. The pipeline escapes them for
-    // transport and the browser decodes them back. Writing the entity by hand
-    // escapes the ampersand too, and the reader sees "&lt;" in the diagram.
-    const diagram = html.slice(html.indexOf('<pre class="mermaid">'))
-    assert.ok(
-      !diagram.includes('&#x26;lt;') && !diagram.includes('&#x26;gt;'),
-      `${label}: mermaid label has a double escaped entity, write < and > directly`,
-    )
-  }
-
-  // Highlighting must be dual theme, otherwise dark mode shows black on black.
-  // Only pages that actually contain a non-mermaid code fence are checked.
-  if (/^```(?!mermaid)\w/m.test(source)) {
-    assert.ok(html.includes('shiki'), `${label}: code was not highlighted`)
-    assert.ok(
-      html.includes('--shiki-dark'),
-      `${label}: highlighting is not dual theme`,
-    )
-  }
-
-  // Prose rule: no em dashes anywhere.
   assert.ok(
     !source.includes('—'),
     `${label}: contains an em dash, use a comma or a full stop instead`,
   )
 
-  return headings.length
+  const { data, content } = matter(source)
+  return {
+    source,
+    data,
+    headings: (stripFences(content).match(/^#{2,3} /gm) ?? []).length,
+    hasMermaid: /^```mermaid$/m.test(content),
+  }
 }
 
 // The catalog groups tracks by theme, so themes.json is what decides whether a
@@ -115,14 +54,16 @@ const themes: Array<{ slug: string; title: string }> = JSON.parse(
 )
 const themeSlugs = themes.map((theme) => theme.slug)
 
-const trackDirs = (await readdir(dir, { withFileTypes: true }))
+const entries = await readdir(dir, { withFileTypes: true })
+
+const trackDirs = entries
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort()
 
 assert.ok(trackDirs.length > 0, 'no track folders found in content/')
 
-const strayFiles = (await readdir(dir, { withFileTypes: true }))
+const strayFiles = entries
   .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
   .map((entry) => entry.name)
 
@@ -139,7 +80,10 @@ const trackOrders = new Map<string, string>()
 const validated: Array<{
   track: string
   files: Array<string>
-  meta: TrackMeta
+  theme: string
+  title: string
+  order: number
+  level: string
 }> = []
 
 for (const track of trackDirs) {
@@ -152,51 +96,40 @@ for (const track of trackDirs) {
     `content/${track}: missing index.md, which every track folder needs`,
   )
 
-  const trackPath = join(dir, track, 'index.md')
-  const trackSource = await readFile(trackPath, 'utf8')
-  const trackLabel = `${track}/index.md`
-  const trackPage = await renderOrBlame(trackSource, trackPath, trackLabel)
-  const trackMeta = trackPage.meta
+  const label = `${track}/index.md`
+  const { data } = await read(join(dir, track, 'index.md'), label)
 
-  assert.equal(
-    trackMeta.kind,
-    'track',
-    `${trackLabel}: did not render as a track`,
-  )
-  if (trackMeta.kind !== 'track') continue
-
-  assert.ok(trackMeta.title, `${trackLabel}: missing frontmatter title`)
-  assert.ok(trackMeta.summary, `${trackLabel}: missing frontmatter summary`)
+  assert.ok(data.title, `${label}: missing frontmatter title`)
+  assert.ok(data.summary, `${label}: missing frontmatter summary`)
+  assert.ok(data.icon, `${label}: missing frontmatter icon, a lucide icon name`)
   assert.ok(
-    trackMeta.icon,
-    `${trackLabel}: missing frontmatter icon, a lucide icon name`,
+    data.prereq,
+    `${label}: missing frontmatter prereq, one line on what this track assumes`,
   )
   assert.ok(
-    trackMeta.prereq,
-    `${trackLabel}: missing frontmatter prereq, one line on what this track assumes`,
+    themeSlugs.includes(data.theme),
+    `${label}: theme "${data.theme}" is not in themes.json, which lists ${themeSlugs.join(', ')}`,
   )
   assert.ok(
-    themeSlugs.includes(trackMeta.theme),
-    `${trackLabel}: theme "${trackMeta.theme}" is not in themes.json, which lists ${themeSlugs.join(', ')}`,
+    LEVELS.includes(data.level),
+    `${label}: level "${data.level}" is not one of ${LEVELS.join(', ')}`,
   )
 
-  // render() falls back to beginner for anything it does not recognise, so the
-  // raw frontmatter is the only place a misspelled level is still visible.
-  const rawLevel = matter(trackSource).data.level
-  assert.ok(
-    LEVELS.includes(rawLevel),
-    `${trackLabel}: level "${rawLevel}" is not one of ${LEVELS.join(', ')}`,
-  )
-
-  const orderKey = `${trackMeta.theme}/${trackMeta.order}`
+  const orderKey = `${data.theme}/${data.order}`
   assert.ok(
     !trackOrders.has(orderKey),
-    `${trackLabel}: order ${trackMeta.order} is already used within theme "${trackMeta.theme}" by ${trackOrders.get(orderKey)}`,
+    `${label}: order ${data.order} is already used within theme "${data.theme}" by ${trackOrders.get(orderKey)}`,
   )
-  trackOrders.set(orderKey, trackLabel)
+  trackOrders.set(orderKey, label)
 
-  checkRendered(trackPage, trackSource, trackLabel)
-  validated.push({ track, files, meta: trackMeta })
+  validated.push({
+    track,
+    files,
+    theme: data.theme,
+    title: data.title,
+    order: data.order ?? 999,
+    level: data.level,
+  })
 }
 
 let chapterCount = 0
@@ -218,12 +151,13 @@ function collectLinks(source: string, label: string) {
 // within their theme. The run output then reads the way the home page does.
 const inCatalogOrder = themes.flatMap((theme) =>
   validated
-    .filter((entry) => entry.meta.theme === theme.slug)
-    .sort((a, b) => a.meta.order - b.meta.order)
+    .filter((entry) => entry.theme === theme.slug)
+    .sort((a, b) => a.order - b.order)
     .map((entry, index) => ({ ...entry, theme, first: index === 0 })),
 )
 
-for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
+for (const entry of inCatalogOrder) {
+  const { track, files, title, order, level, theme, first } = entry
   const trackDir = join(dir, track)
   pages.add(`/learn/${track}`)
   collectLinks(
@@ -231,50 +165,42 @@ for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
     `${track}/index.md`,
   )
   if (first) console.log(`\n== ${theme.title}  (${theme.slug})`)
-  console.log(
-    `\n${trackMeta.title}  (${track}, ${trackMeta.theme} ${trackMeta.order}, ${trackMeta.level})`,
-  )
+  console.log(`\n${title}  (${track}, ${theme.slug} ${order}, ${level})`)
 
-  // Slugs and orders are unique within a track, not across the app, so two
-  // tracks can both open with an 01.
-  const seenSlugs = new Set<string>()
+  // Orders are unique within a track, not across the app, so two tracks can
+  // both open with an 01. Slugs are the filenames, so readdir already made
+  // them unique; what is checked is that no frontmatter slug disagrees.
   const seenOrders = new Map<number, string>()
 
   for (const file of files.filter((f) => f !== 'index.md').sort()) {
-    const path = join(trackDir, file)
-    const source = await readFile(path, 'utf8')
     const label = `${track}/${file}`
-    const chapter = await renderOrBlame(source, path, label)
-    const meta = chapter.meta
+    const slug = file.replace(/\.md$/, '')
+    const { source, data, headings, hasMermaid } = await read(
+      join(trackDir, file),
+      label,
+    )
 
-    assert.equal(meta.kind, 'chapter', `${label}: did not render as a chapter`)
-    if (meta.kind !== 'chapter') continue
+    assert.ok(data.title, `${label}: missing frontmatter title`)
+    assert.ok(data.summary, `${label}: missing frontmatter summary`)
 
-    assert.equal(
-      meta.track,
-      track,
-      `${label}: rendered under track "${meta.track}"`,
-    )
-    assert.ok(meta.title, `${label}: missing frontmatter title`)
-    assert.ok(meta.summary, `${label}: missing frontmatter summary`)
+    // The URL is the filename: Fumadocs routes by path and never reads this
+    // field. A slug that disagrees is a second source of truth that no longer
+    // decides anything, which is worse than not having one at all.
     assert.ok(
-      !seenSlugs.has(meta.slug),
-      `${label}: duplicate slug "${meta.slug}" within this track`,
+      data.slug === undefined || data.slug === slug,
+      `${label}: frontmatter slug "${data.slug}" does not match the filename "${slug}"`,
     )
     assert.ok(
-      !seenOrders.has(meta.order),
-      `${label}: order ${meta.order} is already used by ${seenOrders.get(meta.order)}`,
+      !seenOrders.has(data.order),
+      `${label}: order ${data.order} is already used by ${seenOrders.get(data.order)}`,
     )
-    seenSlugs.add(meta.slug)
-    seenOrders.set(meta.order, label)
-    pages.add(`/learn/${track}/${meta.slug}`)
+    seenOrders.set(data.order, label)
+    pages.add(`/learn/${track}/${slug}`)
     collectLinks(source, label)
-
-    const headings = checkRendered(chapter, source, label)
 
     // A chapter must leave the reader able to run something. A draft is an
     // outline with no prose yet, so it is exempt until the prose arrives.
-    if (!meta.draft) {
+    if (data.draft !== true) {
       assert.match(
         source,
         /^```ts twoslash$/m,
@@ -283,10 +209,10 @@ for (const { track, files, meta: trackMeta, theme, first } of inCatalogOrder) {
     }
 
     chapterCount++
-    if (meta.draft) draftCount++
+    if (data.draft === true) draftCount++
 
     console.log(
-      `  ok  ${String(meta.order).padStart(2, '0')} ${file}  headings=${headings}  mermaid=${chapter.hasMermaid}${meta.draft ? '  DRAFT' : ''}`,
+      `  ok  ${String(data.order).padStart(2, '0')} ${file}  headings=${headings}  mermaid=${hasMermaid}${data.draft === true ? '  DRAFT' : ''}`,
     )
   }
 }
@@ -300,8 +226,8 @@ for (const { label, href } of internalLinks) {
 
 const drafts = draftCount > 0 ? `, ${draftCount} of them draft` : ''
 const themed = themes.filter((theme) =>
-  validated.some((entry) => entry.meta.theme === theme.slug),
+  validated.some((entry) => entry.theme === theme.slug),
 ).length
 console.log(
-  `\n${themed} theme(s), ${trackDirs.length} track(s), ${chapterCount} chapter(s) rendered clean${drafts}.`,
+  `\n${themed} theme(s), ${trackDirs.length} track(s), ${chapterCount} chapter(s) checked clean${drafts}.`,
 )
