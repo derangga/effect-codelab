@@ -1,13 +1,13 @@
 ---
 title: Design Thinking
-order: 5
-slug: 05-design-thinking
+order: 11
+slug: 11-design-thinking
 summary: A way to design a program before you write it, by drawing what flows, what breaks, and what each step needs.
 ---
 
-This page assumes you have read [Basic Effect](/learn/basic-effect). It is
-about deciding what to put in the three channels before any code exists, and
-every example is something that track built.
+This chapter assumes you have read the previous ten. It is about deciding what
+to put in the three channels before any code exists, and every example is
+something this course built.
 
 It is adapted, with thanks, from
 [Design Thinking](https://gist.github.com/r17x/90eb2f7be93932b5693753aedb09c01a)
@@ -260,10 +260,11 @@ once the shape is right.
 
 ## Why this is worth reading twice
 
-Read before Basic Effect, these steps would have been abstract advice. After
-it, every one of them has something concrete behind it: `isRetryable` is step
-four, the `Fetcher` service is step nine, the schema at the boundary is step
-six.
+Read before the earlier chapters, these steps would have been abstract advice.
+Now every one of them has something concrete behind it: `isRetryable` is step
+four, the `Fetcher` service is step nine, and the schema at the boundary is
+step six.
 
-That is why this page asks for the other track first. You cannot design with
-tools you have not used.
+You can now use the list before the next program you write. Draw that program,
+answer the questions you can, and revise the picture as the missing answers
+become clear.

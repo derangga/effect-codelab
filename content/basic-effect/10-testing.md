@@ -241,6 +241,6 @@ spent nine chapters moving as much as possible into that category.
 
 ## Next
 
-That is the whole track. The shortest thing to read next is
-[Anti-patterns](/learn/anti-patterns): the mistakes these ten chapters have now
-made possible, each one paired with the chapter it comes from and the fix.
+The service is finished. [Design Thinking](/learn/basic-effect/11-design-thinking)
+now steps back from its code and turns the choices behind it into a process you
+can use before writing the next program.

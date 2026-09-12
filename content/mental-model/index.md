@@ -12,14 +12,9 @@ Most people who bounce off Effect do not bounce off the API. They bounce off
 writing TypeScript the way they always have, with an Effect-shaped wrapper
 around it, and finding that it costs more and gives nothing back.
 
-This track is about the shift itself. Each of the first four pages takes one
-habit you already have, shows what it stops you doing in Effect, and names the
-replacement. There is no library tour here, and none of the four needs any
-prior Effect.
+This track is about the shift itself. Each of its four short pages takes one
+habit you already have, shows what it hides, and names the replacement. There
+is no library tour here, and none of the pages needs prior Effect experience.
 
-The last page is different. It assumes you have finished
-[Basic Effect](/learn/basic-effect), and it covers designing a program before
-writing it.
-
-Read this track, then Basic Effect for the API itself, then come back for the
-last page.
+Read this track, then continue through [Basic Effect](/learn/basic-effect) for
+the API and a complete program.
