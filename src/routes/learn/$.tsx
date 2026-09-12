@@ -1,24 +1,24 @@
-import { createFileRoute, notFound } from '@tanstack/react-router';
-import { DocsLayout } from 'fumadocs-ui/layouts/docs';
-import { createServerFn } from '@tanstack/react-start';
-import { staticFunctionMiddleware } from '@tanstack/start-static-server-functions';
-import { docs, source } from '@/lib/source';
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import { createServerFn } from "@tanstack/react-start";
+import { staticFunctionMiddleware } from "@tanstack/start-static-server-functions";
+import { docs, source } from "@/lib/source";
 import {
   DocsBody,
   DocsDescription,
   DocsPage,
   DocsTitle,
-} from 'fumadocs-ui/layouts/docs/page';
-import { baseOptions } from '@/lib/layout.shared';
-import { useFumadocsLoader } from 'fumadocs-core/source/client';
-import { Suspense, use } from 'react';
-import { Clock } from 'lucide-react';
-import { useMDXComponents } from '@/components/mdx';
+} from "fumadocs-ui/layouts/docs/page";
+import { baseOptions } from "@/lib/layout.shared";
+import { useFumadocsLoader } from "fumadocs-core/source/client";
+import { Suspense, use } from "react";
+import { Clock } from "lucide-react";
+import { useMDXComponents } from "@/components/mdx";
 
-export const Route = createFileRoute('/learn/$')({
+export const Route = createFileRoute("/learn/$")({
   component: Page,
   loader: async ({ params }) => {
-    const slugs = params._splat?.split('/') ?? [];
+    const slugs = params._splat?.split("/") ?? [];
     const data = await serverLoader({ data: slugs });
     await docs.getPage(data.path)?.preload();
     return data;
@@ -30,7 +30,7 @@ export const Route = createFileRoute('/learn/$')({
 // the result next to the html, keyed by the slugs, which is why every chapter
 // gets its own cache file rather than one shared page tree.
 const serverLoader = createServerFn({
-  method: 'GET',
+  method: "GET",
 })
   .middleware([staticFunctionMiddleware])
   .validator((slugs: string[]) => slugs)
@@ -55,7 +55,7 @@ function Content({ path }: { path: string }) {
     <DocsPage toc={toc}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
-      {!path.endsWith('index.md') ? (
+      {!path.endsWith("index.md") ? (
         <div className="mt-3 flex items-center gap-1.5 text-fd-muted-foreground text-sm">
           <Clock className="size-3.5" aria-hidden="true" />
           <span>{`${page.minutes} min read`}</span>
