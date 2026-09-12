@@ -4,7 +4,7 @@ import { defineDocs } from 'fumadocs-mdx/macro';
 import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
 import { statusBadgesPlugin } from 'fumadocs-core/source/plugins/status-badges';
 import { z } from 'zod';
-import { readingMinutes } from './reading-minutes';
+import { readingMinutes, readingTimePlugin } from './reading-minutes';
 import { themeGroupingPlugin } from './theme-tree';
 import { docsRoute } from './shared';
 
@@ -53,7 +53,13 @@ export const source = loader({
   // every `name` through renderToString, so the badge crosses the server
   // boundary as HTML and the client re-inflates it. Styled in app.css off the
   // `data-status` attribute the default badge writes.
-  plugins: [lucideIconsPlugin(), themeGroupingPlugin(), statusBadgesPlugin()],
+  plugins: [
+    lucideIconsPlugin(),
+    themeGroupingPlugin(),
+    // statusBadges first, so a draft chapter reads "Draft" then its time.
+    statusBadgesPlugin(),
+    readingTimePlugin(),
+  ],
 });
 
 export const docsLlms = llms(source, {
