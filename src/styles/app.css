@@ -36,9 +36,3 @@ span[data-status='Draft'] {
   font-size: 0.625rem;
   color: var(--color-fd-muted-foreground);
 }
-
-span[data-minutes] {
-  margin-inline-start: 0.5rem;
-  font-size: 0.625rem;
-  color: var(--color-fd-muted-foreground);
-}

@@ -4,7 +4,7 @@ import { defineDocs } from 'fumadocs-mdx/macro';
 import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
 import { statusBadgesPlugin } from 'fumadocs-core/source/plugins/status-badges';
 import { z } from 'zod';
-import { readingMinutes, readingTimePlugin } from './reading-minutes';
+import { readingMinutes } from './reading-minutes';
 import { themeGroupingPlugin } from './theme-tree';
 import { docsRoute } from './shared';
 
@@ -16,9 +16,8 @@ export const docs = defineDocs({
       includeProcessedMarkdown: true,
     },
     // The schema is handed the raw file, so reading time is computed here
-    // rather than from compiled output. The collection is async, so anything
-    // read off compiled content would force all 28 chapters to compile just
-    // to draw the sidebar.
+    // rather than from compiled output. This keeps the estimate available to
+    // page headers and catalog cards without compiling every chapter first.
     //
     // unknown frontmatter keys are dropped silently without an explicit schema
     schema: ({ source }) =>
@@ -60,9 +59,7 @@ export const source = loader({
   plugins: [
     lucideIconsPlugin(),
     themeGroupingPlugin(),
-    // statusBadges first, so a draft chapter reads "Draft" then its time.
     statusBadgesPlugin(),
-    readingTimePlugin(),
   ],
 });
 

@@ -12,6 +12,7 @@ import {
 import { baseOptions } from '@/lib/layout.shared';
 import { useFumadocsLoader } from 'fumadocs-core/source/client';
 import { Suspense, use } from 'react';
+import { Clock } from 'lucide-react';
 import { useMDXComponents } from '@/components/mdx';
 
 export const Route = createFileRoute('/learn/$')({
@@ -54,6 +55,12 @@ function Content({ path }: { path: string }) {
     <DocsPage toc={toc}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
+      {!path.endsWith('index.md') ? (
+        <div className="mt-3 flex items-center gap-1.5 text-fd-muted-foreground text-sm">
+          <Clock className="size-3.5" aria-hidden="true" />
+          <span>{`${page.minutes} min read`}</span>
+        </div>
+      ) : null}
       <DocsBody>
         <MDX components={useMDXComponents()} />
       </DocsBody>
