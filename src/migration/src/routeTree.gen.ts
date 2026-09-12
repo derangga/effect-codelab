@@ -14,7 +14,6 @@ import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as LearnSplatRouteImport } from './routes/learn/$'
-import { Route as LearnChar123Char125DotmdRouteImport } from './routes/learn/{$}[.]md'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -41,12 +40,6 @@ const LearnSplatRoute = LearnSplatRouteImport.update({
   path: '/learn/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LearnChar123Char125DotmdRoute =
-  LearnChar123Char125DotmdRouteImport.update({
-    id: '/learn/{$}.md',
-    path: '/learn/{$}.md',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,7 +47,6 @@ export interface FileRoutesByFullPath {
   '/llms.txt': typeof LlmsDottxtRoute
   '/api/search': typeof ApiSearchRoute
   '/learn/$': typeof LearnSplatRoute
-  '/learn/{$}.md': typeof LearnChar123Char125DotmdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,7 +54,6 @@ export interface FileRoutesByTo {
   '/llms.txt': typeof LlmsDottxtRoute
   '/api/search': typeof ApiSearchRoute
   '/learn/$': typeof LearnSplatRoute
-  '/learn/{$}.md': typeof LearnChar123Char125DotmdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,25 +62,12 @@ export interface FileRoutesById {
   '/llms.txt': typeof LlmsDottxtRoute
   '/api/search': typeof ApiSearchRoute
   '/learn/$': typeof LearnSplatRoute
-  '/learn/{$}.md': typeof LearnChar123Char125DotmdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/llms-full.txt'
-    | '/llms.txt'
-    | '/api/search'
-    | '/learn/$'
-    | '/learn/{$}.md'
+  fullPaths: '/' | '/llms-full.txt' | '/llms.txt' | '/api/search' | '/learn/$'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/llms-full.txt'
-    | '/llms.txt'
-    | '/api/search'
-    | '/learn/$'
-    | '/learn/{$}.md'
+  to: '/' | '/llms-full.txt' | '/llms.txt' | '/api/search' | '/learn/$'
   id:
     | '__root__'
     | '/'
@@ -97,7 +75,6 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/api/search'
     | '/learn/$'
-    | '/learn/{$}.md'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,7 +83,6 @@ export interface RootRouteChildren {
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   ApiSearchRoute: typeof ApiSearchRoute
   LearnSplatRoute: typeof LearnSplatRoute
-  LearnChar123Char125DotmdRoute: typeof LearnChar123Char125DotmdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -146,13 +122,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LearnSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/learn/{$}.md': {
-      id: '/learn/{$}.md'
-      path: '/learn/{$}.md'
-      fullPath: '/learn/{$}.md'
-      preLoaderRoute: typeof LearnChar123Char125DotmdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -162,18 +131,16 @@ const rootRouteChildren: RootRouteChildren = {
   LlmsDottxtRoute: LlmsDottxtRoute,
   ApiSearchRoute: ApiSearchRoute,
   LearnSplatRoute: LearnSplatRoute,
-  LearnChar123Char125DotmdRoute: LearnChar123Char125DotmdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
+import type { createStart } from '@tanstack/react-start'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

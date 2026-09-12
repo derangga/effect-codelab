@@ -7,11 +7,8 @@ import {
   DocsDescription,
   DocsPage,
   DocsTitle,
-  MarkdownCopyButton,
-  ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page';
 import { baseOptions } from '@/lib/layout.shared';
-import { getPageMarkdownUrl, gitConfig } from '@/lib/shared';
 import { useFumadocsLoader } from 'fumadocs-core/source/client';
 import { Suspense, use } from 'react';
 import { useMDXComponents } from '@/components/mdx';
@@ -36,12 +33,11 @@ const serverLoader = createServerFn({
 
     return {
       path: page.path,
-      markdownUrl: getPageMarkdownUrl(page).url,
       pageTree: await source.serializePageTree(source.getPageTree()),
     };
   });
 
-function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
+function Content({ path }: { path: string }) {
   const page = docs.getPage(path);
   if (!page) throw new Error(`unknown page: ${path}`);
 
@@ -52,13 +48,6 @@ function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
     <DocsPage toc={toc}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
-      <div className="flex flex-row gap-2 items-center border-b -mt-4 pb-6">
-        <MarkdownCopyButton markdownUrl={markdownUrl} />
-        <ViewOptionsPopover
-          markdownUrl={markdownUrl}
-          githubUrl={`https://github.com/${gitConfig.user}/${gitConfig.repo}/blob/${gitConfig.branch}/content/docs/${path}`}
-        />
-      </div>
       <DocsBody>
         <MDX components={useMDXComponents()} />
       </DocsBody>
@@ -67,12 +56,12 @@ function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
 }
 
 function Page() {
-  const { path, pageTree, markdownUrl } = useFumadocsLoader(Route.useLoaderData());
+  const { path, pageTree } = useFumadocsLoader(Route.useLoaderData());
 
   return (
     <DocsLayout {...baseOptions()} tree={pageTree}>
       <Suspense>
-        <Content path={path} markdownUrl={markdownUrl} />
+        <Content path={path} />
       </Suspense>
     </DocsLayout>
   );
