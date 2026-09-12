@@ -1,5 +1,7 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
+  // the migration is its own project with its own tsconfig, run from inside it
+  "exclude": ["src/migration"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

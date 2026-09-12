@@ -9,6 +9,8 @@
     "start": "vite preview",
     "preview": "vite preview",
     "types:check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "oxlint"
   },
   "dependencies": {
@@ -37,6 +39,7 @@
     "oxlint": "^1.82.0",
     "tailwindcss": "^4.3.3",
     "typescript": "6.0.3",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "4.1.10"
   }
 }
