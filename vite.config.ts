@@ -5,6 +5,7 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { fumadocsMdx } from 'fumadocs-mdx/vite';
+import { oldBasicEffectPaths } from './src/lib/basic-effect-redirects.ts';
 
 const contentDir = join(import.meta.dirname, 'content');
 
@@ -30,7 +31,12 @@ function prerenderPages() {
     }
   }
 
-  paths.push('/api/search', '/llms.txt', '/llms-full.txt');
+  paths.push(
+    ...oldBasicEffectPaths,
+    '/api/search',
+    '/llms.txt',
+    '/llms-full.txt',
+  );
 
   return paths.map((path) => ({ path, prerender: { enabled: true } }));
 }

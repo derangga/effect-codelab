@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { createServerFn } from "@tanstack/react-start";
 import { staticFunctionMiddleware } from "@tanstack/start-static-server-functions";
@@ -14,11 +14,17 @@ import { useFumadocsLoader } from "fumadocs-core/source/client";
 import { Suspense, use } from "react";
 import { Clock } from "lucide-react";
 import { useMDXComponents } from "@/components/mdx";
+import { redirectBasicEffectPath } from "@/lib/basic-effect-redirects";
 
 export const Route = createFileRoute("/learn/$")({
   component: Page,
   loader: async ({ params }) => {
     const slugs = params._splat?.split("/") ?? [];
+    const redirectTo = redirectBasicEffectPath(slugs);
+    if (redirectTo !== undefined) {
+      throw redirect({ href: redirectTo, statusCode: 301 });
+    }
+
     const data = await serverLoader({ data: slugs });
     await docs.getPage(data.path)?.preload();
     return data;

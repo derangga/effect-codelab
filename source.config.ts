@@ -1,7 +1,7 @@
-import { rehypeCodeDefaultOptions } from 'fumadocs-core/mdx-plugins';
-import { defineConfig } from 'fumadocs-mdx/config';
-import { transformerTwoslash } from '@shikijs/twoslash';
-import ts from 'typescript';
+import { rehypeCodeDefaultOptions } from "fumadocs-core/mdx-plugins";
+import { defineConfig } from "fumadocs-mdx/config";
+import { transformerTwoslash } from "@shikijs/twoslash";
+import ts from "typescript";
 
 // Twoslash compiles snippets against the app's own tsconfig-ish settings.
 // Effect needs `strict`. Without it the E/R channels infer wrong and the
@@ -12,10 +12,12 @@ const twoslashCompilerOptions: ts.CompilerOptions = {
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   strict: true,
   skipLibCheck: true,
-  lib: ['lib.esnext.d.ts', 'lib.dom.d.ts'],
+  lib: ["lib.esnext.d.ts", "lib.dom.d.ts"],
   // vite/client is what makes `import.meta.env` real in snippets. Without it
   // the browser Config chapter renders a red squiggle on the line it teaches.
-  types: ['vite/client'],
+  types: ["vite/client"],
+  baseUrl: ".",
+  paths: { "@/*": ["./src/*"] },
 };
 
 // Mermaid strips anything that looks like a tag from a label, so a label like
@@ -26,7 +28,7 @@ function escapeMermaidLabels(source: string) {
   return source.replace(
     /"([^"]*)"/g,
     (_, label: string) =>
-      `"${label.replaceAll('<', '#60;').replaceAll('>', '#62;')}"`,
+      `"${label.replaceAll("<", "#60;").replaceAll(">", "#62;")}"`,
   );
 }
 
@@ -37,14 +39,14 @@ function remarkMermaid() {
   const walk = (node: any) => {
     if (!Array.isArray(node.children)) return;
     node.children.forEach((child: any, i: number) => {
-      if (child.type === 'code' && child.lang === 'mermaid') {
+      if (child.type === "code" && child.lang === "mermaid") {
         node.children[i] = {
-          type: 'mdxJsxFlowElement',
-          name: 'Mermaid',
+          type: "mdxJsxFlowElement",
+          name: "Mermaid",
           attributes: [
             {
-              type: 'mdxJsxAttribute',
-              name: 'chart',
+              type: "mdxJsxAttribute",
+              name: "chart",
               value: escapeMermaidLabels(child.value),
             },
           ],
@@ -62,14 +64,14 @@ function remarkMermaid() {
 // render them bare.
 function rehypeMarkTwoslashPopups() {
   const mark = (node: any) => {
-    if (node.tagName === 'pre') node.properties['data-twoslash-popup'] = '';
+    if (node.tagName === "pre") node.properties["data-twoslash-popup"] = "";
     for (const child of node.children ?? []) mark(child);
   };
   const walk = (node: any) => {
     // hast spells it className, shiki and twoslash emit a raw class string
     const raw = node.properties?.className ?? node.properties?.class;
-    const classes = Array.isArray(raw) ? raw.join(' ') : String(raw ?? '');
-    if (classes.split(/\s+/).includes('twoslash-popup-code')) mark(node);
+    const classes = Array.isArray(raw) ? raw.join(" ") : String(raw ?? "");
+    if (classes.split(/\s+/).includes("twoslash-popup-code")) mark(node);
     else for (const child of node.children ?? []) walk(child);
   };
   return (tree: any) => walk(tree);
@@ -80,10 +82,10 @@ export default defineConfig({
     remarkPlugins: (v) => [...v, remarkMermaid],
     rehypePlugins: (v) => [...v, rehypeMarkTwoslashPopups],
     rehypeCodeOptions: {
-      themes: { light: 'github-light', dark: 'github-dark' },
+      themes: { light: "github-light", dark: "github-dark" },
       // shiki cannot lazy load languages inside twoslash output, so the ones
       // the chapters use are loaded up front.
-      langs: ['js', 'jsx', 'ts', 'tsx'],
+      langs: ["js", "jsx", "ts", "tsx"],
       transformers: [
         // appended rather than replacing: the defaults carry notation
         // highlight, word highlight, diff and focus.
@@ -101,13 +103,13 @@ export default defineConfig({
             // should be pinned with `^?` rather than hidden behind a hover.
             // Filtering the nodes also removes the dotted underlines, which
             // otherwise advertise an interaction that no longer does anything.
-            filterNode: (node) => node.type !== 'hover',
+            filterNode: (node) => node.type !== "hover",
           },
           // `^?` renders as a block under the line instead of an absolutely
           // positioned popup. The popup is clipped by the code block's own
           // horizontal scrolling, and a reader should not have to hover to
           // see the type the chapter is making a point about.
-          rendererRich: { queryRendering: 'line' },
+          rendererRich: { queryRendering: "line" },
         }),
       ],
     },

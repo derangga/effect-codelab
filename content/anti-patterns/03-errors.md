@@ -7,7 +7,7 @@ summary: One error type for everything, and catching everything too early. Both 
 
 ## One error type with a message inside
 
-From [Errors](/learn/basic-effect/05-errors). This looks tidy and it costs you
+From [Errors](/learn/basic-effect/03-typed-errors). This looks tidy and it costs you
 everything that chapter was about.
 
 ```ts twoslash
@@ -24,7 +24,7 @@ somebody writes `if (error.message.includes('404'))`, and that is string
 matching on prose.
 
 The test is the retry function from
-[The Capstone](/learn/basic-effect/09-capstone). If you cannot write "retry
+[The Capstone](/learn/basic-effect/08-capstone). If you cannot write "retry
 this one, not that one" without reading a string, your errors are not separate
 enough.
 
@@ -32,7 +32,7 @@ Give each failure its own tag and the fields a handler needs.
 
 ## Catching everything, too early
 
-From [Errors](/learn/basic-effect/05-errors). `Effect.catch` at the bottom of
+From [Errors](/learn/basic-effect/03-typed-errors). `Effect.catch` at the bottom of
 a helper is the same mistake
 as a bare `catch {}` in ordinary code.
 

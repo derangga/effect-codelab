@@ -10,7 +10,7 @@ draft: true
 
 Not that the framework routes. That the handler makes the decision the
 endpoint promised: the right failure, the right status, the right shape.
-Same rule as [Testing](/learn/basic-effect/10-testing).
+Same rule as [Testing](/learn/basic-effect/09-testing).
 
 ## HttpApiTest
 

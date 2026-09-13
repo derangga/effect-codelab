@@ -25,7 +25,7 @@ that these are derived from the one definition, not written out again.
 ## Where decoding actually happens
 
 At the boundary, once, on the way in. Inside, the type is trusted. Link back
-to [Schema](/learn/basic-effect/06-schema) rather than reteaching it.
+to [Schema](/learn/basic-effect/04-schemas) rather than reteaching it.
 
 ## What breaks on purpose
 

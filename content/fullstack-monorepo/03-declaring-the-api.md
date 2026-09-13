@@ -20,7 +20,7 @@ schema. Point out that the schemas are the ones from `shared`.
 
 An endpoint says which errors it can return and with what status. Same
 argument as the `E` channel, one level up. Reference
-[Errors](/learn/basic-effect/05-errors).
+[Errors](/learn/basic-effect/03-typed-errors).
 
 ## Grouping and assembling
 

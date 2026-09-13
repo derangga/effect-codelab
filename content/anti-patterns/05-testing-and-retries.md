@@ -7,7 +7,7 @@ summary: A test that only tests its own stub, and a retry policy that is not a p
 
 ## Tests that only test the stub
 
-From [Testing](/learn/basic-effect/10-testing). The test passes, and it proves
+From [Testing](/learn/basic-effect/09-testing). The test passes, and it proves
 nothing.
 
 ```ts twoslash
@@ -41,7 +41,7 @@ request itself, the URL or the headers, a stub cannot answer it, so use MSW.
 
 ## Retrying because retrying sounds good
 
-From [The Capstone](/learn/basic-effect/09-capstone). Three versions of the
+From [The Capstone](/learn/basic-effect/08-capstone). Three versions of the
 same misunderstanding.
 
 ```ts twoslash

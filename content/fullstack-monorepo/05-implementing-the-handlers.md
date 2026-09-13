@@ -25,7 +25,7 @@ code by hand.
 ## Layers, wired
 
 The group layer, provided the repo layer, provided the sqlite client layer.
-This is [Layers and Config](/learn/basic-effect/08-layers-and-config) with
+This is [Layers and Config](/learn/basic-effect/07-layers) with
 more nodes and no new ideas.
 
 ## What is not here

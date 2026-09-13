@@ -7,7 +7,7 @@ summary: Running early, promising code cannot throw, and casting untrusted data.
 
 ## Running the program too early
 
-From [Why Effect](/learn/basic-effect/01-why-effect). The whole idea is that
+From [Why Effect](/learn/basic-effect/01-effect-model). The whole idea is that
 an Effect is a description, and this throws that away on the first line.
 
 ```ts twoslash
@@ -49,7 +49,7 @@ wrong.
 
 ## Promising that code cannot throw
 
-From [Building Effects](/learn/basic-effect/03-building-effects).
+From [Building Effects](/learn/basic-effect/02-composition).
 `Effect.sync` and `Effect.promise` are promises you make to
 the compiler, and it believes you.
 
@@ -86,7 +86,7 @@ const parse = (raw: string) =>
 
 ## Casting at the border
 
-From [Schema](/learn/basic-effect/06-schema). This is the habit that whole
+From [Schema](/learn/basic-effect/04-schemas). This is the habit that whole
 chapter exists to break.
 
 ```ts twoslash

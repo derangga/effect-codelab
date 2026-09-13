@@ -9,7 +9,7 @@ draft: true
 ## Why a repo and not queries in handlers
 
 The handler should say what it wants, not how the row is stored. This is the
-service argument from [Services](/learn/basic-effect/07-services) applied to a
+service argument from [Services](/learn/basic-effect/06-services) applied to a
 database.
 
 ## SqlClient

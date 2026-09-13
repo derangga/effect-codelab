@@ -7,7 +7,7 @@ summary: Two mistakes that come from writing Effect as though it were ordinary a
 
 ## map where flatMap belonged
 
-From [Building Effects](/learn/basic-effect/03-building-effects), and the
+From [Building Effects](/learn/basic-effect/02-composition), and the
 type tells you immediately if you look.
 
 ```ts twoslash
@@ -27,7 +27,7 @@ If your function returns an Effect, use `flatMap`, or `yield*` it inside
 
 ## try and catch inside gen
 
-From [Effect.gen](/learn/basic-effect/04-effect-gen). `Effect.gen` looks like
+From [Effect.gen](/learn/basic-effect/02-composition). `Effect.gen` looks like
 `async` and `await`, so people reach
 for the tool that goes with it.
 
@@ -49,7 +49,7 @@ The `catch` block never runs. I checked: an Effect failure goes to the `E`
 channel and walks straight past `try` and `catch`, which only sees thrown
 values.
 
-Handle failures with the tools from [Errors](/learn/basic-effect/05-errors).
+Handle failures with the tools from [Errors](/learn/basic-effect/03-typed-errors).
 
 ```ts twoslash
 import { Effect, Schema } from 'effect'
