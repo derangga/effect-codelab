@@ -7,10 +7,12 @@
  */
 import {
   type Cause,
+  Clock,
   Config,
   Context,
   Effect,
   Layer,
+  Ref,
   Schedule,
   Schema,
 } from 'effect'
@@ -196,22 +198,30 @@ export class ProductsApi extends Context.Service<
         )
       }).pipe(Effect.timeout(requestTimeout), Effect.mapError(toProductsError))
 
-      // suspend so each run of `list` starts its own attempt counter.
-      const list = Effect.suspend(() => {
-        let n = 0
-        const attempt = Effect.suspend(() => {
-          n += 1
-          return once
+      const list = Effect.gen(function* () {
+        // Built inside the gen, so each run of `list` gets its own counter and
+        // the attempt log starts at one rather than continuing the last run.
+        const counter = yield* Ref.make(0)
+
+        const record = Effect.fn('ProductsApi.record')(function* (
+          outcome: string,
+        ) {
+          const n = yield* Ref.get(counter)
+          // The clock is a service, so the retry tests can wind it forward and
+          // still get timestamps that agree with the delays they asserted.
+          const at = yield* Clock.currentTimeMillis
+          yield* attempts.record({ n, at, outcome })
+        })
+
+        const attempt = Effect.gen(function* () {
+          yield* Ref.update(counter, (n) => n + 1)
+          return yield* once
         }).pipe(
-          Effect.tapError((error) =>
-            attempts.record({ n, at: Date.now(), outcome: describe(error) }),
-          ),
-          Effect.tap(() =>
-            attempts.record({ n, at: Date.now(), outcome: 'ok' }),
-          ),
+          Effect.tapError((error) => record(describe(error))),
+          Effect.tap(() => record('ok')),
         )
 
-        return attempt.pipe(
+        return yield* attempt.pipe(
           Effect.retry({ schedule: retryPolicy, while: isRetryable }),
         )
       })

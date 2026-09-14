@@ -76,7 +76,7 @@ const runWith = (fetcher: Layer.Layer<Fetcher>) => {
     yield* TestClock.adjust('60 seconds')
 
     const outcome = yield* Fiber.join(fiber)
-    return { ...outcome, attempts: log.length }
+    return { ...outcome, attempts: log.length, log }
   })
 
   return Effect.runPromise(program.pipe(Effect.provide(TestClock.layer())))
@@ -153,5 +153,21 @@ suite('failures that retrying cannot fix', () => {
 
     expect(outcome.tag).toBe('SchemaMismatch')
     expect(outcome.attempts).toBe(1)
+  })
+})
+
+suite('the attempt log', () => {
+  test('timestamps come from the clock the test controls', async () => {
+    const outcome = await runFault('server-error')
+    const stamps = outcome.log.map((attempt) => attempt.at)
+
+    // Under TestClock time starts at zero and only moves when the test moves
+    // it. Read from Date.now() these would be wall-clock milliseconds, around
+    // 1.7e12, and the backoff below would be invisible.
+    expect(stamps[0]).toBe(0)
+    expect(stamps.every((at) => at < 60_000)).toBe(true)
+
+    // Each retry waits longer than the last, so the log has to show it.
+    expect(stamps[stamps.length - 1]).toBeGreaterThan(stamps[0])
   })
 })
