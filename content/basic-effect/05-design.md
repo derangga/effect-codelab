@@ -175,6 +175,9 @@ Designing for implementations you have not been asked for. The repository
 interface here has three methods because the service calls three methods. Not
 because a repository "should" have `update` and `delete`.
 
+The [anti-patterns track](/learn/anti-patterns/04-services-and-layers) has the
+longer version, and covers when the bare key form is the right one.
+
 ## Next
 
 The design is now a list. Two services, three public operations, two failures,

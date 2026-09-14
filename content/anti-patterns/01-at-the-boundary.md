@@ -7,8 +7,8 @@ summary: Running early, promising code cannot throw, and casting untrusted data.
 
 ## Running the program too early
 
-From [Why Effect](/learn/basic-effect/01-effect-model). The whole idea is that
-an Effect is a description, and this throws that away on the first line.
+From [The Effect model](/learn/basic-effect/01-effect-model). The whole idea is
+that an Effect is a description, and this throws that away on the first line.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -49,9 +49,9 @@ wrong.
 
 ## Promising that code cannot throw
 
-From [Building Effects](/learn/basic-effect/02-composition).
-`Effect.sync` and `Effect.promise` are promises you make to
-the compiler, and it believes you.
+From [Constructing and composing Effects](/learn/basic-effect/02-composition).
+`Effect.sync` and `Effect.promise` are promises you make to the compiler, and
+it believes you.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -71,23 +71,27 @@ handling.
 Use `Effect.try` and name the failure.
 
 ```ts twoslash
-import { Effect } from 'effect'
-class InvalidJson {
-  readonly _tag = 'InvalidJson'
-  constructor(readonly cause: unknown) {}
-}
+import { Effect, Schema } from 'effect'
 // ---cut---
+class InvalidJson extends Schema.TaggedError<InvalidJson>()('InvalidJson', {
+  detail: Schema.String,
+}) {}
+
 const parse = (raw: string) =>
   Effect.try({
     try: () => JSON.parse(raw) as unknown,
-    catch: (cause) => new InvalidJson(cause),
+    catch: (cause) => new InvalidJson({ detail: String(cause) }),
   })
 ```
 
+`E` is `InvalidJson` now, so a caller can see the failure and decide what it
+means. The fields are the ones a handler would want: keep whatever tells
+somebody which input was bad.
+
 ## Casting at the border
 
-From [Schema](/learn/basic-effect/04-schemas). This is the habit that whole
-chapter exists to break.
+From [Schemas and domain modeling](/learn/basic-effect/04-schemas), which
+carries the short version of this. Here is the long one.
 
 ```ts twoslash
 declare const response: Response

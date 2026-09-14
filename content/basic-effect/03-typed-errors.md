@@ -243,6 +243,9 @@ tidy and takes the decision away from the only code that can make it. Whether
 a missing product is a 404, an empty state, or a reason to try a different id
 depends on the caller. Let the failure travel and handle it at the edge.
 
+The [anti-patterns track](/learn/anti-patterns/03-errors) has the longer
+version of both, plus the trap of naming your errors after status codes.
+
 ## Next
 
 Errors are typed, but the values moving through the catalog are still plain

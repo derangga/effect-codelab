@@ -213,6 +213,9 @@ The same mistake wearing a brand is `ProductId.make(someRequestParam)`. That
 constructor asserts the value is already an id. On untrusted input it hands you
 exactly the false confidence branding was supposed to remove. Decode it.
 
+The [anti-patterns track](/learn/anti-patterns/01-at-the-boundary) has the
+longer version, alongside the other two ways a boundary leaks.
+
 ## Next
 
 You have typed values, typed failures, and a way to build programs out of both.

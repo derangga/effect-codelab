@@ -19,8 +19,8 @@ before you had to.
 
 Running early removes the failure. `sync` removes the failure. Catching early
 removes the failure. Casting removes the check. One big error type removes the
-distinction. A service for a pure function adds a requirement that buys
-nothing.
+distinction, and errors named after status codes remove the subject. A service
+for a pure function adds a requirement that buys nothing.
 
 The types were the point. Keep the information in them for as long as you can,
 and hand it over only at the edge, on purpose.

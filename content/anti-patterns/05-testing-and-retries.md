@@ -7,28 +7,38 @@ summary: A test that only tests its own stub, and a retry policy that is not a p
 
 ## Tests that only test the stub
 
-From [Testing](/learn/basic-effect/09-testing). The test passes, and it proves
-nothing.
+From [Effect-native testing and review](/learn/basic-effect/09-testing). The
+test passes, and it proves nothing.
 
 ```ts twoslash
+import { assert, describe, it } from '@effect/vitest'
 import { Context, Effect, Layer, Schema } from 'effect'
-import { expect, test } from 'vitest'
-class NetworkError extends Schema.TaggedError<NetworkError>()('NetworkError', { detail: Schema.String }) {}
-class Fetcher extends Context.Service<Fetcher, {
-  request(url: string): Effect.Effect<Response, NetworkError>
-}>()('learning/Fetcher') {}
-const product = { id: 1, title: 'Backpack' }
-declare const runWith: (
-  fetcher: Layer.Layer<Fetcher>,
-) => Promise<ReadonlyArray<{ title: string }>>
+class NetworkError extends Schema.TaggedError<NetworkError>()('NetworkError', {
+  detail: Schema.String,
+}) {}
+class Fetcher extends Context.Service<
+  Fetcher,
+  { readonly request: (url: string) => Effect.Effect<Response, NetworkError> }
+>()('Fetcher') {}
+declare const listProducts: Effect.Effect<
+  ReadonlyArray<{ readonly title: string }>,
+  NetworkError,
+  Fetcher
+>
+const product = { title: 'Backpack' }
 // ---cut---
-const stub = Layer.succeed(Fetcher)(
-  Fetcher.of({ request: () => Effect.succeed(Response.json([product])) }),
-)
+const stub = Layer.succeed(Fetcher, {
+  request: () => Effect.succeed(Response.json([product])),
+})
 
-test('returns the product', async () => {
-  const products = await runWith(stub)
-  expect(products[0].title).toBe('Backpack')
+describe('listProducts', () => {
+  it.effect('returns the product', () =>
+    Effect.gen(function* () {
+      const products = yield* listProducts
+
+      assert.strictEqual(products[0].title, 'Backpack')
+    }).pipe(Effect.provide(stub)),
+  )
 })
 ```
 
@@ -41,12 +51,12 @@ request itself, the URL or the headers, a stub cannot answer it, so use MSW.
 
 ## Retrying because retrying sounds good
 
-From [The Capstone](/learn/basic-effect/08-capstone). Three versions of the
-same misunderstanding.
+From [The ProductService capstone](/learn/basic-effect/08-capstone). Three
+versions of the same misunderstanding.
 
 ```ts twoslash
 import { Effect, Schedule } from 'effect'
-declare const call: Effect.Effect<number, { readonly _tag: 'ResponseError'; readonly status: number }>
+declare const call: Effect.Effect<number>
 // ---cut---
 const everything = call.pipe(Effect.retry(Schedule.forever))
 ```
@@ -59,9 +69,64 @@ instant.
 
 A policy is three decisions: which failures, how long between, and when to stop.
 
+The first decision is the one worth writing as its own function, because it is
+the one that has to keep being right.
+
 ```ts twoslash
-import { Effect, Schedule } from 'effect'
-declare const call: Effect.Effect<number, { readonly _tag: 'ResponseError'; readonly status: number }>
+import { Schema } from 'effect'
+// ---cut---
+class NetworkError extends Schema.TaggedError<NetworkError>()('NetworkError', {
+  detail: Schema.String,
+}) {}
+
+class ResponseError extends Schema.TaggedError<ResponseError>()(
+  'ResponseError',
+  { status: Schema.Number },
+) {}
+
+class SchemaMismatch extends Schema.TaggedError<SchemaMismatch>()(
+  'SchemaMismatch',
+  { detail: Schema.String },
+) {}
+
+type CallError = NetworkError | ResponseError | SchemaMismatch
+
+const isRetryable = (error: CallError): boolean => {
+  switch (error._tag) {
+    case 'ResponseError':
+      return error.status >= 500
+    case 'NetworkError':
+      return true
+    case 'SchemaMismatch':
+      return false
+  }
+}
+```
+
+Note what is missing: there is no `default`. Add a fourth failure to
+`CallError` and this stops compiling until somebody decides whether it is worth
+retrying. A predicate written inline as `(error) => error.status >= 500` gives
+that up, and quietly answers "no" for every failure that has no `status` at
+all.
+
+Then the other two decisions wrap the call.
+
+```ts twoslash
+import { Effect, Schedule, Schema } from 'effect'
+class NetworkError extends Schema.TaggedError<NetworkError>()('NetworkError', {
+  detail: Schema.String,
+}) {}
+class ResponseError extends Schema.TaggedError<ResponseError>()(
+  'ResponseError',
+  { status: Schema.Number },
+) {}
+class SchemaMismatch extends Schema.TaggedError<SchemaMismatch>()(
+  'SchemaMismatch',
+  { detail: Schema.String },
+) {}
+type CallError = NetworkError | ResponseError | SchemaMismatch
+declare const isRetryable: (error: CallError) => boolean
+declare const call: Effect.Effect<number, CallError>
 // ---cut---
 const sensible = call.pipe(
   Effect.retry({
@@ -69,7 +134,11 @@ const sensible = call.pipe(
       Schedule.jittered,
       Schedule.upTo({ times: 3 }),
     ),
-    while: (error) => error.status >= 500,
+    while: isRetryable,
   }),
 )
 ```
+
+Exponential so a struggling server is not hammered, jittered so a thousand
+clients do not come back in the same millisecond, capped so a small problem
+stays small.
