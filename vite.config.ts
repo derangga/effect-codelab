@@ -1,13 +1,13 @@
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import react from '@vitejs/plugin-react';
-import { tanstackStart } from '@tanstack/react-start/plugin/vite';
-import { defineConfig } from 'vite';
-import tailwindcss from '@tailwindcss/vite';
-import { fumadocsMdx } from 'fumadocs-mdx/vite';
-import { oldBasicEffectPaths } from './src/lib/basic-effect-redirects.ts';
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import react from "@vitejs/plugin-react";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
+import { fumadocsMdx } from "fumadocs-mdx/vite";
+import { oldBasicEffectPaths } from "./src/lib/basic-effect-redirects.ts";
 
-const contentDir = join(import.meta.dirname, 'content');
+const contentDir = join(import.meta.dirname, "content");
 
 /**
  * Every page the build must emit, globbed rather than listed, so adding a
@@ -18,24 +18,28 @@ const contentDir = join(import.meta.dirname, 'content');
  * partly declared is a list nobody can check. This one is the whole set.
  */
 function prerenderPages() {
-  const paths = ['/', '/demo'];
+  const paths = ["/", "/demo"];
 
   for (const track of readdirSync(contentDir, { withFileTypes: true })) {
     if (!track.isDirectory()) continue;
     for (const file of readdirSync(join(contentDir, track.name))) {
-      if (!file.endsWith('.md')) continue;
-      const slug = file.replace(/\.md$/, '');
+      if (!file.endsWith(".md")) continue;
+      const slug = file.replace(/\.md$/, "");
       paths.push(
-        slug === 'index' ? `/learn/${track.name}` : `/learn/${track.name}/${slug}`,
+        slug === "index"
+          ? `/learn/${track.name}`
+          : `/learn/${track.name}/${slug}`,
       );
     }
   }
 
   paths.push(
     ...oldBasicEffectPaths,
-    '/api/search',
-    '/llms.txt',
-    '/llms-full.txt',
+    "/api/search",
+    "/llms.txt",
+    "/llms-full.txt",
+    "/sitemap.xml",
+    "/robots.txt",
   );
 
   return paths.map((path) => ({ path, prerender: { enabled: true } }));
@@ -61,7 +65,7 @@ export default defineConfig({
   resolve: {
     tsconfigPaths: true,
     alias: {
-      tslib: 'tslib/tslib.es6.js',
+      tslib: "tslib/tslib.es6.js",
     },
   },
 });

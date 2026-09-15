@@ -1,12 +1,13 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { createServerFn } from '@tanstack/react-start';
-import { staticFunctionMiddleware } from '@tanstack/start-static-server-functions';
-import { HomeLayout } from 'fumadocs-ui/layouts/home';
-import { Clock } from 'lucide-react';
-import { TrackIcon } from '@/components/track-icon';
-import { baseOptions } from '@/lib/layout.shared';
-import { source } from '@/lib/source';
-import themes from '../../content/themes.json';
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { staticFunctionMiddleware } from "@tanstack/start-static-server-functions";
+import { HomeLayout } from "fumadocs-ui/layouts/home";
+import { Clock } from "lucide-react";
+import { TrackIcon } from "@/components/track-icon";
+import { baseOptions } from "@/lib/layout.shared";
+import { source } from "@/lib/source";
+import { homeJsonLd, jsonLdScript, pageHead } from "@/lib/seo";
+import themes from "../../content/themes.json";
 
 /**
  * The catalog: themes in themes.json order, tracks ordered within their theme.
@@ -26,10 +27,10 @@ function catalog() {
       .map((page) => ({
         url: page.url,
         title: page.data.title,
-        summary: page.data.summary ?? '',
-        prereq: page.data.prereq ?? '',
-        level: page.data.level ?? '',
-        icon: page.data.icon ?? '',
+        summary: page.data.summary ?? "",
+        prereq: page.data.prereq ?? "",
+        level: page.data.level ?? "",
+        icon: page.data.icon ?? "",
         order: page.data.order ?? 999,
         minutes: pages
           .filter((each) => each.slugs[0] === page.slugs[0])
@@ -43,13 +44,17 @@ function catalog() {
   });
 }
 
-const loadCatalog = createServerFn({ method: 'GET' })
+const loadCatalog = createServerFn({ method: "GET" })
   .middleware([staticFunctionMiddleware])
   .handler(() => catalog());
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute("/")({
   component: Home,
   loader: () => loadCatalog(),
+  head: () => ({
+    ...pageHead(),
+    scripts: [jsonLdScript(homeJsonLd[0]), jsonLdScript(homeJsonLd[1])],
+  }),
 });
 
 function Home() {
@@ -60,7 +65,7 @@ function Home() {
     <HomeLayout {...baseOptions()}>
       <div className="mx-auto w-full max-w-5xl px-6 py-12">
         <header className="max-w-2xl">
-          <h1 className="text-4xl font-bold tracking-tight">Learning Effect</h1>
+          <h1 className="text-4xl font-bold tracking-tight">Effect Codelab</h1>
           <p className="mt-3 text-lg text-fd-muted-foreground">
             Short tracks on the Effect library for TypeScript. Every snippet on
             this site is compiled by the build, so the code you read is code
