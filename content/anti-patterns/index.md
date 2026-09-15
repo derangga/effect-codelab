@@ -1,6 +1,6 @@
 ---
 title: Anti-patterns
-order: 3
+order: 4
 theme: foundations
 level: intermediate
 icon: TriangleAlert
