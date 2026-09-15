@@ -1,25 +1,38 @@
 @import "tailwindcss";
-@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/catppuccin.css";
 @import "fumadocs-ui/css/preset.css";
 @import "@shikijs/twoslash/style-rich.css";
+
+/* The shipped catppuccin.css is Latte/Macchiato but picks mauve as its
+   accent. Blue is the brand accent, so the primary and focus-ring tokens
+   are re-pointed here, after the import so they win. */
+:root {
+  --color-fd-primary: hsl(222, 91%, 54%); /* Latte blue #1e66f5 */
+  --color-fd-ring: hsl(222, 91%, 70%);
+}
+
+.dark {
+  --color-fd-primary: hsl(220, 83%, 75%); /* Macchiato blue #8aadf4 */
+  --color-fd-ring: hsl(220, 83%, 75%);
+}
 
 /* The twoslash stylesheet hard-codes a light popup on :root and ships no dark
    variant, so a type reveal renders as a white box on a dark page. Pointing
    its variables at the Fumadocs tokens themes it in both directions, and this
    block sits after the import so it wins on equal specificity. */
 :root {
- --twoslash-popup-bg: var(--color-fd-card);
- --twoslash-popup-color: var(--color-fd-card-foreground);
- --twoslash-border-color: var(--color-fd-border);
+  --twoslash-popup-bg: var(--color-fd-card);
+  --twoslash-popup-color: var(--color-fd-card-foreground);
+  --twoslash-border-color: var(--color-fd-border);
 }
 
 html {
- scrollbar-gutter: stable;
+  scrollbar-gutter: stable;
 }
 
 html > body[data-scroll-locked] {
- margin-right: 0px !important;
- --removed-body-scroll-bar-size: 0px !important;
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
 }
 
 /* statusBadgesPlugin's default badge is an unstyled <span data-status>. The
@@ -28,11 +41,11 @@ html > body[data-scroll-locked] {
    The badge sits inline inside the item's truncate span, so a long enough
    chapter title would clip it. None come close today. */
 span[data-status="Draft"] {
- margin-inline-start: 0.5rem;
- border-radius: calc(infinity * 1px);
- border: 1px solid var(--color-fd-border);
- background-color: var(--color-fd-muted);
- padding-inline: 0.375rem;
- font-size: 0.625rem;
- color: var(--color-fd-muted-foreground);
+  margin-inline-start: 0.5rem;
+  border-radius: calc(infinity * 1px);
+  border: 1px solid var(--color-fd-border);
+  background-color: var(--color-fd-muted);
+  padding-inline: 0.375rem;
+  font-size: 0.625rem;
+  color: var(--color-fd-muted-foreground);
 }

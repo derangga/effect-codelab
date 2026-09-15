@@ -82,7 +82,8 @@ export default defineConfig({
     remarkPlugins: (v) => [...v, remarkMermaid],
     rehypePlugins: (v) => [...v, rehypeMarkTwoslashPopups],
     rehypeCodeOptions: {
-      themes: { light: "github-light", dark: "github-dark" },
+      // Catppuccin, matching the site's Latte/Macchiato UI theme.
+      themes: { light: "catppuccin-latte", dark: "catppuccin-macchiato" },
       // shiki cannot lazy load languages inside twoslash output, so the ones
       // the chapters use are loaded up front.
       langs: ["js", "jsx", "ts", "tsx"],
