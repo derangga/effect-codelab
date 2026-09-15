@@ -1,14 +1,13 @@
 /**
  * The capstone. Everything the course taught, in one file that actually runs.
  *
- * Config for the base URL, a Schema for the payload, one tagged error per way
- * this can go wrong, and a retry policy that knows the difference between a
- * server having a bad minute and a request that was simply wrong.
+ * A Schema for the payload, one tagged error per way this can go wrong, and a
+ * retry policy that knows the difference between a server having a bad minute
+ * and a request that was simply wrong.
  */
 import {
   type Cause,
   Clock,
-  Config,
   Context,
   Effect,
   Layer,
@@ -156,6 +155,15 @@ export const retryPolicy = Schedule.exponential('200 millis').pipe(
 
 export const requestTimeout = '2 seconds'
 
+/**
+ * The catalog this demo reads. A public, unauthenticated API, so it is a
+ * constant rather than config: there is nothing here to keep out of the
+ * bundle and nothing to vary per deploy. The tests point MSW at this same
+ * value. For config that does vary, see Repository state, layers, and config
+ * in the Basic Effect track.
+ */
+export const baseUrl = 'https://fakestoreapi.com'
+
 // ---------------------------------------------------------------------------
 // The service
 // ---------------------------------------------------------------------------
@@ -168,14 +176,11 @@ export class ProductsApi extends Context.Service<
 >()('learning/ProductsApi') {
   static readonly layerNoDeps: Layer.Layer<
     ProductsApi,
-    Config.ConfigError,
+    never,
     Fetcher | Attempts
   > = Layer.effect(
     ProductsApi,
     Effect.gen(function* () {
-      // Read once, when the layer is built. A missing value fails here rather
-      // than on the first click.
-      const baseUrl = yield* Config.String('VITE_API_BASE_URL')
       const fetcher = yield* Fetcher
       const attempts = yield* Attempts
 

@@ -3,8 +3,9 @@ node_modules
 dist
 dist-ssr
 *.local
-# .env is committed on purpose: it holds a public base URL that ships inside
-# the bundle anyway. Anything that must stay private goes in .env.local.
+# The demo's base URL is a constant in products.ts now, so there is no .env to
+# commit. Anything private would go in .env.local, which never leaves the disk.
+.env
 .env.local
 .env.*.local
 .nitro

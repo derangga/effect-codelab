@@ -6,14 +6,18 @@
  * network layer. That covers the URL, the query, the headers and the status
  * handling, which a stub cannot check because a stub never sees them.
  */
-import { ConfigProvider, Effect, Fiber, Layer } from 'effect'
+import { Effect, Fiber, Layer } from 'effect'
 import { TestClock } from 'effect/testing'
 import { HttpResponse, http } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
-import { Attempts, Fetcher, ProductsApi, type ProductsError } from './products'
-
-const baseUrl = 'https://api.test'
+import {
+  Attempts,
+  baseUrl,
+  Fetcher,
+  ProductsApi,
+  type ProductsError,
+} from './products'
 
 const product = {
   id: 1,
@@ -32,13 +36,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-const TestConfig = ConfigProvider.layer(
-  ConfigProvider.fromUnknown({ VITE_API_BASE_URL: baseUrl }),
-)
-
 const layer = ProductsApi.layerNoDeps.pipe(
   Layer.provide(Layer.mergeAll(Fetcher.layer, Attempts.layer)),
-  Layer.provide(TestConfig),
 )
 
 const list = Effect.gen(function* () {

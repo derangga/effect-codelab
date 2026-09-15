@@ -8,7 +8,7 @@
  * happen instantly, so the whole file runs in milliseconds rather than the
  * twelve seconds real waiting would cost.
  */
-import { ConfigProvider, Effect, Fiber, Layer } from 'effect'
+import { Effect, Fiber, Layer } from 'effect'
 import { TestClock } from 'effect/testing'
 import { expect, describe as suite, test } from 'vitest'
 import { type Fault, fetcherLayer } from './faults'
@@ -21,10 +21,6 @@ import {
   ProductsApi,
   type ProductsError,
 } from './products'
-
-const TestConfig = ConfigProvider.layer(
-  ConfigProvider.fromUnknown({ VITE_API_BASE_URL: 'https://api.test' }),
-)
 
 const oneProduct = [
   {
@@ -55,7 +51,6 @@ const runWith = (fetcher: Layer.Layer<Fetcher>) => {
 
   const layer = ProductsApi.layerNoDeps.pipe(
     Layer.provide(Layer.mergeAll(fetcher, recording)),
-    Layer.provide(TestConfig),
   )
 
   const program = Effect.gen(function* () {

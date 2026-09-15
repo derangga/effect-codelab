@@ -107,11 +107,11 @@ function Demo() {
       )
       .then(setOutcome)
       .catch((cause: unknown) => {
-        // Only reached if the layer itself could not be built, which here means
-        // VITE_API_BASE_URL is missing.
+        // The layer cannot fail, so this only catches a defect: a bug in the
+        // demo rather than one of the faults it is showing off.
         setOutcome({
           kind: "failed",
-          tag: "ConfigError",
+          tag: "Defect",
           detail: String(cause),
         });
       });

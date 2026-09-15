@@ -1,21 +1,13 @@
 /**
  * The bridge between React and Effect.
  *
- * There is no process.env in a browser, so the default ConfigProvider has
- * nothing to read. This builds one over import.meta.env instead, which is
- * where Vite puts VITE_ prefixed values.
- *
- * Those values are inlined into the bundle at build time and are readable by
- * anyone with devtools. Fine for a base URL, never fine for a secret. See
- * Repository state, layers, and config in the Basic Effect track.
+ * ManagedRuntime turns a layer into something a component can call. Building
+ * it is the expensive part, so it happens once per set of choices rather than
+ * once per click.
  */
-import { ConfigProvider, Layer, ManagedRuntime } from 'effect'
+import { Layer, ManagedRuntime } from 'effect'
 import type { Attempts, Fetcher } from './products'
 import { ProductsApi } from './products'
-
-export const BrowserConfig = ConfigProvider.layer(
-  ConfigProvider.fromUnknown(import.meta.env),
-)
 
 /**
  * Builds a runtime for one set of choices. The demo page calls this again when
@@ -28,6 +20,5 @@ export const makeRuntime = (
   ManagedRuntime.make(
     ProductsApi.layerNoDeps.pipe(
       Layer.provide(Layer.mergeAll(fetcher, attempts)),
-      Layer.provide(BrowserConfig),
     ),
   )
