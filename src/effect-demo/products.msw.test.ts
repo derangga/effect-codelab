@@ -114,3 +114,46 @@ test('a body that is not JSON is caught before the schema', async () => {
 
   expect(outcome.tag).toBe('MalformedJson')
 })
+
+// byId is the same pipeline with a different URL and a different shape, so
+// what is worth checking is that both of those actually changed.
+const byId = (id: number) =>
+  Effect.gen(function* () {
+    const fiber = yield* ProductsApi.use((api) => api.byId(id)).pipe(
+      Effect.map((product) => ({ tag: 'ok' as const, title: product.title })),
+      Effect.catch((error: ProductsError) =>
+        Effect.succeed({ tag: error._tag, title: '' }),
+      ),
+      Effect.provide(layer),
+      Effect.forkChild,
+    )
+
+    yield* TestClock.adjust('60 seconds')
+    return yield* Fiber.join(fiber)
+  }).pipe(Effect.provide(TestClock.layer()))
+
+test('byId asks for one product and decodes it', async () => {
+  let asked: string | undefined
+
+  server.use(
+    http.get(`${baseUrl}/products/12`, ({ request }) => {
+      asked = request.url
+      return HttpResponse.json(product)
+    }),
+  )
+
+  const outcome = await Effect.runPromise(byId(12))
+
+  expect(asked).toBe(`${baseUrl}/products/12`)
+  expect(outcome).toEqual({ tag: 'ok', title: 'Backpack' })
+})
+
+test('byId rejects a body in the wrong shape', async () => {
+  server.use(
+    http.get(`${baseUrl}/products/12`, () => HttpResponse.json([product])),
+  )
+
+  const outcome = await Effect.runPromise(byId(12))
+
+  expect(outcome.tag).toBe('SchemaMismatch')
+})

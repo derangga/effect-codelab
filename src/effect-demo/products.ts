@@ -38,6 +38,8 @@ const Products = Schema.Array(Product)
 
 const decodeProducts = Schema.decodeUnknownEffect(Products)
 
+const decodeProduct = Schema.decodeUnknownEffect(Product)
+
 // ---------------------------------------------------------------------------
 // Every way this can fail, each with its own tag
 // ---------------------------------------------------------------------------
@@ -172,6 +174,7 @@ export class ProductsApi extends Context.Service<
   ProductsApi,
   {
     readonly list: Effect.Effect<ReadonlyArray<Product>, ProductsError>
+    readonly byId: (id: number) => Effect.Effect<Product, ProductsError>
   }
 >()('learning/ProductsApi') {
   static readonly layerNoDeps: Layer.Layer<
@@ -184,24 +187,35 @@ export class ProductsApi extends Context.Service<
       const fetcher = yield* Fetcher
       const attempts = yield* Attempts
 
-      const once = Effect.gen(function* () {
-        const response = yield* fetcher.request(`${baseUrl}/products`)
+      /**
+       * One request, decoded, under a deadline. The URL and the expected shape
+       * are the only things that differ between the two methods below, so they
+       * are parameters instead of a second copy of this block.
+       */
+      const once = <A>(
+        url: string,
+        decode: (body: unknown) => Effect.Effect<A, Schema.SchemaError>,
+      ) =>
+        Effect.gen(function* () {
+          const response = yield* fetcher.request(url)
 
-        if (!response.ok) {
-          return yield* new ResponseError({ status: response.status })
-        }
+          if (!response.ok) {
+            return yield* new ResponseError({ status: response.status })
+          }
 
-        const body = yield* Effect.tryPromise({
-          try: () => response.json() as Promise<unknown>,
-          catch: (cause) => new MalformedJson({ detail: String(cause) }),
-        })
+          const body = yield* Effect.tryPromise({
+            try: () => response.json() as Promise<unknown>,
+            catch: (cause) => new MalformedJson({ detail: String(cause) }),
+          })
 
-        return yield* decodeProducts(body).pipe(
-          Effect.mapError(
-            (error) => new SchemaMismatch({ detail: error.message }),
-          ),
-        )
-      }).pipe(Effect.timeout(requestTimeout), Effect.mapError(toProductsError))
+          return yield* decode(body).pipe(
+            Effect.mapError(
+              (error) => new SchemaMismatch({ detail: error.message }),
+            ),
+          )
+        }).pipe(Effect.timeout(requestTimeout), Effect.mapError(toProductsError))
+
+      const listOnce = once(`${baseUrl}/products`, decodeProducts)
 
       const list = Effect.gen(function* () {
         // Built inside the gen, so each run of `list` gets its own counter and
@@ -220,7 +234,7 @@ export class ProductsApi extends Context.Service<
 
         const attempt = Effect.gen(function* () {
           yield* Ref.update(counter, (n) => n + 1)
-          return yield* once
+          return yield* listOnce
         }).pipe(
           Effect.tapError((error) => record(describe(error))),
           Effect.tap(() => record('ok')),
@@ -231,7 +245,17 @@ export class ProductsApi extends Context.Service<
         )
       })
 
-      return ProductsApi.of({ list })
+      /**
+       * One product, same timeout and same retry policy as `list`. It records
+       * nothing into Attempts: the demo page runs nine of these at once, and
+       * nine interleaved retry logs would be noise rather than a lesson. Callers that want to watch a run watch it from outside.
+       */
+      const byId = (id: number) =>
+        once(`${baseUrl}/products/${id}`, decodeProduct).pipe(
+          Effect.retry({ schedule: retryPolicy, while: isRetryable }),
+        )
+
+      return ProductsApi.of({ list, byId })
     }),
   )
 

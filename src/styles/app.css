@@ -49,3 +49,104 @@ span[data-status="Draft"] {
   font-size: 0.625rem;
   color: var(--color-fd-muted-foreground);
 }
+
+/* The demo page needs a pass and a fail color, and the fumadocs palette ships
+   neither. These are catppuccin's own green and red, Latte then Macchiato, so
+   a failed call sits inside the site's palette instead of next to it. One
+   token each: opacity modifiers cover the tint and the border. */
+@theme {
+  --color-demo-ok: hsl(109, 58%, 40%);
+  --color-demo-error: hsl(347, 87%, 44%);
+
+  /* Scale and settle. The overshoot to 1.06 is the whole personality; the
+     easing is a plain quint so it does not bounce a second time on the way
+     back down. */
+  --animate-pop: demo-pop 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes demo-pop {
+    0% {
+      opacity: 0;
+      transform: translateY(6px) scale(0.8);
+    }
+    60% {
+      opacity: 1;
+      transform: translateY(0) scale(1.06);
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Arrive and flinch, once. Failure should be felt before it is read. */
+  --animate-shake: demo-shake-in 0.5s ease-out both;
+
+  @keyframes demo-shake-in {
+    0% {
+      opacity: 0;
+      transform: translateX(0) scale(0.96);
+    }
+    40% {
+      opacity: 1;
+      transform: translateX(6px) scale(1);
+    }
+    55% {
+      transform: translateX(-5px);
+    }
+    70% {
+      transform: translateX(3px);
+    }
+    85% {
+      transform: translateX(-2px);
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Three of these with a stagger read as waiting without claiming progress,
+     which is the honest thing to say about a request in flight. */
+  --animate-dot: demo-dot 1s ease-in-out infinite;
+
+  @keyframes demo-dot {
+    0%,
+    80%,
+    100% {
+      opacity: 0.4;
+      transform: translateY(0);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-5px);
+    }
+  }
+}
+
+.dark {
+  --color-demo-ok: hsl(105, 48%, 72%);
+  --color-demo-error: hsl(351, 74%, 73%);
+}
+
+/* A plain fade for anyone who asked not to be moved. The gantt bars are
+   deliberately absent from this list: their width is the measurement, not
+   decoration, so they keep growing. */
+@keyframes demo-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop,
+  .animate-shake {
+    animation: demo-fade 0.2s ease-out both;
+  }
+
+  .animate-dot {
+    animation: none;
+  }
+}
