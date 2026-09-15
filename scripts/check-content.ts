@@ -141,8 +141,14 @@ let draftCount = 0
 const internalLinks: Array<{ label: string; href: string }> = []
 const pages = new Set<string>(['/', '/demo'])
 
+// Images are skipped. `![alt](/x.webp)` points at a file the build copies out
+// of public/, not at a page, so checking it against the page list would fail
+// every image on the site.
 function collectLinks(source: string, label: string) {
-  for (const [, href] of source.matchAll(/\]\((\/[^)\s]*)\)/g)) {
+  for (const [, bang, href] of source.matchAll(
+    /(!?)\[[^\]]*\]\((\/[^)\s]*)\)/g,
+  )) {
+    if (bang === '!') continue
     internalLinks.push({ label, href })
   }
 }

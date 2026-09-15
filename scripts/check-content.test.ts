@@ -201,6 +201,19 @@ test('a chapter linking to a page that does not exist is rejected', async () => 
   expect(stderr).toContain('links to /learn/t1/99-gone')
 })
 
+test('an image is not checked against the page list', async () => {
+  const { ok } = await check({
+    't1/index.md': track('T1', 1),
+    't1/01-x.md': chapter(
+      1,
+      '',
+      '![A tweet](/images/x.webp)\n\n```ts twoslash\nconst a = 1\n```',
+    ),
+  })
+
+  expect(ok).toBe(true)
+})
+
 test('a chapter linking to another track resolves', async () => {
   const { ok } = await check({
     't1/index.md': track('T1', 1),

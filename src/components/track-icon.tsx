@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Server, TriangleAlert } from 'lucide-react';
+import { BookOpen, Brain, Server, Shield, TriangleAlert } from 'lucide-react';
 
 /**
  * Frontmatter names a lucide icon as a string, and this turns it into a
@@ -7,7 +7,7 @@ import { BookOpen, Brain, Server, TriangleAlert } from 'lucide-react';
  * with a new icon means adding a line here, which the fallback keeps from
  * being a crash.
  */
-const icons = { Brain, BookOpen, TriangleAlert, Server };
+const icons = { Brain, BookOpen, TriangleAlert, Server, Shield };
 
 export function TrackIcon({
   name,
