@@ -18,7 +18,7 @@ const contentDir = join(import.meta.dirname, "content");
  * partly declared is a list nobody can check. This one is the whole set.
  */
 function prerenderPages() {
-  const paths = ["/", "/demo"];
+  const paths = ["/", "/demo", "/404"];
 
   for (const track of readdirSync(contentDir, { withFileTypes: true })) {
     if (!track.isDirectory()) continue;

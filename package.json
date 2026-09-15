@@ -1,12 +1,14 @@
 {
   "name": "learning-effect-app",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && bun scripts/write-basic-effect-redirects.ts",
+    "build": "vite build && bun scripts/post-build.ts",
     "start": "vite preview",
+    "deploy": "bun run build && wrangler deploy",
     "preview": "vite preview",
     "types:check": "tsc --noEmit",
     "check:effect": "effect-tsgo diagnostics --project tsconfig.json --strict --format pretty",
@@ -52,6 +54,7 @@
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "vite": "8.3.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "wrangler": "4.131.2"
   }
 }

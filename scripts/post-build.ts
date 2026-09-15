@@ -1,8 +1,14 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { basicEffectRedirects } from "../src/lib/basic-effect-redirects.ts";
 
 const clientDir = join(import.meta.dirname, "..", "dist", "client");
+
+/**
+ * The old basic-effect urls, as both a meta-refresh page and a `_redirects`
+ * rule. The rule is what Cloudflare serves; the html is the fallback for
+ * anything serving this directory without reading `_redirects`.
+ */
 const rules: Array<string> = [];
 
 for (const [fromSlug, toSlug] of Object.entries(basicEffectRedirects)) {
@@ -33,3 +39,13 @@ for (const [fromSlug, toSlug] of Object.entries(basicEffectRedirects)) {
 }
 
 await writeFile(join(clientDir, "_redirects"), `${rules.join("\n")}\n`);
+
+/**
+ * The prerenderer writes /404 as `404/index.html`, but Cloudflare's
+ * `not_found_handling: "404-page"` looks for `404.html` at the root. One copy
+ * is cheaper than teaching the prerenderer a special case.
+ */
+await copyFile(
+  join(clientDir, "404", "index.html"),
+  join(clientDir, "404.html"),
+);

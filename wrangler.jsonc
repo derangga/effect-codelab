@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "effect-codelab",
+  "compatibility_date": "2026-09-15",
+
+  // No `main`. Every page is prerendered, so there is nothing to run at a
+  // request: this Worker only serves the files in `dist/client`.
+  "assets": {
+    "directory": "./dist/client",
+    // Serves the prerendered /404 page for a path that does not exist,
+    // instead of Cloudflare's bare 404.
+    "not_found_handling": "404-page",
+    // Every page is prerendered as `<slug>/index.html`, which Cloudflare
+    // would serve at `<slug>/` by default. The canonicals and the sitemap
+    // carry no trailing slash, so without this every url the site advertises
+    // costs a redirect first.
+    "html_handling": "drop-trailing-slash"
+  },
+
+  // The site hardcodes https://effect.rangga.site into every canonical, the
+  // sitemap and the JSON-LD, so serving it anywhere else would advertise urls
+  // it does not answer on. Wrangler creates the dns record and the cert.
+  "routes": [{ "pattern": "effect.rangga.site", "custom_domain": true }],
+  "workers_dev": false
+}
