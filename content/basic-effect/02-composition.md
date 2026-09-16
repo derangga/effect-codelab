@@ -2,265 +2,270 @@
 title: Constructing and composing Effects
 order: 2
 slug: 02-composition
-summary: Which constructor fits which kind of work, what Effect.gen actually does with each yield, and why service methods are written with Effect.fn instead.
+summary: Chain the JSON parse onto the fetch with pipe and with gen, then wrap a timeout and a retry around the same value, which is the thing a Promise cannot be given after the fact.
 ---
 
-One Effect on its own is not interesting. Real work is several steps where each
-one needs the result of the last, and any of them might fail.
+Chapter one left you holding a `Response`. The products are in its body, and
+getting them out is a second piece of work that can fail on its own. So the
+question is how two Effects become one.
 
-Written with plain callbacks that shape nests immediately. Effect gives you two
-ways to write it flat, and a third thing that looks like the second but is not.
-This chapter is about telling them apart.
+## Two failures, one value
 
-## Choosing a constructor
-
-Before composing anything you need Effects to compose. Four constructors cover
-almost everything.
-
-| The work you have | The constructor |
-| --- | --- |
-| A value you already hold | `Effect.succeed(value)` |
-| Synchronous work that cannot throw | `Effect.sync(thunk)` |
-| Synchronous work that can throw | `Effect.try({ try, catch })` |
-| A Promise that can reject | `Effect.tryPromise({ try, catch })` |
-
-The split that matters is the bottom half. `sync` promises the body cannot
-throw, so `E` stays `never`. `try` admits it can, so you must say what the
-failure becomes.
+Give the parse its own error and its own function. Both of these go in
+`index.ts`, replacing the `ApiError` block from chapter one.
 
 ```ts twoslash
-import { Effect } from 'effect'
-// ---cut---
-class FeedParseError extends Error {
-  readonly _tag = 'FeedParseError'
+// index.ts, replacing the ApiError class from chapter one
+class ApiError extends Error {
+  readonly _tag = 'ApiError'
 }
 
-const parseFeed = (raw: string) =>
-  Effect.try({
-    try: () => JSON.parse(raw) as ReadonlyArray<unknown>,
-    catch: () => new FeedParseError(),
+class JsonError extends Error {
+  readonly _tag = 'JsonError'
+}
+```
+
+```ts twoslash
+// index.ts
+import { Effect } from 'effect'
+class ApiError extends Error {
+  readonly _tag = 'ApiError'
+}
+class JsonError extends Error {
+  readonly _tag = 'JsonError'
+}
+// ---cut---
+const request = Effect.tryPromise({
+  try: () => fetch('https://fakestoreapi.com/products'),
+  catch: () => new ApiError(),
+})
+
+const readJson = (response: Response) =>
+  Effect.tryPromise({
+    try: () => response.json(),
+    catch: () => new JsonError(),
   })
 ```
 
-The `catch` branch is where an untyped `unknown` from a `throw` becomes a value
-your code can match on. Skip it, by calling `Effect.try(() => ...)` with one
-argument, and Effect uses `UnknownError` instead. That compiles, but the caller
-learns nothing about what went wrong.
+`request` is an Effect. `readJson` is a function that returns one. That
+difference decides which operator joins them.
 
-`Effect.tryPromise` is how existing Promise code gets in. It belongs at the
-edges of your system, next to the runners, not in the middle of a service.
-
-## Chaining with map and flatMap
-
-`Effect.map` is for a plain function. `Effect.flatMap` is for a function that
-itself returns an Effect.
+## flatMap, because the second step is itself an Effect
 
 ```ts twoslash
 import { Effect } from 'effect'
-declare const readFeed: Effect.Effect<string>
-declare const parseFeed: (raw: string) => Effect.Effect<ReadonlyArray<unknown>>
+interface Product { id: number; title: string }
+class ApiError extends Error {
+  readonly _tag = 'ApiError'
+}
+class JsonError extends Error {
+  readonly _tag = 'JsonError'
+}
+const request = Effect.tryPromise({
+  try: () => fetch('https://fakestoreapi.com/products'),
+  catch: () => new ApiError(),
+})
+const readJson = (response: Response) =>
+  Effect.tryPromise({
+    try: () => response.json(),
+    catch: () => new JsonError(),
+  })
 // ---cut---
-const products = readFeed.pipe(Effect.flatMap(parseFeed))
-```
-
-Reach for a third dependent step and you are writing a callback inside a
-callback:
-
-```ts twoslash
-import { Effect } from 'effect'
-declare const readFeed: Effect.Effect<string>
-declare const parseFeed: (raw: string) => Effect.Effect<ReadonlyArray<unknown>>
-declare const validate: (
-  items: ReadonlyArray<unknown>,
-) => Effect.Effect<ReadonlyArray<string>>
-// ---cut---
-const names = readFeed.pipe(
-  Effect.flatMap((raw) =>
-    parseFeed(raw).pipe(
-      Effect.flatMap((items) =>
-        validate(items).pipe(Effect.map((valid) => valid.length)),
-      ),
-    ),
-  ),
+const listProducts = request.pipe(
+//    ^?
+  Effect.flatMap(readJson),
+  Effect.map((json) => json as ReadonlyArray<Product>),
 )
 ```
 
-That is the same shape callbacks had before Promises, and then Promises had
-before `async`/`await`. Effect's answer to it is `Effect.gen`.
+`Effect.map` transforms the value inside. `Effect.flatMap` takes a function
+that returns another Effect and joins the two into one. `pipe` is how you stack
+them, reading top to bottom.
 
-## Effect.gen
+Look at the error channel. It says `ApiError | JsonError`. Nobody wrote that
+union. It is the sum of what the two steps can do, and it grew by itself when
+the second step joined.
 
-`Effect.gen` writes a sequence of Effects as ordinary top-to-bottom code. You
-hand it a generator function, and it hands back one Effect describing the whole
-sequence.
+### The mistake
 
-```ts twoslash
-import { Effect } from 'effect'
-declare const readFeed: Effect.Effect<string>
-declare const parseFeed: (raw: string) => Effect.Effect<ReadonlyArray<unknown>>
-declare const validate: (
-  items: ReadonlyArray<unknown>,
-) => Effect.Effect<ReadonlyArray<string>>
-// ---cut---
-const names = Effect.gen(function* () {
-  const raw = yield* readFeed
-  const items = yield* parseFeed(raw)
-  const valid = yield* validate(items)
-  return valid.length
-})
-```
-
-Same work, read top to bottom.
-
-`yield*` is the only new thing in that body. It runs one Effect and hands back
-its success value, so `raw` is a `string` rather than an Effect wrapping one.
-Read it everywhere in this course as "run this and give me the value".
-
-Two things follow from that, and you get both without writing anything. If a
-step fails, the lines after it do not run, and the failure leaves through the
-`E` channel of the whole generator. And `names` was never annotated. Its `E`
-and `R` are the unions of what the yielded Effects fail with and require, so
-adding a `yield*` widens them on the line you wrote.
-
-Compared to the `async` function you already know:
-
-| In async/await | In Effect.gen |
-| --- | --- |
-| `async function` | `Effect.gen(function* () { ... })` |
-| `await promise` | `yield* effect` |
-| `throw` and `try`/`catch` | the `E` channel, handled with `catchTag` |
-| Runs when called | Runs when something runs the Effect |
-| Rejection type is `any` | Failure type is in the signature |
-
-The resemblance is real and it is also the trap. An `async` function starts
-working when you call it. `Effect.gen` returns a description that has done
-nothing yet, no matter how many `yield*` lines are inside it.
-
-### What you can put after yield*
-
-Only an Effect. This is the rule that catches people moving from Effect v2 and
-v3, because several types that used to be yieldable are not.
-
-`Option`, `Result`, `Ref`, `Deferred`, and `Fiber` are plain values. They are
-not Effects, so they do not go after `yield*`. Each has a function that turns
-it into one, or reads it inside one.
-
-```ts twoslash
-import { Effect, Option, Ref } from 'effect'
-declare const maybeName: Option.Option<string>
-// ---cut---
-const program = Effect.gen(function* () {
-  const counter = yield* Ref.make(0)
-  const current = yield* Ref.get(counter)
-  const name = yield* Effect.fromOption(maybeName)
-  return `${name} ${current}`
-})
-```
-
-`Ref.make` returns an Effect, so it is yielded. The `Ref` it produces is not,
-so reading it goes through `Ref.get`. `Effect.fromOption` turns absence into a
-failure, which is the only way an `Option` becomes part of a program's control
-flow.
-
-## Effect.fn, and how it differs from Effect.gen
-
-`Effect.gen` builds one Effect. Most of the time you want something you can
-call with different arguments, and that is a different thing.
-
-The obvious move is to wrap the gen in an arrow function:
+Reach for `map` where the function returns an Effect and you get this:
 
 ```ts twoslash
 import { Effect } from 'effect'
-declare const fetchProduct: (id: string) => Effect.Effect<{ name: string }>
-// ---cut---
-const describeProduct = (id: string) =>
-  Effect.gen(function* () {
-    const product = yield* fetchProduct(id)
-    return product.name.toUpperCase()
+class ApiError extends Error {
+  readonly _tag = 'ApiError'
+}
+class JsonError extends Error {
+  readonly _tag = 'JsonError'
+}
+const request = Effect.tryPromise({
+  try: () => fetch('https://fakestoreapi.com/products'),
+  catch: () => new ApiError(),
+})
+const readJson = (response: Response) =>
+  Effect.tryPromise({
+    try: () => response.json(),
+    catch: () => new JsonError(),
   })
+// ---cut---
+const wrong = request.pipe(Effect.map(readJson))
+//    ^?
 ```
 
-This works. `describeProduct('product-1')` builds a fresh Effect with that id
-closed over. For a local helper it is fine.
+An Effect that succeeds with another Effect. The inner one never runs, so the
+request happens and the parse does not. Worse, `JsonError` is now in the inner
+error channel, where no handler on the outside can reach it. The outer type
+claims the only thing that can go wrong is `ApiError`, and it is wrong.
 
-`Effect.fn` does the same thing and adds two things you want the moment the
-function lives in a service:
+This is the most common mistake in the whole course, and the tell is always the
+same. An `Effect<Effect<...>>` in a hover means a `map` that should have been a
+`flatMap`.
+
+## The same thing, written as a generator
+
+`pipe` is fine for two steps. At four it starts reading backwards from how you
+think about it, and every intermediate value needs a name inside a callback.
+`Effect.gen` is the other syntax for the same composition.
+
+```ts twoslash
+// index.ts
+import { Effect } from 'effect'
+interface Product { id: number; title: string }
+class ApiError extends Error {
+  readonly _tag = 'ApiError'
+}
+class JsonError extends Error {
+  readonly _tag = 'JsonError'
+}
+const request = Effect.tryPromise({
+  try: () => fetch('https://fakestoreapi.com/products'),
+  catch: () => new ApiError(),
+})
+const readJson = (response: Response) =>
+  Effect.tryPromise({
+    try: () => response.json(),
+    catch: () => new JsonError(),
+  })
+// ---cut---
+const listProducts = Effect.gen(function* () {
+//    ^?
+  const response = yield* request
+  const json = yield* readJson(response)
+  return json as ReadonlyArray<Product>
+})
+```
+
+Identical type. `yield*` is what `await` would have been, and it is where the
+error channel gets collected. The rule for choosing is short. Sequences of
+steps that name their intermediate values read better as `gen`. Wrapping one
+finished Effect in one operator reads better as `pipe`. This course uses both,
+and the next section is a `pipe`.
+
+## What the description buys you
+
+Here is the part that is hard to get any other way. `listProducts` has not run.
+It is a value. So you can wrap policy around it after the fact, without
+touching the code that describes the work.
 
 ```ts twoslash
 import { Effect } from 'effect'
-declare const fetchProduct: (id: string) => Effect.Effect<{ name: string }>
+interface Product { id: number; title: string }
+class ApiError extends Error {
+  readonly _tag = 'ApiError'
+}
+declare const listProducts: Effect.Effect<
+  ReadonlyArray<Product>,
+  ApiError,
+  never
+>
 // ---cut---
-const describeProduct = Effect.fn('ProductCatalog.describe')(function* (
-  id: string,
-) {
-  const product = yield* fetchProduct(id)
-  return product.name.toUpperCase()
-})
+const program = listProducts.pipe(
+//    ^?
+  Effect.timeout('2 seconds'),
+  Effect.retry({ times: 3 }),
+)
 ```
 
-The generator now takes the parameters directly, and the string is a span name.
-Every call opens a span called `ProductCatalog.describe` in the trace, so when
-you turn tracing on later you get a timed tree of your own operation names
-rather than an undifferentiated blob. `Effect.fn` also keeps the call site in
-the stack trace, which a bare generator loses.
+Two lines. A request that gives up after two seconds and is tried up to three
+more times if it fails.
 
-So the distinction to hold on to:
+Notice what happened to the type. `TimeoutError` joined the union, because
+giving up after two seconds is a new way for this to fail and the type says so
+without being asked. `Effect.retry` takes options, and `{ times: 3 }` is the
+simplest of them. A `schedule` option takes a `Schedule` when you want backoff
+rather than three immediate attempts.
 
-| | `Effect.gen` | `Effect.fn` |
-| --- | --- | --- |
-| What it returns | an Effect | a function that returns an Effect |
-| Takes arguments | no | yes, on the generator |
-| Creates a span | no | yes, named by you |
-| Use it for | a program, a one-off step | every service method |
+Now write the same thing with the function from chapter one. You cannot. A
+Promise is already running, so there is nothing left to wrap. Adding a timeout
+means rewriting `fetchProduct` with an `AbortController`, and adding a retry
+means rewriting it again with a loop, and both of those live inside the
+function rather than at the call site that actually knows what the policy
+should be.
 
-Name spans `Service.method`, matching where the code lives. A trace full of
-`handler` and `run` tells you nothing at three in the morning. Use
-`Effect.fnUntraced` when you deliberately want the argument handling without a
-span, on a hot path called thousands of times.
-
-Every service method in the rest of this course is written with `Effect.fn`.
-
-## What people get wrong
-
-Yielding something that is not an Effect. Usually an `Option`, because it feels
-like it should work.
+## Where the file stands
 
 ```ts twoslash
-// @errors: 2345
-import { Effect, Option } from 'effect'
-// ---cut---
-const program = Effect.gen(function* () {
-  const value = yield* Option.some(1)
-  return value
-})
-```
-
-The message is long, and the last line of it is the whole point: an `Option` is
-not an `Effect`. The fix is `Effect.fromOption`, which decides what absence
-means in this program by turning it into a failure.
-
-The second mistake is quieter, because nothing goes red. Calling a function
-that returns an Effect and not yielding the result does nothing at all.
-
-```ts twoslash
+// index.ts
 import { Effect } from 'effect'
-declare const saveProduct: (name: string) => Effect.Effect<void>
-// ---cut---
-const program = Effect.gen(function* () {
-  saveProduct('Desk mat')
-  return 'saved'
+
+interface Rating {
+  rate: number
+  count: number
+}
+
+interface Product {
+  id: number
+  title: string
+  price: number
+  description: string
+  category: string
+  image: string
+  rating: Rating
+}
+
+class ApiError extends Error {
+  readonly _tag = 'ApiError'
+}
+
+class JsonError extends Error {
+  readonly _tag = 'JsonError'
+}
+
+const request = Effect.tryPromise({
+  try: () => fetch('https://fakestoreapi.com/products'),
+  catch: () => new ApiError(),
 })
+
+const readJson = (response: Response) =>
+  Effect.tryPromise({
+    try: () => response.json(),
+    catch: () => new JsonError(),
+  })
+
+const listProducts = Effect.gen(function* () {
+  const response = yield* request
+  const json = yield* readJson(response)
+  return json as ReadonlyArray<Product>
+})
+
+const program = listProducts.pipe(
+  Effect.timeout('2 seconds'),
+  Effect.retry({ times: 3 }),
+  Effect.map((products) => products.length),
+)
+
+Effect.runPromise(program).then(console.log)
 ```
 
-`saveProduct` built a description and threw it away. The product was never
-saved. In an `async` function the same line would at least have started the
-work. Here, nothing happened. The Effect language service flags this one as a
-floating Effect, which is a good reason to have it installed.
+```sh
+20
+```
 
-## Next
+Twenty products, with a timeout and a retry, and the error channel listing
+every way it can go wrong.
 
-You can build Effects and compose them into programs. What none of these
-examples did is fail in a way a caller could do anything about. [Typed errors
-and recovery](/learn/basic-effect/03-typed-errors) fills in the `E` channel
-properly: one type per failure, carrying the fields a handler needs, and
-recovery the compiler can check is complete.
+Two things are still wrong with it. `as ReadonlyArray<Product>` is the same
+unchecked assertion chapter one complained about, still there, still lying if
+the shape changes. And `ApiError` covers a dead network, a 500, and a missing
+product with one tag and no detail, which means a caller cannot tell them
+apart. Chapter three fixes the second. Chapter four fixes the first.

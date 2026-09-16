@@ -4,152 +4,73 @@ order: 2
 theme: foundations
 level: beginner
 icon: BookOpen
+summary: Nine chapters that rebuild one fetch against a public product API until every way it can fail is written in its type, ending in a service, its layer, and a test suite that never touches the network.
 prereq: TypeScript generics, tagged unions, modules, async/await, and Promises
-summary: Nine chapters that build a tested product catalog service with Effect v4, from the three type channels to layers, config, and Effect-native tests.
 ---
 
-This course takes you from no Effect experience to a portable `ProductService`
-that lists, finds, and creates products, backed by an in-memory repository,
-wired by layers, and tested with `@effect/vitest`.
+This course takes one ordinary function, a `fetch` against a public product
+API, and rebuilds it until every way it can fail is written in its type. By the
+last chapter that function is a service, its dependencies arrive through a
+layer, its configuration comes from the environment, and its tests run against
+a mock server instead of the internet.
 
-The catalog is small on purpose. It has the same concerns a production request
-has, which is what makes it worth building: unknown input to validate, failures
-worth naming, state that must not leak between callers, a setting from the
-environment, and two services with a real boundary between them.
+The API is [fakestoreapi.com](https://fakestoreapi.com). It is free, it needs
+no key, and it holds twenty products. It also has one habit that makes it
+better teaching material than a well behaved API would be. Ask it for a product
+that does not exist and it answers `200 OK` with an empty body. Chapter one
+walks into that on purpose, and a good part of the eight chapters after it are
+about making sure it can never surprise you again.
 
-Every code block in this course is complete and typechecked at build time. You
-can read the whole thing without writing any code. If you would rather build it
-alongside, the setup below takes a few minutes.
+## What you need
 
-## Setting up a project
-
-These steps assume [Bun](https://bun.sh). Every command has an npm or pnpm
-equivalent, and nothing in the course depends on the runtime you pick.
-
-### 1. Create the project
+One package, pinned:
 
 ```sh
-mkdir effect-catalog
-cd effect-catalog
-bun init -y
+bun add --exact effect@4.0.0-rc.113
 ```
 
-### 2. Install Effect
+Effect v4 is in release candidate, and a version range moves the types out from
+under code that compiled yesterday. Every `effect` and `@effect/*` package
+shares one version number, and they must match exactly.
 
-Every `effect` and `@effect/*` package shares one version number, and they must
-match exactly. These are the versions this course is written and tested
-against:
+Run any file here with `bun run index.ts`, or with
+`node --experimental-strip-types index.ts` if you prefer node. Chapter one is
+the one place where those two runtimes disagree, and it says so. Whatever you
+run it in, turn `strict` on in `tsconfig.json`. Effect reads the failure and
+requirement channels off your code, and without `strict` those readings are
+wrong in ways that are hard to notice.
 
-```sh
-bun add effect@4.0.0-rc.113
-bun add -d @effect/vitest@4.0.0-rc.113
-bun add -d vitest@4.1.10 typescript@6.0.3
+Packages arrive when a chapter needs them. Chapter seven adds an env file,
+chapter nine adds a test runner and a mock server.
+
+## Which file you are editing
+
+Every code block opens with the name of the file it belongs in:
+
+```ts
+// index.ts
 ```
 
-Effect v4 is in release candidate. Pin the versions rather than using a range,
-because the API is still moving between release candidates.
+For the first three chapters there is only `index.ts`, and each chapter
+rewrites part of it. When a block replaces something you wrote earlier, it says
+so on the second line. Chapter four splits the file, because by then it is too
+long to hold one idea, and from that point on the block tells you which of
+`index.ts`, `error.ts` or `product.ts` you are in.
 
-### 3. Turn on strict mode
-
-Effect infers the failure and requirement channels from your code, and without
-`strict` those inferences are wrong in ways that are hard to notice. Put this
-in `tsconfig.json`:
-
-```json
-{
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["vitest/globals"]
-  },
-  "include": ["src", "test"]
-}
-```
-
-`strict` is the only line here that is not negotiable.
-
-### 4. Install the Effect language service
-
-This is optional for the first two chapters and worth having by chapter three.
-It catches Effect-specific mistakes TypeScript alone cannot see, the most
-valuable being a floating Effect, which is an Effect you built and never
-yielded. That one is silent otherwise.
-
-```sh
-bun add -d @effect/tsgo@0.45.0
-```
-
-The package installs as `@effect/tsgo`, and the plugin name stays
-`@effect/language-service`. Add it to the same `tsconfig.json`:
-
-```json
-{
-  "compilerOptions": {
-    "plugins": [{ "name": "@effect/language-service" }]
-  }
-}
-```
-
-Then point your editor at the workspace TypeScript, or the plugin will not
-load. In VS Code, open the command palette, run `TypeScript: Select TypeScript
-Version`, and choose `Use Workspace Version`. In a JetBrains IDE, it is
-Settings, Languages and Frameworks, TypeScript, Use workspace version.
-
-### 5. Add the commands you will run
-
-In `package.json`:
-
-```json
-{
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
-  }
-}
-```
-
-`typecheck` is the one you will use constantly. Most of this course is about
-reading types, and most of the feedback comes from that command or from your
-editor.
-
-### 6. Check it works
-
-Put this in `src/main.ts`:
-
-```ts twoslash
-import { Effect } from 'effect'
-
-const program = Effect.gen(function* () {
-  yield* Effect.log('Effect is set up')
-  return 1 + 1
-})
-
-Effect.runPromise(program).then(console.log)
-```
-
-Then run it:
-
-```sh
-bun run src/main.ts
-```
-
-You should see a timestamped log line and then `2`. If you do, everything in
-this course will run for you.
+The snippets compile as the real set of files you are building, not as isolated
+examples, so an import that does not resolve or a type that does not line up
+across two files fails this site's build rather than reaching you.
 
 ## How the chapters work
 
-Each chapter opens with a problem, builds one or two ideas against the product
-catalog, and shows the mistake people make with them. Code is written out in
-full on the page. Where a chapter needs something an earlier chapter built, it
-declares the type rather than reprinting the implementation, so every example
-stays readable and every example compiles.
+Each chapter opens with something the previous chapter left broken, fixes it
+with one idea, and shows the mistake people make with that idea. Read them in
+order. Chapters one through three grow a single file, chapters four through
+eight turn it into a module, and chapter eight prints the finished thing in one
+piece.
 
-Read them in order. Chapters four through eight build one continuous module,
-and chapter eight prints the finished thing in one piece.
+You can read the whole course without writing any code. If you would rather
+build it, the file names are there for exactly that.
 
 ## Roadmap
 
@@ -159,16 +80,31 @@ and chapter eight prints the finished thing in one piece.
 4. [Schemas and domain modeling](/learn/basic-effect/04-schemas)
 5. [Design the product service](/learn/basic-effect/05-design)
 6. [Services with Context.Service](/learn/basic-effect/06-services)
-7. [Repository state, layers, and config](/learn/basic-effect/07-layers)
-8. [The ProductService capstone](/learn/basic-effect/08-capstone)
+7. [Config, dependencies, and layers](/learn/basic-effect/07-layers)
+8. [The ProductApi capstone](/learn/basic-effect/08-capstone)
 9. [Effect-native testing and review](/learn/basic-effect/09-testing)
+
+## About the terminal output
+
+Every terminal block in this course is copied from a real run against the live
+API on 16 September 2026. The data is theirs and it moves, so a price or a
+title on this page may not be the one you get. The shapes will be.
+
+If the API is down when you read this, chapter nine is the chapter that keeps
+working, because by then nothing you run touches the network.
 
 ## What this course leaves out
 
-The track stops at the portable service boundary. HTTP, SQL, streams, scopes
-and resource cleanup, frontend state, metrics, and deployment are deliberately
-out of scope, and each belongs to a track that starts from the module you
-finish here.
+The track stops where the service boundary is. HTTP clients, servers and
+routing, SQL, streams, scopes and resource cleanup, frontend state, metrics,
+and deployment are all out of scope, and each belongs to a track that starts
+from the module you finish here.
+
+The requests here go through the global `fetch`, wrapped. That is the smallest
+thing that works, and it keeps the lessons about the three channels rather than
+about a client library. The
+[HTTP Auth API](/learn/http-auth-api) track is where a real Effect HTTP stack
+shows up.
 
 If you want the same material read from the other side, the
 [anti-patterns track](/learn/anti-patterns) collects the habits that undo it.
