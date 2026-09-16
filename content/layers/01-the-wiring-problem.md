@@ -2,7 +2,7 @@
 title: The wiring problem
 order: 1
 slug: 01-the-wiring-problem
-summary: Why handing over a finished service value runs out, and the four things a layer can do that Effect.provideService cannot.
+summary: Write the first two files of the feed app, and find the point where handing over a finished service value stops working.
 ---
 
 A feed endpoint needs a user's articles. Articles come from a repository, the
@@ -13,9 +13,11 @@ bad answer for it ready to go.
 
 ## The bad answer, written out
 
-In plain TypeScript the connection travels down the call stack as an argument.
+Before any Effect, here is how the connection normally travels: down the call
+stack, as an argument.
 
 ```ts twoslash
+// the shape of the problem, with no Effect in it yet
 interface Database {
   readonly query: (sql: string) => Promise<ReadonlyArray<string>>
 }
@@ -33,7 +35,7 @@ every function on that path grows a second parameter it does not use. That is
 the whole problem, and it gets worse in exactly the direction your codebase
 grows.
 
-## What Effect does instead
+## The first file
 
 An `Effect<A, E, R>` carries three things: `A` is what it produces, `E` is how
 it can fail, and `R` is what it needs before it can run. `R` is the interesting
@@ -41,14 +43,20 @@ one here, because it means the requirement can be recorded in the type instead
 of threaded through the arguments.
 
 A service is a capability your code asks for by name. `Context.Service`
-declares one:
+declares one, and this is the first real file of the app:
 
 ```ts twoslash
+// src/database.ts
 import { Context, Effect } from 'effect'
 
-class Database extends Context.Service<
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+
+export class Database extends Context.Service<
   Database,
-  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<string>> }
+  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<Row>> }
 >()('Database') {}
 ```
 
@@ -57,32 +65,46 @@ refer to its own instance, and the string `'Database'` is the name the context
 is keyed by at runtime. The second type argument is the shape: one method
 returning an Effect.
 
-Now ask for it. `yield*` on the class means "get me the Database that is in
-context".
+This form declares the shape and stops there. By the end of
+[Providing](/learn/layers/03-providing) this file is rewritten to know how to
+build itself, and that rewrite is the point of the next two chapters.
+
+## Asking for it
+
+`yield*` on the class means "get me the Database that is in context".
 
 ```ts twoslash
+// @filename: src/database.ts
 import { Context, Effect } from 'effect'
-class Database extends Context.Service<
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<
   Database,
-  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<string>> }
+  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<Row>> }
 >()('Database') {}
+// @filename: src/main.ts
 // ---cut---
-const feedForUser: Effect.Effect<
-  ReadonlyArray<string>,
-  never,
-  Database
-> = Effect.gen(function* () {
-  const database = yield* Database
-  return yield* database.query('select * from articles')
-})
+// src/main.ts
+import { Effect } from 'effect'
+import { Database, type Row } from './database'
+
+const feedForUser: Effect.Effect<ReadonlyArray<Row>, never, Database> =
+  Effect.gen(function* () {
+    const database = yield* Database
+    return yield* database.query('select * from articles')
+  })
 ```
 
-`Database` is in the third slot. That annotation is checked, so if the effect
-actually needed something else the page would fail to build rather than lie to
-you. Nothing was passed anywhere, and nothing that
+`Database` is in the third slot, and nothing was passed anywhere. Nothing that
 calls `feedForUser` has to know a database exists. The requirement is a fact
 about the type rather than a parameter, and it propagates on its own: any
 effect that yields this one inherits `Database` in its own `R`.
+
+That annotation is compiled along with the rest of this page, so if the effect
+actually required something else the page would fail to build rather than lie
+to you.
 
 ## Handing over a value
 
@@ -91,24 +113,35 @@ point. Something has to put a `Database` in context first, and the smallest way
 to do that is `Effect.provideService`, which takes the finished value.
 
 ```ts twoslash
+// @filename: src/database.ts
 import { Context, Effect } from 'effect'
-class Database extends Context.Service<
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<
   Database,
-  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<string>> }
+  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<Row>> }
 >()('Database') {}
-const feedForUser = Effect.gen(function* () {
-  const database = yield* Database
-  return yield* database.query('select * from articles')
-})
+// @filename: src/main.ts
+import { Effect } from 'effect'
+import { Database, type Row } from './database'
+const feedForUser: Effect.Effect<ReadonlyArray<Row>, never, Database> =
+  Effect.gen(function* () {
+    const database = yield* Database
+    return yield* database.query('select * from articles')
+  })
 // ---cut---
-const stub = { query: () => Effect.succeed(['a memoir', 'a recipe']) }
+// src/main.ts, below feedForUser
+const stub = { query: () => Effect.succeed([{ id: 'a1', title: 'a memoir' }]) }
 
 const runnable = feedForUser.pipe(Effect.provideService(Database, stub))
 //    ^?
 ```
 
-`R` is now `never`, and `never` is the precondition for running anything. For a
-stub in a test, this is the right tool and there is nothing above it.
+`R` is now `never`, and `never` is the precondition for running anything. Run
+this with `bun run src/main.ts` after adding a `console.log` and it works. For a
+stub, this is the right tool and there is nothing above it.
 
 ## Where that runs out
 
@@ -117,14 +150,25 @@ environment, which can fail. The open itself can fail. And when the program
 ends, the connection has to be closed, whether the program ended by finishing,
 by failing, or by being interrupted.
 
-Every one of those is an effect. So the construction is an effect:
+Every one of those is an effect. So the construction is an effect, and this is
+roughly what `src/database.ts` has to grow into:
 
 ```ts twoslash
-import { Effect } from 'effect'
+// @filename: src/database.ts
+import { Context, Effect } from 'effect'
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<
+  Database,
+  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<Row>> }
+>()('Database') {}
 // ---cut---
+// src/database.ts, the construction we actually want
 const makeDatabase = Effect.gen(function* () {
   yield* Effect.log('opening the connection')
-  return { query: () => Effect.succeed(['a memoir']) }
+  return { query: () => Effect.succeed([{ id: 'a1', title: 'a memoir' }]) }
 })
 ```
 
@@ -133,20 +177,31 @@ for producing one:
 
 ```ts twoslash
 // @errors: 2345
+// @filename: src/database.ts
 import { Context, Effect } from 'effect'
-class Database extends Context.Service<
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<
   Database,
-  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<string>> }
+  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<Row>> }
 >()('Database') {}
-declare const feedForUser: Effect.Effect<ReadonlyArray<string>, never, Database>
-const makeDatabase = Effect.gen(function* () {
+export const makeDatabase = Effect.gen(function* () {
   yield* Effect.log('opening the connection')
-  return { query: () => Effect.succeed(['a memoir']) }
+  return { query: () => Effect.succeed([{ id: 'a1', title: 'a memoir' }]) }
 })
+// @filename: src/main.ts
+import { Effect } from 'effect'
+import { Database, makeDatabase, type Row } from './database'
+const feedForUser: Effect.Effect<ReadonlyArray<Row>, never, Database> =
+  Effect.gen(function* () {
+    const database = yield* Database
+    return yield* database.query('select * from articles')
+  })
 // ---cut---
-const wrong = feedForUser.pipe(
-  Effect.provideService(Database, makeDatabase),
-)
+// src/main.ts
+const wrong = feedForUser.pipe(Effect.provideService(Database, makeDatabase))
 ```
 
 Read the error rather than skipping it. TypeScript is saying that an
@@ -174,11 +229,18 @@ the only new idea in this track.
 Reaching for `Effect.runSync` to get a value that `provideService` will accept.
 
 ```ts twoslash
+// @filename: src/database.ts
 import { Effect } from 'effect'
-declare const makeDatabase: Effect.Effect<{
-  readonly query: () => Effect.Effect<ReadonlyArray<string>>
-}>
+export const makeDatabase = Effect.gen(function* () {
+  yield* Effect.log('opening the connection')
+  return { query: () => Effect.succeed([{ id: 'a1', title: 'a memoir' }]) }
+})
+// @filename: src/main.ts
 // ---cut---
+// src/main.ts, do not do this
+import { Effect } from 'effect'
+import { makeDatabase } from './database'
+
 const database = Effect.runSync(makeDatabase)
 ```
 
@@ -191,6 +253,6 @@ older tool fit.
 
 ## Next
 
-[Building a layer](/learn/layers/02-building-a-layer) writes the recipe, and
-reads its three type parameters against the three you already know from
-`Effect`.
+[Building a layer](/learn/layers/02-building-a-layer) writes `src/config.ts`,
+the first file in the app with a layer on it, and reads a layer's three type
+parameters against the three you already know from `Effect`.

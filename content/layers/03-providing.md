@@ -2,23 +2,24 @@
 title: Providing, and where the requirement goes
 order: 3
 slug: 03-providing
-summary: Layer.provide closes a requirement inside the layer, Effect.provide closes it at the edge, and the type tells you which one you just did.
+summary: Rewrite src/database.ts so it builds itself. Layer.provide closes a requirement inside the layer, Effect.provide closes it at the edge.
 ---
 
-`AppConfig` is ready to run: nothing has to be in context before it builds. The
-`Database` that reads its url from `AppConfig` is a different story, and
-watching one requirement move is the clearest way to see what providing does.
+`AppConfig.layer` is ready to run: nothing has to be in context before it
+builds. The `Database` that reads its url from `AppConfig` is a different story,
+and watching one requirement move is the clearest way to see what providing
+does.
 
-## A service that needs another service
+## The database, properly
 
-Here is the second file. `Database` yields `AppConfig`, opens a connection with
-`Effect.acquireRelease` so that closing is guaranteed, and hands back a `query`
-method.
+`src/database.ts` from chapter one only declared a shape. Here it is rewritten
+with a `make`, which yields `AppConfig`, opens a connection with
+`Effect.acquireRelease` so that closing is guaranteed, and hands back `query`.
 
 ```ts twoslash
-// src/database.ts
+// @filename: src/config.ts
 import { Config, Context, Effect, Layer } from 'effect'
-class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
+export class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
   make: Effect.gen(function* () {
     const databaseUrl = yield* Config.String('DATABASE_URL')
     const feedSize = yield* Config.Int('FEED_SIZE').pipe(Config.withDefault(20))
@@ -26,12 +27,22 @@ class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
   }),
 }) {
   static readonly layer = Layer.effect(this, this.make)
+  static readonly layerTest = Layer.succeed(this, {
+    databaseUrl: 'memory://feed',
+    feedSize: 3,
+  })
 }
-interface Row {
+// @filename: src/database.ts
+// ---cut---
+// src/database.ts, replacing the declaration from chapter one
+import { Context, Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+
+export interface Row {
   readonly id: string
   readonly title: string
 }
-// ---cut---
+
 export class Database extends Context.Service<Database>()('Database', {
   make: Effect.gen(function* () {
     const config = yield* AppConfig
@@ -54,37 +65,61 @@ export class Database extends Context.Service<Database>()('Database', {
 }) {}
 ```
 
+The connection logs instead of connecting, because this track is about the
+wiring around it rather than the SQL inside it. Everything else here is what a
+real driver would do.
+
 `Effect.acquireRelease` pairs an acquire with a release, and Effect runs the
 release when the surrounding scope closes, on success, on failure and on
 interruption alike. A scope is the lifetime something is tied to. You do not
 have to create one here, because `Layer.effect` supplies a scope for the
 construction and ties it to however long the layer stays built.
 
+Note that the class has no `static layer` yet. Adding it is the rest of this
+chapter.
+
 ## The requirement moves, it does not vanish
 
-Wrap `make` in a layer without doing anything else and read the result:
+Wrap `make` in a layer without doing anything else, and read the result:
 
 ```ts twoslash
+// @filename: src/config.ts
 import { Config, Context, Effect, Layer } from 'effect'
-class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
+export class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
   make: Effect.gen(function* () {
     const databaseUrl = yield* Config.String('DATABASE_URL')
-    return { databaseUrl, feedSize: 20 }
+    const feedSize = yield* Config.Int('FEED_SIZE').pipe(Config.withDefault(20))
+    return { databaseUrl, feedSize }
   }),
 }) {
   static readonly layer = Layer.effect(this, this.make)
 }
-class Database extends Context.Service<Database>()('Database', {
+// @filename: src/database.ts
+import { Context, Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<Database>()('Database', {
   make: Effect.gen(function* () {
     const config = yield* AppConfig
+    const connection = yield* Effect.acquireRelease(
+      Effect.gen(function* () {
+        yield* Effect.log(`opening ${config.databaseUrl}`)
+        return { url: config.databaseUrl }
+      }),
+      () => Effect.log('closing the connection'),
+    )
     const query = Effect.fn('Database.query')(function* (sql: string) {
-      yield* Effect.log(`${config.databaseUrl}: ${sql}`)
-      return [] as ReadonlyArray<string>
+      yield* Effect.log(`${connection.url}: ${sql}`)
+      return [] as ReadonlyArray<Row>
     })
     return { query }
   }),
 }) {}
 // ---cut---
+// src/database.ts, a first attempt at the static layer
 const leaky = Layer.effect(Database, Database.make)
 //    ^?
 ```
@@ -100,28 +135,44 @@ parameter passing from chapter one wearing different clothes.
 outer layer's output.
 
 ```ts twoslash
+// @filename: src/config.ts
 import { Config, Context, Effect, Layer } from 'effect'
-class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
+export class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
   make: Effect.gen(function* () {
     const databaseUrl = yield* Config.String('DATABASE_URL')
-    return { databaseUrl, feedSize: 20 }
+    const feedSize = yield* Config.Int('FEED_SIZE').pipe(Config.withDefault(20))
+    return { databaseUrl, feedSize }
   }),
 }) {
   static readonly layer = Layer.effect(this, this.make)
 }
-class Database extends Context.Service<Database>()('Database', {
+// @filename: src/database.ts
+import { Context, Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<Database>()('Database', {
   make: Effect.gen(function* () {
     const config = yield* AppConfig
+    const connection = yield* Effect.acquireRelease(
+      Effect.gen(function* () {
+        yield* Effect.log(`opening ${config.databaseUrl}`)
+        return { url: config.databaseUrl }
+      }),
+      () => Effect.log('closing the connection'),
+    )
     const query = Effect.fn('Database.query')(function* (sql: string) {
-      yield* Effect.log(`${config.databaseUrl}: ${sql}`)
-      return [] as ReadonlyArray<string>
+      yield* Effect.log(`${connection.url}: ${sql}`)
+      return [] as ReadonlyArray<Row>
     })
     return { query }
   }),
 }) {}
-// ---cut---
 const leaky = Layer.effect(Database, Database.make)
-
+// ---cut---
+// src/database.ts, closing the requirement
 const wired = leaky.pipe(Layer.provide(AppConfig.layer))
 //    ^?
 ```
@@ -134,34 +185,50 @@ Two things changed and both are worth a sentence.
 `ConfigError` arrived in the second slot, which is the one people miss. The
 requirement did not evaporate, it was traded for the risk of building it.
 Whoever provides this layer can no longer forget the config, and instead
-inherits the possibility that the config is missing at startup. That is a
-better problem, and it is still a problem.
+inherits the possibility that the config is missing at startup. That is a better
+problem, and it is still a problem.
 
 `AppConfig` also stopped being visible in the output. `Layer.provide` returns
 only what the outer layer produces, so nothing downstream can yield `AppConfig`
 through this. When you want it to stay available, that is `Layer.provideMerge`,
 and the next chapter is where it earns its place.
 
-In the real file this goes on the class, where the rest of the app never has to
-look at it:
+So the file ends with this, and the rest of the app never looks at it:
 
 ```ts twoslash
+// @filename: src/config.ts
 import { Config, Context, Effect, Layer } from 'effect'
-class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
+export class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
   make: Effect.gen(function* () {
     const databaseUrl = yield* Config.String('DATABASE_URL')
-    return { databaseUrl, feedSize: 20 }
+    const feedSize = yield* Config.Int('FEED_SIZE').pipe(Config.withDefault(20))
+    return { databaseUrl, feedSize }
   }),
 }) {
   static readonly layer = Layer.effect(this, this.make)
 }
+// @filename: src/database.ts
+import { Context, Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
 // ---cut---
+// src/database.ts, the closing lines of the class
 export class Database extends Context.Service<Database>()('Database', {
   make: Effect.gen(function* () {
     const config = yield* AppConfig
+    const connection = yield* Effect.acquireRelease(
+      Effect.gen(function* () {
+        yield* Effect.log(`opening ${config.databaseUrl}`)
+        return { url: config.databaseUrl }
+      }),
+      () => Effect.log('closing the connection'),
+    )
     const query = Effect.fn('Database.query')(function* (sql: string) {
-      yield* Effect.log(`${config.databaseUrl}: ${sql}`)
-      return [] as ReadonlyArray<string>
+      yield* Effect.log(`${connection.url}: ${sql}`)
+      return [] as ReadonlyArray<Row>
     })
     return { query }
   }),
@@ -183,20 +250,48 @@ in the editor.
 
 ## Effect.provide closes it at the edge
 
-`Layer.provide` connects layers to each other. `Effect.provide` connects a
-layer to the program, and it belongs at the outermost point, next to the runner.
+`Layer.provide` connects layers to each other. `Effect.provide` connects a layer
+to the program, and it belongs at the outermost point, next to the runner.
 
 ```ts twoslash
-import { Context, Effect, Layer } from 'effect'
-class Database extends Context.Service<
-  Database,
-  { readonly query: (sql: string) => Effect.Effect<ReadonlyArray<string>> }
->()('Database') {
-  static readonly layer: Layer.Layer<Database> = Layer.succeed(this, {
-    query: () => Effect.succeed([]),
-  })
+// @filename: src/config.ts
+import { Config, Context, Effect, Layer } from 'effect'
+export class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
+  make: Effect.gen(function* () {
+    const databaseUrl = yield* Config.String('DATABASE_URL')
+    const feedSize = yield* Config.Int('FEED_SIZE').pipe(Config.withDefault(20))
+    return { databaseUrl, feedSize }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
 }
+// @filename: src/database.ts
+import { Context, Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<Database>()('Database', {
+  make: Effect.gen(function* () {
+    const config = yield* AppConfig
+    const query = Effect.fn('Database.query')(function* (sql: string) {
+      yield* Effect.log(`${config.databaseUrl}: ${sql}`)
+      return [] as ReadonlyArray<Row>
+    })
+    return { query }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(AppConfig.layer),
+  )
+}
+// @filename: src/main.ts
 // ---cut---
+// src/main.ts
+import { Effect } from 'effect'
+import { Database } from './database'
+
 const program = Effect.gen(function* () {
   const database = yield* Database
   return yield* database.query('select * from articles')
@@ -206,27 +301,33 @@ const runnable = program.pipe(Effect.provide(Database.layer))
 //    ^?
 ```
 
-`R` is `never`, which is what the runners require. Providing halfway down
-instead compiles fine and throws away the reason `R` exists: once a function
-has satisfied its own dependencies, nobody above it can substitute a different
-implementation, and substitution is the entire mechanism behind testing without
-mocks.
+`R` is `never`, which is what the runners require. Run it and the connection
+opens, the query logs, and the connection closes.
+
+Providing halfway down instead compiles fine and throws away the reason `R`
+exists: once a function has satisfied its own dependencies, nobody above it can
+substitute a different implementation, and substitution is the entire mechanism
+behind testing without mocks.
 
 ## What people get wrong
 
 Leaving `RIn` open on a service's own layer and satisfying it at the call site.
 
 ```ts twoslash
-import { Context, Effect, Layer } from 'effect'
-class AppConfig extends Context.Service<
-  AppConfig,
-  { readonly databaseUrl: string }
->()('AppConfig') {
-  static readonly layer: Layer.Layer<AppConfig> = Layer.succeed(this, {
-    databaseUrl: 'sqlite://feed.db',
-  })
+// @filename: src/config.ts
+import { Config, Context, Effect, Layer } from 'effect'
+export class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
+  make: Effect.gen(function* () {
+    const databaseUrl = yield* Config.String('DATABASE_URL')
+    return { databaseUrl, feedSize: 20 }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
 }
-class Database extends Context.Service<Database>()('Database', {
+// @filename: src/database.ts
+import { Context, Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+export class Database extends Context.Service<Database>()('Database', {
   make: Effect.gen(function* () {
     const config = yield* AppConfig
     return { query: () => Effect.succeed([config.databaseUrl]) }
@@ -234,8 +335,13 @@ class Database extends Context.Service<Database>()('Database', {
 }) {
   static readonly layer = Layer.effect(this, this.make)
 }
+// @filename: src/main.ts
+import { Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+import { Database } from './database'
 declare const program: Effect.Effect<ReadonlyArray<string>, never, Database>
 // ---cut---
+// src/main.ts, the wiring that will bite later
 const runnable = program.pipe(
   Effect.provide(Database.layer.pipe(Layer.provide(AppConfig.layer))),
 )
@@ -244,17 +350,16 @@ const runnable = program.pipe(
 This works, and it keeps working until a second place needs a `Database`. Now
 two call sites each decide how to build the config, and the day they disagree,
 the bug is that one half of your app is reading a different url. Wire a
-service's dependencies in the service's own layer. The rule is easy to check:
-a finished `static layer` has `never` in its third slot.
+service's dependencies in the service's own layer. The rule is easy to check: a
+finished `static layer` has `never` in its third slot.
 
-There is one honest exception. Infrastructure that is provided exactly once at
-the root, such as a database client handed in by the platform, is often left in
-`RIn` on purpose so that production and tests can supply different ones. That
-is a decision you make per service, not a default.
+There is one honest exception, and the next chapter leans on it. A shared
+resource that several services must agree on is often left in `RIn` on purpose,
+so that whoever assembles the app decides which one they all get.
 
 ## Next
 
 One dependency, one provide. [Standing side by
-side](/learn/layers/04-standing-side-by-side) adds a second repository, which
-is where `merge`, `mergeAll` and `provideMerge` stop being three names for the
-same thing.
+side](/learn/layers/04-standing-side-by-side) writes `src/repos.ts` with two
+repositories in it, which is where `merge`, `mergeAll` and `provideMerge` stop
+being three names for the same thing.

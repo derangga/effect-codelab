@@ -37,12 +37,23 @@ effect-feed/
 ├── package.json
 ├── tsconfig.json
 └── src/
-    ├── config.ts     AppConfig, read once from the environment
-    ├── database.ts   Database, the one connection everything else shares
-    ├── repos.ts      UserRepo and ArticleRepo, both over that connection
-    ├── feed.ts       FeedService, over both repositories
-    └── main.ts       the layer graph, and the line that runs it
+    ├── database.ts   chapters 1, 3 and 6. Database, and the one connection
+    ├── config.ts     chapter 2. AppConfig, read once from the environment
+    ├── repos.ts      chapter 4. UserRepo and ArticleRepo, over that connection
+    ├── feed.ts       chapter 5. FeedService, over both repositories
+    └── main.ts       chapters 5, 7 and 8. The graph, and the line that runs it
 ```
+
+Every code block names its file on the first line, like `// src/database.ts`,
+so you always know where the code you are reading belongs. Where a block
+continues or replaces something written earlier, the comment says so:
+`// src/database.ts, replacing the declaration from chapter one`. Blocks that
+carry no file name are either plain TypeScript with no Effect in them or a
+fragment of a class that cannot stand alone, and both are labelled.
+
+The snippets are compiled as the multi-file project you are building, not as
+isolated examples, so an import that does not resolve or a type that does not
+line up across two files fails this site's build rather than reaching you.
 
 Two repositories over one connection is the smallest shape that makes the hard
 parts visible. With one repository you never find out whether the connection is
@@ -50,10 +61,8 @@ opened once or twice, and that question is most of what separates people who
 are comfortable with layers from people who are not.
 
 This track is documentation. It describes a project rather than shipping one,
-so nothing here is built inside this repository. Every code block is compiled
-when this site builds, and the terminal output quoted in
-[One instance, or two](/learn/layers/05-one-instance) and
-[Tapping a layer](/learn/layers/07-tapping) is copied from an actual run.
+so nothing here is built inside this repository. Every terminal block quoted in
+a chapter is copied from a real run of the five files above.
 
 ## Setting up a project
 
@@ -103,6 +112,7 @@ FEED_SIZE=20
 Check the install works:
 
 ```ts twoslash
+// src/main.ts
 import { Effect } from 'effect'
 
 const program = Effect.gen(function* () {
@@ -146,6 +156,12 @@ covers them.
 passing. They build a layer whose shape is decided by a value computed at
 startup. That is a real need, and it is rare enough that meeting it in chapter
 two would cost more than it teaches.
+
+`Layer.launch` is absent because this app has nothing to launch. It builds a
+layer and holds it open until something interrupts it, instead of building it,
+running a program and tearing it down, so it is what you want when the
+application *is* the layer. A feed that answers one question and exits is not
+that. The [HTTP Auth API](/learn/http-auth-api) track has a server that is.
 
 ## Where to go next
 
