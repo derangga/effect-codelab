@@ -9,7 +9,7 @@ export const siteDescription =
   "Short tracks on the Effect library for TypeScript. Every snippet is compiled by the build, so the code you read is code that runs.";
 
 export const gitConfig = {
-  user: "derangga",
-  repo: "effect-codelab",
+  user: "Effect-TS",
+  repo: "effect",
   branch: "main",
 };

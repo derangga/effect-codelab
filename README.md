@@ -53,25 +53,6 @@ rules, how to write a compiled snippet, and how to draw a diagram that
 survives the escaping. `scripts/chapter-template.md` is a skeleton worth
 copying.
 
-## Deployment
-
-Pushing to `master` runs the checks and the build, then deploys to Cloudflare
-Workers. The build prerenders every page to static html, so the Worker has no
-script: it serves `dist/client` and nothing runs at request time. The two
-server functions run at build time and their results are written next to the
-html, which is why clicking between chapters fetches json rather than calling
-an endpoint.
-
-`wrangler.jsonc` holds the whole deployment. CI needs two repository secrets,
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-
-## Stack
-
-Fumadocs on TanStack Start, built with Vite and prerendered to static files.
-Tailwind, shiki and twoslash for the code, mermaid for the diagrams. oxlint
-for lint, vitest for tests, bun as the runtime, Cloudflare Workers for
-hosting.
-
 ## License
 
 [MIT](LICENSE), covering the code and the chapters alike.
