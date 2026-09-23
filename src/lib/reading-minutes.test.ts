@@ -24,3 +24,9 @@ test('frontmatter is not part of the reading', () => {
   const page = `---\nsummary: ${words(400)}\n---\n\nOne short line.\n`;
   expect(readingMinutes(page)).toBe(1);
 });
+
+test('hidden twoslash setup above a cut is not read', () => {
+  const hidden = Array.from({ length: 60 }, () => 'const a = 1');
+  const block = ['```ts twoslash', ...hidden, '// ---cut---', 'const b = 2', '```'].join('\n');
+  expect(readingMinutes(block)).toBe(1);
+});
