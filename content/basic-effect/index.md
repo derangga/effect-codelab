@@ -26,7 +26,7 @@ about making sure it can never surprise you again.
 One package, pinned:
 
 ```sh
-bun add --exact effect@4.0.0-rc.113
+bun add --exact effect@4.0.0-rc.117
 ```
 
 Effect v4 is in release candidate, and a version range moves the types out from

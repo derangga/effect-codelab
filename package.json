@@ -23,7 +23,7 @@
     "@tanstack/react-start": "1.168.51",
     "@tanstack/start-static-server-functions": "1.167.34",
     "cn": "0.2.6",
-    "effect": "4.0.0-rc.113",
+    "effect": "4.0.0-rc.117",
     "fumadocs-core": "16.15.9",
     "fumadocs-mdx": "15.4.0",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.15.9",
@@ -34,10 +34,11 @@
     "zod": "4.6.2"
   },
   "devDependencies": {
-    "@effect/platform-bun": "4.0.0-rc.113",
-    "@effect/sql-sqlite-bun": "4.0.0-rc.113",
+    "@effect/atom-react": "4.0.0-rc.117",
+    "@effect/platform-bun": "4.0.0-rc.117",
+    "@effect/sql-sqlite-bun": "4.0.0-rc.117",
     "@effect/tsgo": "0.45.0",
-    "@effect/vitest": "4.0.0-rc.113",
+    "@effect/vitest": "4.0.0-rc.117",
     "@shikijs/twoslash": "4.4.3",
     "@tailwindcss/vite": "4.3.3",
     "@types/bun": "1.4.2",

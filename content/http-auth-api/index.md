@@ -71,9 +71,9 @@ match exactly. Mixing them is not a warning, it is a type error somewhere
 confusing.
 
 ```sh
-bun add --exact effect@4.0.0-rc.113
-bun add --exact @effect/platform-bun@4.0.0-rc.113
-bun add --exact @effect/sql-sqlite-bun@4.0.0-rc.113
+bun add --exact effect@4.0.0-rc.117
+bun add --exact @effect/platform-bun@4.0.0-rc.117
+bun add --exact @effect/sql-sqlite-bun@4.0.0-rc.117
 bun add --exact jose@6.2.12
 bun add -d --exact @effect/tsgo@0.45.0 typescript@6.0.3
 ```

@@ -74,7 +74,7 @@ is the wiring around it rather than the SQL inside it. One package:
 mkdir effect-feed
 cd effect-feed
 bun init -y
-bun add --exact effect@4.0.0-rc.113
+bun add --exact effect@4.0.0-rc.117
 bun add -d --exact @effect/tsgo@0.45.0 typescript@6.0.3
 ```
 
