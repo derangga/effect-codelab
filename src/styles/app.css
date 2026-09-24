@@ -57,6 +57,9 @@ span[data-status="Draft"] {
 @theme {
   --color-demo-ok: hsl(109, 58%, 40%);
   --color-demo-error: hsl(347, 87%, 44%);
+  /* Peach, for the retry schedule's wait: neither a pass nor a fail yet. The
+     light one is darkened from Latte's so small text on it stays legible. */
+  --color-demo-wait: hsl(22, 99%, 40%);
 
   /* Scale and settle. The overshoot to 1.06 is the whole personality; the
      easing is a plain quint so it does not bounce a second time on the way
@@ -126,11 +129,10 @@ span[data-status="Draft"] {
 .dark {
   --color-demo-ok: hsl(105, 48%, 72%);
   --color-demo-error: hsl(351, 74%, 73%);
+  --color-demo-wait: hsl(21, 86%, 73%);
 }
 
-/* A plain fade for anyone who asked not to be moved. The gantt bars are
-   deliberately absent from this list: their width is the measurement, not
-   decoration, so they keep growing. */
+/* A plain fade for anyone who asked not to be moved. */
 @keyframes demo-fade {
   from {
     opacity: 0;
@@ -148,6 +150,148 @@ span[data-status="Draft"] {
 
   .animate-dot {
     animation: none;
+  }
+}
+
+/* The fault demo's two tracks (src/components/fault-tracks.tsx). Everything
+   that moves is a transition between states the replay sets, plus a few
+   one-shot keyframes that restart because their element remounts. */
+.tracks {
+  --tr-p: var(--color-fd-primary);
+  --tr-ok: var(--color-demo-ok);
+  --tr-bad: var(--color-demo-error);
+  --tr-wait: var(--color-demo-wait);
+  --tr-card: var(--color-fd-card);
+  --tr-idle: color-mix(in oklab, var(--color-fd-muted-foreground) 45%, transparent);
+}
+
+.tracks-trail { transition: width 0.5s cubic-bezier(0.65, 0, 0.35, 1), left 0.5s cubic-bezier(0.65, 0, 0.35, 1), background-color 0.2s; }
+
+.tracks-node { border: 2px solid var(--tr-idle); background: var(--tr-card); transition: border-color 0.2s, background-color 0.2s, opacity 0.3s; }
+.tracks-node[data-state="pass"] { border-color: var(--tr-p); background: color-mix(in oklab, var(--tr-p) 22%, var(--tr-card)); }
+.tracks-node[data-state="done"] { border-color: var(--tr-ok); background: color-mix(in oklab, var(--tr-ok) 24%, var(--tr-card)); }
+.tracks-node[data-state="active"] { border-color: var(--tr-p); animation: tracks-ring 1s ease-out infinite; }
+.tracks-node[data-state="fail"] { border-color: var(--tr-bad); background: color-mix(in oklab, var(--tr-bad) 18%, var(--tr-card)); animation: tracks-shake 0.5s ease-out; }
+.tracks-node[data-state="spent"] { border-color: var(--tr-bad); opacity: 0.5; }
+
+.tracks-drop { width: 0; border-left: 2px dashed var(--color-fd-border); transition: border-color 0.2s; }
+.tracks-drop[data-hot] { border-left-style: solid; border-left-color: var(--tr-bad); }
+
+.tracks-chip { border-color: var(--color-fd-border); background: var(--tr-card); color: var(--color-fd-muted-foreground); transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.tracks-chip[data-hot] { border-color: var(--tr-bad); color: var(--tr-bad); background: color-mix(in oklab, var(--tr-bad) 12%, var(--tr-card)); scale: 1.08; box-shadow: 0 0 0 4px color-mix(in oklab, var(--tr-bad) 14%, transparent); }
+
+/* The request's deadline, filling while it waits. Blue like the rest of an
+   attempt in flight: a call that is waiting has not failed yet. */
+.tracks-timer circle { fill: none; stroke: color-mix(in oklab, var(--tr-p) 55%, transparent); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 132; stroke-dashoffset: 132; animation: tracks-sweep linear forwards; }
+
+.tracks-gate { border: 2px solid var(--tr-idle); background: var(--tr-card); transition: all 0.25s; }
+.tracks-gate[data-verdict="yes"] { border-color: var(--tr-wait); background: color-mix(in oklab, var(--tr-wait) 25%, var(--tr-card)); box-shadow: 0 0 0 6px color-mix(in oklab, var(--tr-wait) 16%, transparent); }
+.tracks-gate[data-verdict="no"] { border-color: var(--tr-bad); background: color-mix(in oklab, var(--tr-bad) 25%, var(--tr-card)); box-shadow: 0 0 0 6px color-mix(in oklab, var(--tr-bad) 16%, transparent); }
+
+.tracks-verdict { opacity: 0; translate: -50% 6px; transition: opacity 0.25s, translate 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.tracks-verdict[data-verdict] { opacity: 1; translate: -50% 0; }
+.tracks-verdict[data-verdict="yes"] { color: var(--tr-wait); background: color-mix(in oklab, var(--tr-wait) 14%, var(--tr-card)); }
+.tracks-verdict[data-verdict="no"] { color: var(--tr-bad); background: color-mix(in oklab, var(--tr-bad) 12%, var(--tr-card)); }
+
+.tracks-catch { border: 2px solid var(--tr-idle); background: var(--tr-card); transition: all 0.25s; }
+.tracks-catch[data-hot] { border-color: var(--tr-bad); background: var(--tr-bad); box-shadow: 0 0 0 7px color-mix(in oklab, var(--tr-bad) 18%, transparent); animation: tracks-pop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+.tracks-goal { border: 2px solid var(--tr-idle); background: var(--tr-card); color: transparent; transition: all 0.25s; }
+.tracks-goal[data-ok] { border-color: var(--tr-ok); background: var(--tr-ok); color: var(--tr-card); box-shadow: 0 0 0 7px color-mix(in oklab, var(--tr-ok) 20%, transparent); animation: tracks-pop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* Stretched with the drawing, so the stroke opts out of the scaling. */
+.tracks-lane { fill: none; stroke: var(--tr-idle); stroke-width: 2; stroke-dasharray: 5 5; vector-effect: non-scaling-stroke; transition: stroke 0.2s; }
+.tracks-lane[data-live] { stroke: var(--tr-wait); animation: tracks-dash 0.5s linear infinite; }
+.tracks-lane-label { color: var(--color-fd-muted-foreground); transition: all 0.2s; }
+.tracks-lane-label[data-live] { color: var(--tr-wait); background: color-mix(in oklab, var(--tr-wait) 14%, var(--tr-card)); }
+
+/* Down from the gate, left along the bottom, up to the start. The stops are
+   roughly where the corners fall by distance travelled, and the lefts are
+   fault-tracks.tsx's x.gate and x.start. */
+.tracks-return {
+  background: var(--tr-wait);
+  box-shadow: 0 0 0 4px var(--tr-card), 0 0 16px 3px color-mix(in oklab, var(--tr-wait) 60%, transparent);
+  animation: tracks-return 1.25s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+}
+
+.tracks-pill { background: var(--color-fd-background); color: var(--color-fd-muted-foreground); transition: all 0.2s; }
+.tracks-pill[data-tone="p"] { color: var(--tr-p); background: color-mix(in oklab, var(--tr-p) 12%, var(--tr-card)); }
+.tracks-pill[data-tone="bad"] { color: var(--tr-bad); background: color-mix(in oklab, var(--tr-bad) 12%, var(--tr-card)); }
+.tracks-pill[data-tone="ok"] { color: var(--tr-ok); background: color-mix(in oklab, var(--tr-ok) 16%, var(--tr-card)); }
+.tracks-pill[data-tone="wait"] { color: var(--tr-wait); background: color-mix(in oklab, var(--tr-wait) 14%, var(--tr-card)); }
+
+/* A terminal is dark in both themes. Macchiato's text colours on its base. */
+.tracks-term { background: hsl(232, 23%, 18%); color: hsl(227, 68%, 88%); }
+.dark .tracks-term { background: hsl(240, 23%, 9%); }
+.tracks-dim { color: hsl(228, 15%, 60%); }
+.tracks-ok { color: hsl(105, 48%, 72%); }
+.tracks-bad { color: hsl(351, 74%, 73%); }
+.tracks-wait { color: hsl(21, 86%, 73%); }
+.tracks-line { animation: tracks-type 0.45s steps(32, end) both; }
+.tracks-caret { background: currentColor; animation: hero-caret 1s steps(1) infinite; }
+
+@keyframes tracks-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--tr-p) 55%, transparent); }
+  100% { box-shadow: 0 0 0 14px color-mix(in oklab, var(--tr-p) 0%, transparent); }
+}
+@keyframes tracks-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(7px); }
+  40% { transform: translateX(-6px); }
+  60% { transform: translateX(4px); }
+  80% { transform: translateX(-2px); }
+}
+@keyframes tracks-pop {
+  0% { scale: 1; }
+  40% { scale: 1.3; }
+  100% { scale: 1; }
+}
+@keyframes tracks-sweep { to { stroke-dashoffset: 0; } }
+@keyframes tracks-dash { to { stroke-dashoffset: -20; } }
+@keyframes tracks-return {
+  0% { left: 80%; top: 184px; }
+  8% { left: 80%; top: 262px; }
+  80% { left: 7%; top: 262px; }
+  100% { left: 7%; top: 64px; }
+}
+@keyframes tracks-type {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+/* The concurrency demo's gate (src/components/concurrency-demo.tsx). Tokens
+   move between the queue, a slot and the tray on transitions; their inline
+   transition says how fast each move should be. */
+.gate-lane { background: color-mix(in oklab, var(--color-fd-border) 45%, transparent); transition: top 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.gate-fill { background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-fd-primary) 26%, transparent)); }
+.gate-notch { background: color-mix(in oklab, var(--color-fd-muted-foreground) 45%, transparent); transition: all 0.3s; }
+.gate-notch[data-busy] { background: var(--color-fd-primary); box-shadow: 0 0 12px 2px color-mix(in oklab, var(--color-fd-primary) 55%, transparent); }
+
+.gate-token { border: 1px solid var(--color-fd-border); background: var(--color-fd-background); }
+.gate-token[data-state="running"] { border-color: var(--color-fd-primary); background: var(--color-fd-primary); color: var(--color-fd-primary-foreground); box-shadow: 0 0 0 3px var(--color-fd-card), 0 0 18px 3px color-mix(in oklab, var(--color-fd-primary) 55%, transparent); }
+.gate-token[data-state="done"] { border-color: var(--color-demo-ok); background: var(--color-demo-ok); color: var(--color-fd-card); animation: tracks-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s; }
+.gate-token[data-state="failed"] { border-color: var(--color-demo-error); background: var(--color-demo-error); color: var(--color-fd-card); animation: tracks-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.45s; }
+.gate-token[data-state="interrupted"] { border-style: dashed; border-color: var(--color-demo-error); background: var(--color-fd-card); color: var(--color-demo-error); }
+.gate-token[data-state="skipped"] { border-style: dashed; border-color: color-mix(in oklab, var(--color-fd-muted-foreground) 45%, transparent); background: transparent; color: var(--color-fd-muted-foreground); }
+
+.gate-cell { border: 1px dashed var(--color-fd-border); transition: all 0.3s; }
+.gate-cell > * { opacity: 0; transition: opacity 0.3s 0.25s; }
+.gate-cell[data-state] > * { opacity: 1; }
+.gate-cell[data-state="done"] { border-style: solid; border-color: color-mix(in oklab, var(--color-demo-ok) 45%, var(--color-fd-border)); background: color-mix(in oklab, var(--color-demo-ok) 8%, var(--color-fd-card)); }
+.gate-cell[data-state="failed"],
+.gate-cell[data-state="interrupted"] { border-style: solid; border-color: color-mix(in oklab, var(--color-demo-error) 45%, var(--color-fd-border)); background: color-mix(in oklab, var(--color-demo-error) 7%, var(--color-fd-card)); }
+
+/* Still, both drawings keep their states and colours; only the travel goes. */
+@media (prefers-reduced-motion: reduce) {
+  .tracks *,
+  .gate-token,
+  .gate-cell {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .tracks-return {
+    display: none;
   }
 }
 

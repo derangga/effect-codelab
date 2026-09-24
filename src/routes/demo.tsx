@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Effect, Layer } from "effect";
+import { Clock, Effect, Layer } from "effect";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { useMemo, useRef, useState } from "react";
 import { ConcurrencyDemo, Dots } from "@/components/concurrency-demo";
+import { FaultTracks, finished, type Trace, useTrackView } from "@/components/fault-tracks";
 import { type Fault, faultLabels, fetcherLayer } from "@/effect-demo/faults";
 import {
-  type Attempt,
   Attempts,
   describe,
-  type Product,
+  Fetcher,
   ProductsApi,
   requestTimeout,
 } from "@/effect-demo/products";
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/demo")({
 type Outcome =
   | { readonly kind: "idle" }
   | { readonly kind: "running" }
-  | { readonly kind: "ok"; readonly products: ReadonlyArray<Product> }
+  | { readonly kind: "ok"; readonly count: number }
   | { readonly kind: "failed"; readonly tag: string; readonly detail: string };
 
 const faults: ReadonlyArray<Fault> = [
@@ -40,7 +40,7 @@ const faults: ReadonlyArray<Fault> = [
 ];
 
 const explanations: Record<Fault, string> = {
-  none: "Calls the real API. Decodes and shows what came back.",
+  none: "Calls the real API and decodes what comes back.",
   "server-error":
     "Answers 500. Retryable, so you get backoff, then the failure.",
   "not-found":
@@ -56,38 +56,77 @@ const explanations: Record<Fault, string> = {
 function Demo() {
   const [fault, setFault] = useState<Fault>("none");
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
-  const [attempts, setAttempts] = useState<ReadonlyArray<Attempt>>([]);
-  const log = useRef<Array<Attempt>>([]);
+  const [trace, setTrace] = useState<Trace>([]);
+  const log = useRef<Trace>([]);
 
   // A different fault is a different Fetcher, which is a different layer, so
   // the runtime is rebuilt. Nothing in ProductsApi knows any of this happened.
   const runtime = useMemo(() => {
+    const note = (next: Trace) => {
+      log.current = next;
+      setTrace(next);
+    };
+
+    // The drawing needs to know when each attempt starts as well as how it
+    // ends. Attempts only reports the end, and every attempt makes exactly one
+    // request, so the Fetcher is where the start shows.
+    const watched = Layer.effect(
+      Fetcher,
+      Effect.gen(function* () {
+        const inner = yield* Fetcher;
+        return Fetcher.of({
+          request: (url) =>
+            Clock.currentTimeMillis.pipe(
+              Effect.tap((startedAt) =>
+                Effect.sync(() =>
+                  note([...log.current, { n: log.current.length + 1, startedAt }]),
+                ),
+              ),
+              Effect.flatMap(() => inner.request(url)),
+            ),
+        });
+      }),
+    ).pipe(Layer.provide(fetcherLayer(fault)));
+
     const recording = Layer.succeed(Attempts)(
       Attempts.of({
-        record: (attempt) =>
-          Effect.sync(() => {
-            log.current = [...log.current, attempt];
-            setAttempts(log.current);
-          }),
+        record: ({ n, at, outcome }) =>
+          Effect.sync(() =>
+            note(
+              log.current.map((step) =>
+                step.n === n ? { ...step, endedAt: at, outcome } : step,
+              ),
+            ),
+          ),
       }),
     );
 
-    return makeRuntime(fetcherLayer(fault), recording);
+    return makeRuntime(watched, recording);
   }, [fault]);
 
-  const run = () => {
+  const view = useTrackView(trace, outcome.kind === "ok" || outcome.kind === "failed");
+
+  // The call is over well before the drawing has told it, so the buttons
+  // wait for the drawing. A defect has no drawing to wait for.
+  const defect = outcome.kind === "failed" && outcome.tag === "Defect";
+  const busy =
+    outcome.kind === "running" ||
+    (outcome.kind !== "idle" && !defect && !finished(view, trace));
+
+  const reset = () => {
     log.current = [];
-    setAttempts([]);
+    setTrace([]);
+  };
+
+  const run = () => {
+    reset();
     setOutcome({ kind: "running" });
 
     void runtime
       .runPromise(
         ProductsApi.use((api) => api.list).pipe(
           Effect.map(
-            (products): Outcome => ({
-              kind: "ok",
-              products: products.slice(0, 6),
-            }),
+            (products): Outcome => ({ kind: "ok", count: products.length }),
           ),
           Effect.catch((error) =>
             Effect.succeed<Outcome>({
@@ -112,150 +151,139 @@ function Demo() {
 
   return (
     <HomeLayout {...baseOptions()}>
-      <div className="mx-auto w-full max-w-3xl px-6 py-10">
-        <header className="mb-10">
-          <p className="text-fd-muted-foreground text-sm">Live demo</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">
-            Push it around
-          </h1>
-          <p className="text-fd-muted-foreground mt-2 text-lg">
-            The same service twice. First break it on purpose and watch which
-            branch catches it. Then run nine calls at once and change how many
-            are allowed to go.
-          </p>
-        </header>
+      <div className="relative">
+        <div aria-hidden className="hero-dots pointer-events-none absolute inset-0" />
+        <header className="relative mx-auto grid w-full max-w-5xl items-center gap-10 px-4 pt-12 pb-10 sm:px-6 lg:grid-cols-2 lg:gap-14 lg:pt-16">
+          <div className="flex flex-col gap-5">
+            <p className="hero-rise font-mono font-semibold text-fd-primary text-sm">Live demo</p>
+            <h1
+              className="hero-rise font-extrabold text-4xl tracking-tight sm:text-5xl"
+              style={{ animationDelay: "80ms" }}
+            >
+              Push it around
+            </h1>
+            <p
+              className="hero-rise text-fd-muted-foreground text-lg leading-relaxed"
+              style={{ animationDelay: "160ms" }}
+            >
+              The same service twice. First break it on purpose and watch which
+              branch catches it. Then run nine calls at once and change how many
+              are allowed to go.
+            </p>
+            <div className="hero-rise flex flex-wrap gap-3" style={{ animationDelay: "240ms" }}>
+              {[
+                { href: "#break", n: "01", label: "Break it on purpose" },
+                { href: "#together", n: "02", label: "Run them together" },
+              ].map((jump) => (
+                <a
+                  key={jump.href}
+                  href={jump.href}
+                  className="inline-flex h-12 items-center gap-3 rounded-lg border bg-fd-card px-4 font-semibold text-sm transition-[colors,transform] hover:border-fd-primary active:scale-95"
+                >
+                  <span className="rounded bg-fd-primary/10 px-1.5 py-1 font-mono text-fd-primary text-xs">
+                    {jump.n}
+                  </span>
+                  {jump.label}
+                </a>
+              ))}
+            </div>
+          </div>
 
-        <section>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Break it on purpose
-          </h2>
-          <p className="text-fd-muted-foreground mt-2">
-            One call, one service. Pick a way for it to go wrong and watch which
-            branch handles it.
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            {faults.map((option) => (
-              <button
-                type="button"
-                key={option}
-                className={cn(
-                  button,
-                  small,
-                  option === fault ? primary : outline,
-                )}
-                onClick={() => {
-                  setFault(option);
-                  setOutcome({ kind: "idle" });
-                  setAttempts([]);
-                }}
-                disabled={outcome.kind === "running"}
+          <div
+            className="hero-rise rounded-2xl border bg-fd-card px-6 pt-5 pb-2 shadow-[0_24px_60px_-28px_rgb(0_0_0/0.35)]"
+            style={{ animationDelay: "200ms" }}
+          >
+            <p className="pb-3 font-semibold text-sm">What changes between runs</p>
+            {[
+              {
+                n: "01 · the layer",
+                code: "makeRuntime(fetcherLayer(fault), ...)",
+                text: "A different Fetcher for each failure. ProductsApi asks for a Fetcher and never learns which one it got.",
+              },
+              {
+                n: "02 · one option",
+                code: "Effect.all(..., { concurrency })",
+                text: "Same byId, same timeout, same retry policy. Concurrency belongs to how effects are combined, not to the effects.",
+              },
+            ].map((row) => (
+              <div
+                key={row.n}
+                className="grid gap-1.5 border-t py-3.5 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-4"
               >
-                {faultLabels[option]}
-              </button>
+                <span className="font-mono font-semibold text-fd-primary text-xs">{row.n}</span>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <code className="truncate font-mono text-[13px]">{row.code}</code>
+                  <span className="text-fd-muted-foreground text-sm leading-relaxed">
+                    {row.text}
+                  </span>
+                </div>
+              </div>
             ))}
           </div>
+        </header>
+      </div>
 
-          <p className="text-fd-muted-foreground mt-3 text-sm">
-            {explanations[fault]}
+      <div className="mx-auto w-full max-w-5xl px-4 pb-16 sm:px-6">
+        <section id="break" className="scroll-mt-20">
+          <p className="font-mono font-semibold text-fd-primary text-sm">01 · one call, two channels</p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight">Break it on purpose</h2>
+          <p className="text-fd-muted-foreground mt-2 max-w-2xl text-lg">
+            Every stage can drop the call onto the error track. What happens
+            next depends on one question: is this error worth another try?
           </p>
 
-          <div className="mt-6 flex items-center gap-3">
+          <div className="mt-6 flex flex-wrap items-end justify-between gap-4 sm:flex-nowrap">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-1">
+              <div className="flex flex-wrap gap-2">
+                {faults.map((option) => (
+                  <button
+                    type="button"
+                    key={option}
+                    aria-pressed={option === fault}
+                    className={cn(
+                      button,
+                      small,
+                      option === fault ? primary : outline,
+                    )}
+                    onClick={() => {
+                      setFault(option);
+                      setOutcome({ kind: "idle" });
+                      reset();
+                    }}
+                    disabled={busy}
+                  >
+                    {faultLabels[option]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-fd-muted-foreground text-sm">
+                {explanations[fault]}{" "}
+                <span className="font-mono text-xs">Retries: {retryNote(fault)}.</span>
+              </p>
+            </div>
             <button
               type="button"
-              className={cn(button, primary, "px-4 py-2")}
+              className={cn(button, primary, "h-12 shrink-0 px-5")}
               onClick={run}
-              disabled={outcome.kind === "running"}
+              disabled={busy}
             >
-              {outcome.kind === "running" ? <Dots /> : "Run the call"}
+              {busy ? <Dots /> : "Run the call"}
             </button>
-            <span className="text-fd-muted-foreground text-sm">
-              Retries: {retryNote(fault)}
-            </span>
           </div>
 
-          <section className="mt-8">
-            <h3 className="text-sm font-semibold">Attempts</h3>
-            {attempts.length === 0 ? (
-              <p className="text-fd-muted-foreground mt-2 text-sm">
-                Nothing yet. Run the call.
-              </p>
-            ) : (
-              <ol className="mt-2 space-y-1">
-                {attempts.map((attempt, index) => (
-                  <li
-                    key={`${attempt.n}-${attempt.at}`}
-                    className="animate-pop flex items-baseline gap-3 rounded-md border px-3 py-2 text-sm"
-                  >
-                    <span className="text-fd-muted-foreground tabular-nums">
-                      #{attempt.n}
-                    </span>
-                    <span className="text-fd-muted-foreground tabular-nums text-xs">
-                      {index === 0
-                        ? "+0ms"
-                        : `+${attempt.at - attempts[index - 1].at}ms`}
-                    </span>
-                    <span
-                      className={cn(
-                        "font-mono text-xs",
-                        attempt.outcome !== "ok" && "text-demo-error",
-                      )}
-                    >
-                      {attempt.outcome}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
+          <div className="mt-6">
+            <FaultTracks
+              view={view}
+              trace={trace}
+              count={outcome.kind === "ok" ? outcome.count : undefined}
+            />
+          </div>
 
-          <section className="mt-8">
-            <h3 className="text-sm font-semibold">Result</h3>
-            {outcome.kind === "idle" ? (
-              <p className="text-fd-muted-foreground mt-2 text-sm">
-                Not run yet.
-              </p>
-            ) : outcome.kind === "running" ? (
-              <ul
-                aria-hidden="true"
-                className="mt-2 grid animate-pulse gap-2 sm:grid-cols-2"
-              >
-                {[0, 1, 2, 3].map((slot) => (
-                  <li key={slot} className="rounded-md border p-3">
-                    <div className="bg-fd-muted h-4 w-3/4 rounded" />
-                    <div className="bg-fd-muted mt-2 h-3 w-1/2 rounded" />
-                  </li>
-                ))}
-              </ul>
-            ) : outcome.kind === "failed" ? (
-              <div className="animate-shake border-demo-error/30 bg-demo-error/5 mt-2 rounded-md border p-4">
-                <p className="text-demo-error font-mono text-sm font-semibold">
-                  {outcome.tag}
-                </p>
-                <p className="text-demo-error/80 mt-1 font-mono text-xs break-words">
-                  {outcome.detail}
-                </p>
-              </div>
-            ) : (
-              <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                {outcome.products.map((product, index) => (
-                  <li
-                    key={product.id}
-                    className="animate-pop rounded-md border p-3"
-                    style={{ animationDelay: `${index * 60}ms` }}
-                  >
-                    <p className="line-clamp-2 text-sm font-medium">
-                      {product.title}
-                    </p>
-                    <p className="text-fd-muted-foreground mt-1 text-xs">
-                      {product.category} · ${product.price.toFixed(2)} ·{" "}
-                      {product.rating.rate}/5
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {defect ? (
+            <p className="text-demo-error mt-3 font-mono text-sm break-words">
+              {outcome.detail}
+            </p>
+          ) : null}
         </section>
 
         <ConcurrencyDemo />
