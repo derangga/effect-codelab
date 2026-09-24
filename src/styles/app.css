@@ -150,3 +150,287 @@ span[data-status="Draft"] {
     animation: none;
   }
 }
+
+/* The home hero. One 10 second loop, cut into slices: attempt one runs 0-17%
+   and fails at the status check, the retry rewinds 27-34%, attempt two runs
+   34-68% and succeeds, and 95-100% fades everything out for the next lap.
+   Every hero-* keyframe below is a slice of that same timeline, so moving an
+   event means moving it everywhere. Colours come through tokens, so the dark
+   theme needs nothing of its own. */
+.hero-pipeline {
+  --hp-p: var(--color-fd-primary);
+  --hp-bad: var(--color-demo-error);
+  --hp-ok: var(--color-demo-ok);
+  --hp-card: var(--color-fd-card);
+  --hp-idle: color-mix(in oklab, var(--color-fd-muted-foreground) 45%, transparent);
+  --hp-none: 0 0 0 0 transparent;
+  --hp-ring-p: 0 0 0 6px color-mix(in oklab, var(--hp-p) 16%, transparent);
+  --hp-ring-bad: 0 0 0 6px color-mix(in oklab, var(--hp-bad) 16%, transparent);
+  --hp-ring-ok: 0 0 0 7px color-mix(in oklab, var(--hp-ok) 20%, transparent);
+  --hp-glow-p: 0 0 0 4px var(--hp-card), 0 0 16px 3px color-mix(in oklab, var(--hp-p) 55%, transparent);
+  --hp-glow-bad: 0 0 0 4px var(--hp-card), 0 0 18px 4px color-mix(in oklab, var(--hp-bad) 60%, transparent);
+  --hp-glow-ok: 0 0 0 4px var(--hp-card), 0 0 18px 4px color-mix(in oklab, var(--hp-ok) 55%, transparent);
+}
+
+.hero-dots {
+  background-image: radial-gradient(var(--color-fd-border) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 55% 65% at 75% 45%, #000 30%, transparent 75%);
+}
+
+.hero-rise { animation: hero-rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.hero-pkt { animation: hero-pkt 10s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.hero-trail { animation: hero-trail 10s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+/* The retry rides the dashed arc rather than sliding back up the line, so the
+   loop in the diagram is the path it actually takes. */
+.hero-arcpkt {
+  offset-path: path("M70 114 L56 114 C 16 114, 16 14, 56 14 L70 14");
+  offset-rotate: 0deg;
+  animation: hero-arcpkt 10s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.hero-n1 { animation: hero-n1 10s linear infinite; }
+.hero-n2 { animation: hero-n2 10s linear infinite; }
+.hero-n3 { animation: hero-n3 10s linear infinite; }
+.hero-n4 { animation: hero-n4 10s linear infinite; }
+.hero-n5 { animation: hero-n5 10s linear infinite; }
+.hero-shake { animation: hero-shake 10s linear infinite; }
+.hero-rip2 { animation: hero-rip2 10s ease-out infinite; }
+.hero-rip5 { animation: hero-rip5 10s ease-out infinite; }
+.hero-e2 { animation: hero-e2 10s linear infinite; }
+.hero-c2 { animation: hero-c2 10s linear infinite; }
+.hero-loop { stroke: var(--hp-idle); animation: hero-loop 10s linear infinite; }
+.hero-bo { animation: hero-bo 10s linear infinite; }
+.hero-p1 { animation: hero-p1 10s linear infinite; }
+.hero-pf { animation: hero-pf 10s linear infinite; }
+.hero-p2 { animation: hero-p2 10s linear infinite; }
+.hero-pok { animation: hero-pok 10s linear infinite; }
+.hero-tbar { animation: hero-tbar 10s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.hero-type1 { animation: hero-type1 10s steps(40, end) infinite; }
+.hero-type2 { animation: hero-type2 10s steps(28, end) infinite; }
+.hero-caret { animation: hero-caret 1s steps(1) infinite; }
+.hero-tile { animation: hero-tile 10s cubic-bezier(0.3, 1.6, 0.5, 1) infinite both; }
+.hero-ua { animation: hero-ua 10s linear infinite; }
+.hero-u2 { animation: hero-u2 10s linear infinite; }
+.hero-ul { animation: hero-ul 10s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes hero-pkt {
+  0% { transform: translateY(0); opacity: 0; background: var(--hp-p); box-shadow: var(--hp-glow-p); }
+  3% { opacity: 1; }
+  9% { transform: translateY(0); }
+  16% { transform: translateY(100px); background: var(--hp-p); box-shadow: var(--hp-glow-p); }
+  17% { background: var(--hp-bad); box-shadow: var(--hp-glow-bad); }
+  27% { transform: translateY(100px); opacity: 1; background: var(--hp-bad); box-shadow: var(--hp-glow-bad); }
+  27.5% { transform: translateY(100px); opacity: 0; }
+  33.5% { transform: translateY(0); opacity: 0; background: var(--hp-p); box-shadow: var(--hp-glow-p); }
+  34% { transform: translateY(0); opacity: 1; }
+  40% { transform: translateY(0); }
+  47% { transform: translateY(100px); }
+  54% { transform: translateY(200px); }
+  61% { transform: translateY(300px); }
+  68% { transform: translateY(400px); opacity: 1; background: var(--hp-p); box-shadow: var(--hp-glow-p); }
+  70% { background: var(--hp-ok); box-shadow: var(--hp-glow-ok); }
+  95% { transform: translateY(400px); opacity: 1; background: var(--hp-ok); box-shadow: var(--hp-glow-ok); }
+  100% { transform: translateY(400px); opacity: 0; background: var(--hp-ok); box-shadow: var(--hp-glow-ok); }
+}
+
+@keyframes hero-trail {
+  0% { transform: scaleY(0); opacity: 1; background: var(--hp-p); }
+  9% { transform: scaleY(0); }
+  16% { transform: scaleY(0.25); background: var(--hp-p); }
+  17% { background: var(--hp-bad); }
+  27% { transform: scaleY(0.25); background: var(--hp-bad); }
+  33.5% { transform: scaleY(0); background: var(--hp-bad); }
+  34% { transform: scaleY(0); background: var(--hp-p); }
+  40% { transform: scaleY(0); }
+  47% { transform: scaleY(0.25); }
+  54% { transform: scaleY(0.5); }
+  61% { transform: scaleY(0.75); }
+  68% { transform: scaleY(1); background: var(--hp-p); }
+  70% { background: var(--hp-ok); }
+  95% { transform: scaleY(1); opacity: 1; background: var(--hp-ok); }
+  100% { transform: scaleY(1); opacity: 0; background: var(--hp-ok); }
+}
+
+@keyframes hero-arcpkt {
+  0%, 27% { offset-distance: 0%; opacity: 0; box-shadow: var(--hp-glow-p); }
+  27.5% { offset-distance: 0%; opacity: 1; }
+  33.5% { offset-distance: 100%; opacity: 1; }
+  34%, 100% { offset-distance: 100%; opacity: 0; box-shadow: var(--hp-glow-p); }
+}
+
+@keyframes hero-n1 {
+  0%, 2%, 13%, 33%, 44%, 100% { border-color: var(--hp-idle); box-shadow: var(--hp-none); }
+  4%, 11%, 35%, 42% { border-color: var(--hp-p); box-shadow: var(--hp-ring-p); }
+}
+
+@keyframes hero-n2 {
+  0%, 15%, 30%, 45%, 53%, 100% { border-color: var(--hp-idle); background: var(--hp-card); box-shadow: var(--hp-none); }
+  17%, 27% { border-color: var(--hp-bad); background: color-mix(in oklab, var(--hp-bad) 14%, var(--hp-card)); box-shadow: var(--hp-ring-bad); }
+  47%, 51% { border-color: var(--hp-p); background: var(--hp-card); box-shadow: var(--hp-ring-p); }
+}
+
+@keyframes hero-n3 {
+  0%, 52%, 60%, 100% { border-color: var(--hp-idle); box-shadow: var(--hp-none); }
+  54%, 58% { border-color: var(--hp-p); box-shadow: var(--hp-ring-p); }
+}
+
+@keyframes hero-n4 {
+  0%, 59%, 67%, 100% { border-color: var(--hp-idle); box-shadow: var(--hp-none); }
+  61%, 65% { border-color: var(--hp-p); box-shadow: var(--hp-ring-p); }
+}
+
+@keyframes hero-n5 {
+  0%, 66%, 98%, 100% { border-color: var(--hp-idle); background: var(--hp-card); color: var(--hp-idle); transform: scale(1); box-shadow: var(--hp-none); }
+  68.5% { transform: scale(1.25); }
+  70%, 95% { border-color: var(--hp-ok); background: var(--hp-ok); color: var(--hp-card); transform: scale(1); box-shadow: var(--hp-ring-ok); }
+}
+
+/* Failure should be felt before it is read, same as the demo page's flinch,
+   but damped: six swings in half a second and done. */
+@keyframes hero-shake {
+  0%, 16.8%, 22%, 100% { transform: none; }
+  17.5% { transform: translateX(8px); }
+  18.2% { transform: translateX(-7px); }
+  18.9% { transform: translateX(5px); }
+  19.6% { transform: translateX(-4px); }
+  20.3% { transform: translateX(2px); }
+  21% { transform: translateX(-1px); }
+}
+
+@keyframes hero-rip2 {
+  0%, 16.9% { transform: scale(1); opacity: 0; }
+  17% { transform: scale(1); opacity: 0.8; }
+  24%, 100% { transform: scale(3); opacity: 0; }
+}
+
+@keyframes hero-rip5 {
+  0%, 68% { transform: scale(1); opacity: 0; }
+  68.2% { transform: scale(1); opacity: 0.8; }
+  76%, 100% { transform: scale(3.4); opacity: 0; }
+}
+
+@keyframes hero-e2 {
+  0%, 16.8%, 31%, 100% { border-color: var(--color-fd-border); color: var(--color-fd-muted-foreground); background: var(--hp-card); box-shadow: var(--hp-none); }
+  17.5%, 28% { border-color: var(--hp-bad); color: var(--hp-bad); background: color-mix(in oklab, var(--hp-bad) 12%, var(--hp-card)); box-shadow: 0 0 0 4px color-mix(in oklab, var(--hp-bad) 12%, transparent); }
+}
+
+@keyframes hero-c2 {
+  0%, 16.8%, 31%, 100% { border-top-color: var(--color-fd-border); }
+  17.5%, 28% { border-top-color: var(--hp-bad); }
+}
+
+@keyframes hero-loop {
+  0%, 26.5%, 36%, 100% { stroke: var(--hp-idle); }
+  27.5%, 34% { stroke: var(--hp-p); }
+}
+
+@keyframes hero-bo {
+  0%, 27%, 34.5%, 100% { opacity: 0; }
+  27.5%, 34% { opacity: 1; }
+}
+
+@keyframes hero-p1 {
+  0%, 16.5% { opacity: 1; }
+  17%, 100% { opacity: 0; }
+}
+
+@keyframes hero-pf {
+  0%, 16.5%, 33.5%, 100% { opacity: 0; transform: none; }
+  17% { opacity: 1; transform: none; }
+  17.6% { transform: translateX(4px); }
+  18.2% { transform: translateX(-4px); }
+  18.8% { transform: translateX(3px); }
+  19.4% { transform: translateX(-2px); }
+  20%, 33% { opacity: 1; transform: none; }
+}
+
+@keyframes hero-p2 {
+  0%, 33.5% { opacity: 0; }
+  34%, 68.5% { opacity: 1; }
+  69%, 100% { opacity: 0; }
+}
+
+@keyframes hero-pok {
+  0%, 68.5% { opacity: 0; transform: scale(0.9); }
+  69.5% { opacity: 1; transform: scale(1.08); }
+  71%, 96% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+/* The deadline, per attempt. A 500 comes back fast, so attempt one stops well
+   short of it; attempt two takes longer and still lands inside. */
+@keyframes hero-tbar {
+  0%, 3% { transform: scaleX(0); opacity: 1; background: var(--hp-p); }
+  16% { transform: scaleX(0.5); background: var(--hp-p); }
+  17%, 27% { transform: scaleX(0.5); opacity: 1; background: var(--hp-bad); }
+  33.5% { transform: scaleX(0); opacity: 0.3; background: var(--hp-bad); }
+  34% { transform: scaleX(0); opacity: 1; background: var(--hp-p); }
+  68% { transform: scaleX(1); background: var(--hp-p); }
+  70%, 95% { transform: scaleX(1); opacity: 1; background: var(--hp-ok); }
+  100% { transform: scaleX(1); opacity: 0; background: var(--hp-ok); }
+}
+
+@keyframes hero-type1 {
+  0%, 18.5% { width: 0; }
+  25%, 100% { width: 40ch; }
+}
+
+@keyframes hero-type2 {
+  0%, 70% { width: 0; }
+  74%, 100% { width: 28ch; }
+}
+
+@keyframes hero-caret {
+  50% { opacity: 0; }
+}
+
+@keyframes hero-tile {
+  0%, 69% { transform: scale(0); opacity: 0; }
+  71%, 95% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes hero-ua {
+  0%, 69%, 97%, 100% { color: var(--hp-p); background: transparent; }
+  71%, 95% { color: var(--hp-card); background: var(--hp-ok); }
+}
+
+@keyframes hero-u2 {
+  0%, 16.8%, 29%, 100% { color: var(--color-fd-muted-foreground); background: transparent; }
+  17.5%, 27.5% { color: var(--hp-card); background: var(--hp-bad); }
+}
+
+/* The underline under "runs." draws when attempt two lands. */
+@keyframes hero-ul {
+  0%, 69% { stroke-dashoffset: 230; }
+  76%, 95% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -230; }
+}
+
+/* Still, the diagram shows where the loop ends: attempt two done, 20 products,
+   the underline drawn. The pieces that only exist mid-run are hidden. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise,
+  .hero-pipeline *,
+  .hero-ul {
+    animation: none !important;
+  }
+
+  .hero-arcpkt,
+  .hero-rip,
+  .hero-p1,
+  .hero-pf,
+  .hero-p2 {
+    opacity: 0;
+  }
+
+  .hero-pkt {
+    transform: translateY(400px);
+    box-shadow: var(--hp-glow-ok);
+  }
+}
