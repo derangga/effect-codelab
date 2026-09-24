@@ -144,11 +144,12 @@ interface CreateProduct {
   readonly name: string
   readonly price: number
 }
+// ---cut---
 interface RepositoryState {
   readonly nextId: number
   readonly products: ReadonlyArray<Product>
 }
-// ---cut---
+
 class ProductRepository extends Context.Service<ProductRepository>()(
   'ProductRepository',
   {
@@ -178,6 +179,9 @@ class ProductRepository extends Context.Service<ProductRepository>()(
 ) {}
 ```
 
+`RepositoryState` is the `Ref`'s payload: the next id to hand out, and the
+products collected so far. Nothing outside `make` ever touches it directly.
+
 Read `make` as a constructor that is allowed to do work. It runs once, when the
 service is built. What it returns is the shape, and the shape is inferred, so
 there is no separate interface to keep in sync.
@@ -205,10 +209,6 @@ interface Product {
   readonly name: string
   readonly price: number
 }
-class ProductNotFoundError extends Schema.TaggedError<ProductNotFoundError>()(
-  'ProductNotFoundError',
-  { productId: ProductId, message: Schema.String },
-) {}
 interface RepositoryState {
   readonly nextId: number
   readonly products: ReadonlyArray<Product>
@@ -235,6 +235,11 @@ class ProductRepository extends Context.Service<ProductRepository>()(
   },
 ) {}
 // ---cut---
+class ProductNotFoundError extends Schema.TaggedError<ProductNotFoundError>()(
+  'ProductNotFoundError',
+  { productId: ProductId, message: Schema.String },
+) {}
+
 class ProductService extends Context.Service<ProductService>()(
   'ProductService',
   {

@@ -280,10 +280,6 @@ built:
 import { Config, Context, Effect, Layer, Schema } from 'effect'
 interface Product { readonly id: string; readonly name: string }
 interface CreateProduct { readonly name: string; readonly price: number }
-class CatalogCapacityError extends Schema.TaggedError<CatalogCapacityError>()(
-  'CatalogCapacityError',
-  { maximum: Schema.Finite, message: Schema.String },
-) {}
 class ProductRepository extends Context.Service<
   ProductRepository,
   {
@@ -297,6 +293,11 @@ class ProductRepository extends Context.Service<
   })
 }
 // ---cut---
+class CatalogCapacityError extends Schema.TaggedError<CatalogCapacityError>()(
+  'CatalogCapacityError',
+  { maximum: Schema.Finite, message: Schema.String },
+) {}
+
 class ProductService extends Context.Service<ProductService>()(
   'ProductService',
   {
@@ -330,6 +331,9 @@ class ProductService extends Context.Service<ProductService>()(
   )
 }
 ```
+
+`CatalogCapacityError` carries the limit that was hit and a message, so a
+caller does not have to re-derive either from context.
 
 Config is checked when the layer is built, not when your project is compiled or
 bundled. A missing or malformed value fails at startup, which is early enough
