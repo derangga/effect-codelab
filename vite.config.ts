@@ -35,7 +35,7 @@ function prerenderPages() {
 
   paths.push(
     ...oldBasicEffectPaths,
-    "/api/search",
+    "/api/search.json",
     "/llms.txt",
     "/llms-full.txt",
     "/sitemap.xml",

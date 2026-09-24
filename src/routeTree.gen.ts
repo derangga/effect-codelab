@@ -16,7 +16,7 @@ import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiSearchDotjsonRouteImport } from './routes/api/search[.]json'
 import { Route as LearnSplatRouteImport } from './routes/learn/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -54,9 +54,9 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSearchRoute = ApiSearchRouteImport.update({
-  id: '/api/search',
-  path: '/api/search',
+const ApiSearchDotjsonRoute = ApiSearchDotjsonRouteImport.update({
+  id: '/api/search.json',
+  path: '/api/search.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LearnSplatRoute = LearnSplatRouteImport.update({
@@ -73,7 +73,7 @@ export interface FileRoutesByFullPath {
   '/llms.txt': typeof LlmsDottxtRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/api/search': typeof ApiSearchRoute
+  '/api/search.json': typeof ApiSearchDotjsonRoute
   '/learn/$': typeof LearnSplatRoute
 }
 export interface FileRoutesByTo {
@@ -84,7 +84,7 @@ export interface FileRoutesByTo {
   '/llms.txt': typeof LlmsDottxtRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/api/search': typeof ApiSearchRoute
+  '/api/search.json': typeof ApiSearchDotjsonRoute
   '/learn/$': typeof LearnSplatRoute
 }
 export interface FileRoutesById {
@@ -96,7 +96,7 @@ export interface FileRoutesById {
   '/llms.txt': typeof LlmsDottxtRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/api/search': typeof ApiSearchRoute
+  '/api/search.json': typeof ApiSearchDotjsonRoute
   '/learn/$': typeof LearnSplatRoute
 }
 export interface FileRouteTypes {
@@ -109,7 +109,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/robots.txt'
     | '/sitemap.xml'
-    | '/api/search'
+    | '/api/search.json'
     | '/learn/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -120,7 +120,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/robots.txt'
     | '/sitemap.xml'
-    | '/api/search'
+    | '/api/search.json'
     | '/learn/$'
   id:
     | '__root__'
@@ -131,7 +131,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/robots.txt'
     | '/sitemap.xml'
-    | '/api/search'
+    | '/api/search.json'
     | '/learn/$'
   fileRoutesById: FileRoutesById
 }
@@ -143,7 +143,7 @@ export interface RootRouteChildren {
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  ApiSearchRoute: typeof ApiSearchRoute
+  ApiSearchDotjsonRoute: typeof ApiSearchDotjsonRoute
   LearnSplatRoute: typeof LearnSplatRoute
 }
 
@@ -198,11 +198,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/search': {
-      id: '/api/search'
-      path: '/api/search'
-      fullPath: '/api/search'
-      preLoaderRoute: typeof ApiSearchRouteImport
+    '/api/search.json': {
+      id: '/api/search.json'
+      path: '/api/search.json'
+      fullPath: '/api/search.json'
+      preLoaderRoute: typeof ApiSearchDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/learn/$': {
@@ -223,7 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   LlmsDottxtRoute: LlmsDottxtRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  ApiSearchRoute: ApiSearchRoute,
+  ApiSearchDotjsonRoute: ApiSearchDotjsonRoute,
   LearnSplatRoute: LearnSplatRoute,
 }
 export const routeTree = rootRouteImport

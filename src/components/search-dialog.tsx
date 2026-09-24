@@ -1,4 +1,5 @@
 'use client';
+import { useEffect } from 'react';
 import { useDocsSearch } from 'fumadocs-core/search/client';
 import { staticClient } from 'fumadocs-core/search/client/orama-static';
 import {
@@ -22,10 +23,20 @@ import {
  * suggests in place of that prop, and it is the parts of the default minus the
  * tag filter and locale, neither of which this site has.
  */
-const client = staticClient({ from: '/api/search' });
+//
+// The `.json` is what gets it compressed: Cloudflare picks the content type
+// from the file extension, and without one it served all 2 MB raw.
+const client = staticClient({ from: '/api/search.json' });
 
 export default function StaticSearchDialog(props: SharedProps) {
   const { search, setSearch, query } = useDocsSearch({ client });
+
+  // The client fetches the index on the first query and caches it for the
+  // session, so an empty query on open starts the download while the reader
+  // is still typing. A failure here resurfaces on the real query.
+  useEffect(() => {
+    if (props.open) Promise.resolve(client.search('')).catch(() => {});
+  }, [props.open]);
 
   return (
     <SearchDialog

@@ -20,7 +20,7 @@ const server = createFromSource(published, {
   language: 'english',
 });
 
-export const Route = createFileRoute('/api/search')({
+export const Route = createFileRoute('/api/search.json')({
   server: {
     handlers: {
       // staticGET exports the whole index as json once at build time. GET
