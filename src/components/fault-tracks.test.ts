@@ -56,6 +56,12 @@ test('four failed attempts end as out of retries', () => {
   expect(view).toMatchObject({ phase: 'failed', attempt: 4, verdict: 'spent' });
 });
 
+test('a replayed timeout holds the first stage for as long as it really took', () => {
+  const trace: Trace = [{ n: 1, startedAt: 2200, endedAt: 4200, outcome: 'RequestTimeout: over 2 seconds' }];
+  const view: View = { phase: 'run', attempt: 1, stage: 0, run: 2200 };
+  expect(advance(view, trace, false)).toMatchObject({ view: { phase: 'fail' }, after: 2000 });
+});
+
 test('a new run sends a finished drawing back to the start', () => {
   const done = play([{ n: 1, startedAt: 10, endedAt: 300, outcome: 'ok' }], true).view;
   expect(advance(done, [{ n: 1, startedAt: 900 }], false)?.view).toEqual(idle);

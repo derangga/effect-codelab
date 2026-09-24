@@ -100,12 +100,19 @@ export function advance(
       // Still in flight, so there is nothing to draw past the first stage yet.
       if (current?.outcome === undefined) return undefined;
       const target = stageOf(current.outcome);
+      // The first stage is where the request is out, so it holds as long as
+      // the request really was. A replay that lags the run would otherwise
+      // squash a two second timeout into one step.
+      const after =
+        view.stage === 0
+          ? Math.max(stepMs, (current.endedAt ?? current.startedAt) - current.startedAt)
+          : stepMs;
       if (view.stage < Math.min(target, 3)) {
-        return { view: { ...view, stage: view.stage + 1 }, after: stepMs };
+        return { view: { ...view, stage: view.stage + 1 }, after };
       }
       return target === 4
-        ? { view: { ...view, phase: "ok", stage: 4 }, after: stepMs }
-        : { view: { ...view, phase: "fail" }, after: stepMs };
+        ? { view: { ...view, phase: "ok", stage: 4 }, after }
+        : { view: { ...view, phase: "fail" }, after };
     }
     case "fail": {
       // The gate only answers once the run has: either another request went
@@ -183,8 +190,10 @@ export function FaultTracks({
   const backing = phase === "back" || phase === "climb";
   const onError = ["fail", "judge", "caught", "failed"].includes(phase);
   const judged = onError && phase !== "fail";
-  const waiting = phase === "run" && stage === 0 && current?.outcome === undefined;
   const tag = current?.outcome === undefined ? "" : tagOf(current.outcome);
+  // A retry the replay reaches late has already timed out, and still gets its ring.
+  const waiting =
+    phase === "run" && stage === 0 && (current?.outcome === undefined || tag === "RequestTimeout");
 
   let px = x.start;
   let py = y.top;
