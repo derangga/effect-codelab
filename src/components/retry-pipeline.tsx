@@ -18,9 +18,6 @@ const stages = [
   { title: "Decode the shape", code: "decodeProducts(body)", error: "SchemaMismatch" },
 ];
 
-// One tile per decoded product. fakestoreapi's /products answers with 20.
-const tiles = Array.from({ length: 20 }, (_, i) => i);
-
 const chip =
   "shrink-0 self-start rounded-md border bg-fd-card px-2.5 py-1 font-mono text-fd-muted-foreground text-xs";
 
@@ -28,7 +25,7 @@ export function RetryPipeline() {
   return (
     <figure className="hero-pipeline m-0 flex flex-col gap-3">
       <div className="rounded-2xl border bg-fd-card px-5 pt-5 pb-4 shadow-[0_24px_60px_-28px_rgb(0_0_0/0.35)] sm:px-7">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 pb-6">
           <span className="font-mono font-semibold text-sm">ProductsApi.list</span>
           {/* Four labels stacked in one cell, each shown for its slice of the loop. */}
           <div aria-hidden className="grid font-medium font-mono text-[11px]">
@@ -47,14 +44,7 @@ export function RetryPipeline() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-3.5 pb-5 font-mono text-[11px] text-fd-muted-foreground">
-          <span>timeout 2s</span>
-          <div className="h-1 grow overflow-hidden rounded-full bg-fd-muted">
-            <div className="hero-tbar h-full w-[36%] origin-left rounded-full bg-demo-ok" />
-          </div>
-        </div>
-
-        <div className="relative h-[440px]">
+        <div className="relative h-[428px]">
           <div className="absolute top-3.5 left-[69px] h-[400px] w-0.5 bg-fd-border" />
           <div className="hero-trail absolute top-3.5 left-[69px] h-[400px] w-0.5 origin-top rounded-full bg-demo-ok" />
 
@@ -147,18 +137,7 @@ export function RetryPipeline() {
                 <path d="M5 12.5l4.5 4.5L19 7.5" />
               </svg>
             </div>
-            <div className="flex min-w-0 flex-col gap-2 pt-0.5">
-              <span className="font-semibold text-[15px]">ReadonlyArray&lt;Product&gt;</span>
-              <div aria-hidden className="flex flex-wrap gap-[3px]">
-                {tiles.map((i) => (
-                  <span
-                    key={i}
-                    className="hero-tile size-[9px] rounded-[2px] bg-demo-ok"
-                    style={{ animationDelay: `${i * 35}ms` }}
-                  />
-                ))}
-              </div>
-            </div>
+            <span className="pt-0.5 font-semibold text-[15px]">ReadonlyArray&lt;Product&gt;</span>
           </div>
 
           <div
@@ -192,11 +171,10 @@ export function RetryPipeline() {
         </div>
       </div>
 
-      <figcaption className="px-1 font-mono text-fd-muted-foreground text-xs leading-relaxed">
+      <figcaption className="px-1 text-center font-mono text-fd-muted-foreground text-xs leading-relaxed">
         Effect&lt;
-        <span className="hero-ua rounded px-1 text-fd-primary">ReadonlyArray&lt;Product&gt;</span>, NetworkError |{" "}
-        <span className="hero-u2 rounded px-1">ResponseError</span> | MalformedJson | SchemaMismatch |
-        RequestTimeout&gt;
+        <span className="hero-ua -mx-0.5 rounded px-0.5">ReadonlyArray&lt;Product&gt;</span>,{" "}
+        <span className="hero-u2 -mx-0.5 rounded px-0.5">ProductsError</span>&gt;
       </figcaption>
     </figure>
   );

@@ -204,11 +204,9 @@ span[data-status="Draft"] {
 .hero-pf { animation: hero-pf 10s linear infinite; }
 .hero-p2 { animation: hero-p2 10s linear infinite; }
 .hero-pok { animation: hero-pok 10s linear infinite; }
-.hero-tbar { animation: hero-tbar 10s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 .hero-type1 { animation: hero-type1 10s steps(40, end) infinite; }
 .hero-type2 { animation: hero-type2 10s steps(28, end) infinite; }
 .hero-caret { animation: hero-caret 1s steps(1) infinite; }
-.hero-tile { animation: hero-tile 10s cubic-bezier(0.3, 1.6, 0.5, 1) infinite both; }
 .hero-ua { animation: hero-ua 10s linear infinite; }
 .hero-u2 { animation: hero-u2 10s linear infinite; }
 .hero-ul { animation: hero-ul 10s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
@@ -362,19 +360,6 @@ span[data-status="Draft"] {
   100% { opacity: 0; transform: scale(1); }
 }
 
-/* The deadline, per attempt. A 500 comes back fast, so attempt one stops well
-   short of it; attempt two takes longer and still lands inside. */
-@keyframes hero-tbar {
-  0%, 3% { transform: scaleX(0); opacity: 1; background: var(--hp-p); }
-  16% { transform: scaleX(0.5); background: var(--hp-p); }
-  17%, 27% { transform: scaleX(0.5); opacity: 1; background: var(--hp-bad); }
-  33.5% { transform: scaleX(0); opacity: 0.3; background: var(--hp-bad); }
-  34% { transform: scaleX(0); opacity: 1; background: var(--hp-p); }
-  68% { transform: scaleX(1); background: var(--hp-p); }
-  70%, 95% { transform: scaleX(1); opacity: 1; background: var(--hp-ok); }
-  100% { transform: scaleX(1); opacity: 0; background: var(--hp-ok); }
-}
-
 @keyframes hero-type1 {
   0%, 18.5% { width: 0; }
   25%, 100% { width: 40ch; }
@@ -389,14 +374,8 @@ span[data-status="Draft"] {
   50% { opacity: 0; }
 }
 
-@keyframes hero-tile {
-  0%, 69% { transform: scale(0); opacity: 0; }
-  71%, 95% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1); opacity: 0; }
-}
-
 @keyframes hero-ua {
-  0%, 69%, 97%, 100% { color: var(--hp-p); background: transparent; }
+  0%, 69%, 97%, 100% { color: var(--color-fd-muted-foreground); background: transparent; }
   71%, 95% { color: var(--hp-card); background: var(--hp-ok); }
 }
 
@@ -412,8 +391,8 @@ span[data-status="Draft"] {
   100% { stroke-dashoffset: -230; }
 }
 
-/* Still, the diagram shows where the loop ends: attempt two done, 20 products,
-   the underline drawn. The pieces that only exist mid-run are hidden. */
+/* Still, the diagram shows where the loop ends: attempt two done and the
+   underline drawn. The pieces that only exist mid-run are hidden. */
 @media (prefers-reduced-motion: reduce) {
   .hero-rise,
   .hero-pipeline *,
