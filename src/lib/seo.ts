@@ -5,8 +5,9 @@ import { appName, gitConfig, siteDescription, siteUrl } from "./shared";
  * twitter tags. The title suffix is built here because this router version
  * has no `template` support, so each route carries its full title.
  *
- * The og image is one site-wide card (public/og.png) rather than per-page
- * images; it is referenced with an absolute URL because OG requires it.
+ * The og image is the site-wide logo mark (public/android-chrome-512.png,
+ * 512x512) rather than a per-page or widescreen banner; it is referenced
+ * with an absolute URL because OG requires it.
  */
 export function pageHead(
   options: {
@@ -19,7 +20,7 @@ export function pageHead(
   const title = options.title ? `${options.title} | ${appName}` : appName;
   const description = options.description ?? siteDescription;
   const url = `${siteUrl}${options.path ?? "/"}`;
-  const image = `${siteUrl}/og.png`;
+  const image = `${siteUrl}/android-chrome-512.png`;
 
   return {
     meta: [
@@ -30,7 +31,7 @@ export function pageHead(
       { property: "og:type", content: options.ogType ?? "website" },
       { property: "og:url", content: url },
       { property: "og:image", content: image },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: title },
       { name: "twitter:description", content: description },
       { name: "twitter:image", content: image },
@@ -88,7 +89,7 @@ export function chapterJsonLd(options: {
       headline: options.title,
       description: options.description,
       url: `${siteUrl}${options.url}`,
-      image: `${siteUrl}/og.png`,
+      image: `${siteUrl}/android-chrome-512.png`,
       inLanguage: "en",
       author: organization,
       publisher: { "@id": `${siteUrl}/#organization` },
