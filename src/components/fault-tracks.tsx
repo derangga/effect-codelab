@@ -136,7 +136,9 @@ export function advance(
     case "climb":
       return {
         view: { phase: "run", attempt: view.attempt + 1, stage: 0, run: view.run },
-        after: 350,
+        // The dot lands at 1.7s (see tracks-return), then rests a beat before
+        // the packet sets off again.
+        after: 1050,
       };
     case "caught":
       return { view: { ...view, phase: "failed" }, after: 600 };

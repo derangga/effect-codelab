@@ -211,7 +211,7 @@ span[data-status="Draft"] {
 .tracks-return {
   background: var(--tr-wait);
   box-shadow: 0 0 0 4px var(--tr-card), 0 0 16px 3px color-mix(in oklab, var(--tr-wait) 60%, transparent);
-  animation: tracks-return 1.25s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+  animation: tracks-return 1.7s cubic-bezier(0.45, 0, 0.55, 1) forwards;
 }
 
 .tracks-pill { background: var(--color-fd-background); color: var(--color-fd-muted-foreground); transition: all 0.2s; }
@@ -251,7 +251,7 @@ span[data-status="Draft"] {
 @keyframes tracks-return {
   0% { left: 80%; top: 184px; }
   8% { left: 80%; top: 262px; }
-  80% { left: 7%; top: 262px; }
+  72% { left: 7%; top: 262px; }
   100% { left: 7%; top: 64px; }
 }
 @keyframes tracks-type {
