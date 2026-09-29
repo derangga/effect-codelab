@@ -2,7 +2,7 @@
 title: Typed errors and recovery
 order: 3
 slug: 03-typed-errors
-summary: Replace one catch-all error class with named failures that carry what a caller needs, including the empty body fakestoreapi returns for a product that does not exist, then handle them by tag until the channel is empty.
+summary: Replace one catch-all error class with named failures that carry what a caller needs, including the 404 that mockstore-api returns for a product that does not exist, then handle them by tag until the channel is empty.
 ---
 
 `ApiError` covers a dead network, a 500 from the server, and a product that
@@ -63,34 +63,35 @@ class ProductNotFound extends Schema.TaggedError<ProductNotFound>()(
   'ProductNotFound',
   { id: Schema.Number, message: Schema.String },
 ) {}
-declare const readBody: Effect.Effect<string>
+declare const request: (path: string) => Effect.Effect<Response>
 // ---cut---
 const orFail = (id: number) =>
   Effect.gen(function* () {
-    const body = yield* readBody
+    const response = yield* request(`/products/${id}`)
 
-    if (body === '') {
+    if (response.status === 404) {
       return yield* new ProductNotFound({
         id,
         message: `no product has id ${id}`,
       })
     }
 
-    return body
+    return response
   })
 ```
 
 `Effect.fail(error)` does the same and reads better inside a `pipe`. In a
 generator, yielding the error directly is the shorter form.
 
-## Reading the body as text first
+## Looking at the status first
 
-Chapter one showed why `response.json()` is the wrong place to find out that a
-product is missing. On an empty body bun returns `null` and node throws, so the
-same code reports the same response two different ways depending on where it
-runs.
+Chapter one showed what happens when nothing looks at the status. The 404 body
+parsed as JSON, `as Product` waved it through, and the crash arrived a line
+later. The status is where a missing product announces itself, so the check
+goes before the body is read at all.
 
-Read the text instead. An empty string is an empty string in both runtimes.
+The two things that can go wrong before there is a status are the request and
+the read.
 
 ```ts twoslash
 // index.ts, replacing request and readJson
@@ -102,23 +103,23 @@ class ApiUnavailable extends Schema.TaggedError<ApiUnavailable>()(
 // ---cut---
 const request = (path: string) =>
   Effect.tryPromise({
-    try: () => fetch(`https://fakestoreapi.com${path}`),
+    try: () => fetch(`https://mockstore-api.rangga.site${path}`),
     catch: () => new ApiUnavailable({ message: 'the request never completed' }),
   })
 
-const readBody = (response: Response) =>
+const readJson = (response: Response) =>
   Effect.tryPromise({
-    try: () => response.text(),
-    catch: () => new ApiUnavailable({ message: 'the body could not be read' }),
+    try: () => response.json() as Promise<unknown>,
+    catch: () => new ApiUnavailable({ message: 'the body was not JSON' }),
   })
 ```
 
 Both rejections are `ApiUnavailable` with no status, because neither of them
 got far enough to have one. A `fetch` that never completed and a body that
-could not be read are the same thing to a caller. They are the network, not the
-server.
+could not be parsed are the same thing to a caller. The server did not give an
+answer worth reading.
 
-## Three checks, three outcomes
+## Three outcomes
 
 ```ts twoslash
 // index.ts
@@ -134,13 +135,13 @@ class ProductNotFound extends Schema.TaggedError<ProductNotFound>()(
 ) {}
 const request = (path: string) =>
   Effect.tryPromise({
-    try: () => fetch(`https://fakestoreapi.com${path}`),
+    try: () => fetch(`https://mockstore-api.rangga.site${path}`),
     catch: () => new ApiUnavailable({ message: 'the request never completed' }),
   })
-const readBody = (response: Response) =>
+const readJson = (response: Response) =>
   Effect.tryPromise({
-    try: () => response.text(),
-    catch: () => new ApiUnavailable({ message: 'the body could not be read' }),
+    try: () => response.json() as Promise<unknown>,
+    catch: () => new ApiUnavailable({ message: 'the body was not JSON' }),
   })
 // ---cut---
 const findById = (id: number) =>
@@ -148,23 +149,21 @@ const findById = (id: number) =>
   Effect.gen(function* () {
     const response = yield* request(`/products/${id}`)
 
-    if (!response.ok) {
-      return yield* new ApiUnavailable({
-        status: response.status,
-        message: `fakestoreapi answered ${response.status}`,
-      })
-    }
-
-    const body = yield* readBody(response)
-
-    if (body === '') {
+    if (response.status === 404) {
       return yield* new ProductNotFound({
         id,
         message: `no product has id ${id}`,
       })
     }
 
-    return JSON.parse(body) as Product
+    if (!response.ok) {
+      return yield* new ApiUnavailable({
+        status: response.status,
+        message: `mockstore-api answered ${response.status}`,
+      })
+    }
+
+    return (yield* readJson(response)) as Product
   })
 ```
 
@@ -289,37 +288,35 @@ class ProductNotFound extends Schema.TaggedError<ProductNotFound>()(
 
 const request = (path: string) =>
   Effect.tryPromise({
-    try: () => fetch(`https://fakestoreapi.com${path}`),
+    try: () => fetch(`https://mockstore-api.rangga.site${path}`),
     catch: () => new ApiUnavailable({ message: 'the request never completed' }),
   })
 
-const readBody = (response: Response) =>
+const readJson = (response: Response) =>
   Effect.tryPromise({
-    try: () => response.text(),
-    catch: () => new ApiUnavailable({ message: 'the body could not be read' }),
+    try: () => response.json() as Promise<unknown>,
+    catch: () => new ApiUnavailable({ message: 'the body was not JSON' }),
   })
 
 const findById = (id: number) =>
   Effect.gen(function* () {
     const response = yield* request(`/products/${id}`)
 
-    if (!response.ok) {
-      return yield* new ApiUnavailable({
-        status: response.status,
-        message: `fakestoreapi answered ${response.status}`,
-      })
-    }
-
-    const body = yield* readBody(response)
-
-    if (body === '') {
+    if (response.status === 404) {
       return yield* new ProductNotFound({
         id,
         message: `no product has id ${id}`,
       })
     }
 
-    return JSON.parse(body) as Product
+    if (!response.ok) {
+      return yield* new ApiUnavailable({
+        status: response.status,
+        message: `mockstore-api answered ${response.status}`,
+      })
+    }
+
+    return (yield* readJson(response)) as Product
   })
 
 const describe = (id: number) =>
@@ -344,10 +341,10 @@ Fjallraven - Foldsack No. 1 Backpack, Fits 15 Laptops
 not found: no product has id 999
 ```
 
-The crash from chapter one is now a sentence, and it got there by being a
+The 404 that crashed chapter one is now a sentence, and it got there by being a
 value with a name the compiler checked.
 
-One lie is left. `JSON.parse(body) as Product` still asserts a shape nobody
+One lie is left. `readJson(response)` returns `unknown` and `as Product` still asserts a shape nobody
 verified, and every field on `Product` is a promise this code has no way to
 keep. Chapter four makes the shape something that is checked at runtime, and
 the file gets too long to stay one file.

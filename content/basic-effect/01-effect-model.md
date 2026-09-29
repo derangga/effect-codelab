@@ -2,11 +2,11 @@
 title: The Effect model
 order: 1
 slug: 01-effect-model
-summary: Why an Effect is a description of work rather than work already underway, shown against a public API that answers 200 OK when the product does not exist.
+summary: Why an Effect is a description of work rather than work already underway, shown against a public API that answers a missing product with a 404 the function never looks at.
 ---
 
 Here is an ordinary function that reads one product from
-[fakestoreapi.com](https://fakestoreapi.com). Put it in `index.ts`.
+[mockstore-api.rangga.site](https://mockstore-api.rangga.site). Put it in `index.ts`.
 
 ```ts twoslash
 // index.ts
@@ -26,7 +26,7 @@ interface Product {
 }
 
 async function fetchProduct(id: number): Promise<Product> {
-  const response = await fetch(`https://fakestoreapi.com/products/${id}`)
+  const response = await fetch(`https://mockstore-api.rangga.site/products/${id}`)
   const json = await response.json()
   return json as Product
 }
@@ -57,21 +57,23 @@ fetchProduct(999).then((product) => console.log(product.title.toUpperCase()))
 Under bun:
 
 ```sh
-TypeError: null is not an object (evaluating 'product.title')
+TypeError: undefined is not an object (evaluating 'product.title.toUpperCase')
 ```
 
 Under node:
 
 ```sh
-SyntaxError: Unexpected end of JSON input
+TypeError: Cannot read properties of undefined (reading 'toUpperCase')
 ```
 
-Same code, same response, two different crashes. The response itself is the
-reason. fakestoreapi answers a missing product with `200 OK`, a
-`content-type: application/json` header, and a body of zero bytes. `response.ok`
-is `true`. Then `response.json()` has nothing to parse, and what it does about
-that is a decision each runtime makes on its own. Bun hands you `null`. Node
-throws.
+The wording differs and the crash is the same. The server did answer, and it
+answered honestly: `404`, and a JSON body of
+`{"_tag":"ProductNotFound","productId":999,"message":"product 999 not found"}`.
+`fetch` resolves on a 404, because a 404 is a response and only a missing
+network is a failure. `response.json()` parses that body without complaint.
+`as Product` then tells the compiler it is a product. `product.title` is
+`undefined`, and the program falls over one line after the mistake and a long
+way from its cause.
 
 Read the signature again. `Promise<Product>` mentions none of this.
 
@@ -79,10 +81,12 @@ Four things are happening in those five lines that the type does not say:
 
 - `fetch` rejects when the network is gone, and nothing in `Promise<Product>`
   says so.
-- `response.json()` fails on a body that is not JSON, including the empty one
-  above.
-- `as Product` is an assertion. Nobody checked. `null` passed through it
-  without complaint and only became a problem one line later.
+- `fetch` does not reject on a 404 or a 500. `response.status` is the only
+  signal, and nothing forces you to read it. The same goes for
+  `response.json()`, which rejects on a body that is not JSON. This API's `400`
+  for `/products/abc` has zero bytes.
+- `as Product` is an assertion. Nobody checked. The error body passed through
+  it without complaint and only became a problem one line later.
 - By the time you hold the `Promise`, the request is already in flight. You
   cannot inspect it, retry it, or decide not to send it. It went the moment you
   called.
@@ -105,7 +109,7 @@ class ApiError extends Error {
 
 const fetchProduct = (id: number) =>
   Effect.tryPromise({
-    try: () => fetch(`https://fakestoreapi.com/products/${id}`),
+    try: () => fetch(`https://mockstore-api.rangga.site/products/${id}`),
     catch: () => new ApiError(),
   })
 
@@ -124,7 +128,7 @@ in flight. It is a description of one.
 
 ```sh
 nothing has been requested yet
-status 200
+status 404
 ```
 
 The log prints before the request happens, and it prints because
@@ -142,7 +146,7 @@ class ApiError extends Error {
 }
 const fetchProduct = (id: number) =>
   Effect.tryPromise({
-    try: () => fetch(`https://fakestoreapi.com/products/${id}`),
+    try: () => fetch(`https://mockstore-api.rangga.site/products/${id}`),
     catch: () => new ApiError(),
   })
 // ---cut---
@@ -171,13 +175,14 @@ run. Chapter seven is where that stops being `never`.
 ## What this version still gets wrong
 
 It is honest about the request and silent about everything after it. There is
-no JSON yet, no `Product`, and `999` still comes back `200`. The `ApiError`
+no JSON yet, no `Product`, and `999` still comes back as an ordinary `Response`
+with status `404`. The `ApiError`
 class is a placeholder with one tag and no detail.
 
 Three things are missing, and they are the next three chapters. Chapter two
 composes the parse onto the fetch and adds the timeout and the retry that a
 network call should have had from the start. Chapter three replaces `ApiError`
-with errors that say which thing went wrong, including the empty body you saw
+with errors that say which thing went wrong, including the 404 you saw
 above. Chapter four is where `as Product` finally goes away.
 
 The order matters. Every one of them is a thing you can only add cheaply

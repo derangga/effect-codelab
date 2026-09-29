@@ -14,11 +14,12 @@ last chapter that function is a service, its dependencies arrive through a
 layer, its configuration comes from the environment, and its tests run against
 a mock server instead of the internet.
 
-The API is [fakestoreapi.com](https://fakestoreapi.com). It is free, it needs
-no key, and it holds twenty products. It also has one habit that makes it
-better teaching material than a well behaved API would be. Ask it for a product
-that does not exist and it answers `200 OK` with an empty body. Chapter one
-walks into that on purpose, and a good part of the eight chapters after it are
+The API is [mockstore-api.rangga.site](https://mockstore-api.rangga.site). It is free, it needs
+no key, and it holds twenty products. Ask it for a product that does not exist and it answers `404` with a JSON
+body, which `fetch` hands back like any other response. A `Promise<Product>`
+never tells you to look at the status, so the miss goes unnoticed until
+something reads `product.title`. Chapter one walks into that on purpose, and a
+good part of the eight chapters after it are
 about making sure it can never surprise you again.
 
 ## What you need

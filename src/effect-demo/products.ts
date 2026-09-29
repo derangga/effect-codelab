@@ -164,7 +164,7 @@ export const requestTimeout = '2 seconds'
  * value. For config that does vary, see Repository state, layers, and config
  * in the Basic Effect track.
  */
-export const baseUrl = 'https://fakestoreapi.com'
+export const baseUrl = 'https://mockstore-api.rangga.site'
 
 // ---------------------------------------------------------------------------
 // The service
