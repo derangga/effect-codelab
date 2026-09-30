@@ -74,15 +74,15 @@ word `unstable` is honest: their names can still change before v4 is final.
 
 Each chapter adds one piece, in the order you would build it for real:
 
-1. The workspace and its tooling.
-2. The todo, described once in the shared package.
-3. The API, described as a value.
-4. A repository over SQLite.
-5. The handlers that answer each request.
-6. Serving it on a port.
-7. A test for the whole API.
-8. The typed client for the browser.
-9. The React page, and running everything together.
+1. [The workspace and its tooling](/learn/fullstack-monorepo/01-the-workspace-shape).
+2. [The todo, described once in the shared package](/learn/fullstack-monorepo/02-the-todo-in-schema).
+3. [The API, described as a value](/learn/fullstack-monorepo/03-declaring-the-api).
+4. [A repository over SQLite](/learn/fullstack-monorepo/04-the-repo-over-sqlite).
+5. [The handlers that answer each request](/learn/fullstack-monorepo/05-implementing-the-handlers).
+6. [Serving it on a port](/learn/fullstack-monorepo/06-serving-it).
+7. [A test for the whole API](/learn/fullstack-monorepo/07-testing-the-api).
+8. [The typed client for the browser](/learn/fullstack-monorepo/08-the-typed-client).
+9. [The React page, and running everything together](/learn/fullstack-monorepo/09-the-react-page).
 
 The code in every chapter is the code of a finished, working repository. When a
 file grows over several steps, you will see the small version first and the
