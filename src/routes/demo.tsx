@@ -178,6 +178,16 @@ function Demo() {
                 <a
                   key={jump.href}
                   href={jump.href}
+                  onClick={(event) => {
+                    const target = document.querySelector(jump.href);
+                    if (!target) return;
+                    event.preventDefault();
+                    target.scrollIntoView({
+                      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                        ? "auto"
+                        : "smooth",
+                    });
+                  }}
                   className="inline-flex h-12 items-center gap-3 rounded-lg border bg-fd-card px-4 font-semibold text-sm transition-[colors,transform] hover:border-fd-primary active:scale-95"
                 >
                   <span className="rounded bg-fd-primary/10 px-1.5 py-1 font-mono text-fd-primary text-xs">
