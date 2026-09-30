@@ -44,7 +44,7 @@ agreement every time you build.
 
 ## What you need
 
-- [Bun](https://bun.sh) 1.4 or newer. It is the package manager, the server
+- [Bun](https://bun.sh), it is the package manager, the server
   runtime and the test runner here.
 - A code editor that uses the project's TypeScript version.
 - Basic TypeScript and React. You do not need to know Effect. Every Effect idea
