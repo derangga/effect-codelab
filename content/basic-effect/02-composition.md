@@ -36,7 +36,7 @@ class JsonError extends Error {
 }
 // ---cut---
 const request = Effect.tryPromise({
-  try: () => fetch('https://mockstore-api.rangga.site/products'),
+  try: () => fetch('https://fakestoreapi.com/products'),
   catch: () => new ApiError(),
 })
 
@@ -62,7 +62,7 @@ class JsonError extends Error {
   readonly _tag = 'JsonError'
 }
 const request = Effect.tryPromise({
-  try: () => fetch('https://mockstore-api.rangga.site/products'),
+  try: () => fetch('https://fakestoreapi.com/products'),
   catch: () => new ApiError(),
 })
 const readJson = (response: Response) =>
@@ -99,7 +99,7 @@ class JsonError extends Error {
   readonly _tag = 'JsonError'
 }
 const request = Effect.tryPromise({
-  try: () => fetch('https://mockstore-api.rangga.site/products'),
+  try: () => fetch('https://fakestoreapi.com/products'),
   catch: () => new ApiError(),
 })
 const readJson = (response: Response) =>
@@ -138,7 +138,7 @@ class JsonError extends Error {
   readonly _tag = 'JsonError'
 }
 const request = Effect.tryPromise({
-  try: () => fetch('https://mockstore-api.rangga.site/products'),
+  try: () => fetch('https://fakestoreapi.com/products'),
   catch: () => new ApiError(),
 })
 const readJson = (response: Response) =>
@@ -232,7 +232,7 @@ class JsonError extends Error {
 }
 
 const request = Effect.tryPromise({
-  try: () => fetch('https://mockstore-api.rangga.site/products'),
+  try: () => fetch('https://fakestoreapi.com/products'),
   catch: () => new ApiError(),
 })
 
