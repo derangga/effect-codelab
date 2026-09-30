@@ -2,13 +2,13 @@
 title: Errors
 order: 3
 slug: 03-errors
-summary: One error type for everything, separate types named after status codes, and catching everything too early. Three ways to give back what the E channel was for.
+summary: One error type for everything, separate types named after status codes, and catching everything too early. Three ways to give up what the E channel is for.
 ---
 
 ## One error type with a message inside
 
 From [Typed errors and recovery](/learn/basic-effect/03-typed-errors). This
-looks tidy and it costs you everything that chapter was about.
+looks tidy, and it gives up what that chapter taught.
 
 ```ts twoslash
 import { Schema } from 'effect'
@@ -74,8 +74,9 @@ class CustomerNotFoundError extends Schema.TaggedError<CustomerNotFoundError>()(
 ) {}
 ```
 
-The status code is a rendering decision, made once at the edge where the
-response is built. It is not a name.
+The status code is a rendering decision, made once where the response is built.
+In `HttpApi` that is the `httpApiStatus` annotation on each error class, so two
+errors can share a 404 and keep their own names. The status is not a name.
 
 The test: can a handler write a message a person can act on, using only the
 error it was given? If it needs a second lookup to find out what happened, the
@@ -95,12 +96,12 @@ const port = load.pipe(Effect.catch(() => Effect.succeed(8080)))
 //    ^?
 ```
 
-The type says this cannot fail, which is now a lie the compiler will defend.
-The caller cannot tell a missing file from a corrupt one, and cannot decide to
-retry the one that is worth retrying.
+The type now says this cannot fail. That is true, and it is the problem. A
+missing file and a corrupt one both become 8080, nothing records that either
+happened, and the caller cannot decide to retry the one worth retrying.
 
-Catch at the edge, where something has to become a screen or a response. In
-between, let failures accumulate.
+Catch the tags you know how to handle and leave the rest in the type. Whatever
+is left becomes a screen or a response at the edge.
 
 The same warning covers `Effect.orDie`. It is for failures you have genuinely
 ruled out, not for making a red squiggle go away.

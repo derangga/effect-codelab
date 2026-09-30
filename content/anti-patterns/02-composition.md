@@ -22,8 +22,8 @@ const wrong = Effect.map(readFile('port.txt'), parse)
 An Effect inside an Effect. Run it and you get back a description of the work
 rather than the number, and the inner program never runs at all.
 
-If your function returns an Effect, use `flatMap`, or `yield*` it inside
-`Effect.gen`.
+If the function you pass returns an Effect, `yield*` it inside `Effect.gen`, or
+use `flatMap`.
 
 ## try and catch inside gen
 
@@ -44,9 +44,8 @@ const load = Effect.gen(function* () {
 })
 ```
 
-The `catch` block never runs. I checked: an Effect failure goes to the `E`
-channel and walks straight past `try` and `catch`, which only sees thrown
-values.
+The `catch` block never runs. A failed Effect goes to the `E` channel and walks
+straight past `try` and `catch`, which only see thrown values.
 
 Handle failures with the tools from
 [Typed errors and recovery](/learn/basic-effect/03-typed-errors).
@@ -61,5 +60,9 @@ const load = readFile('port.txt').pipe(
 )
 ```
 
-`try` and `finally` are still useful inside `gen` for ordinary throwing code.
-They are just not how Effect failures are handled.
+`try` and `catch` still work inside `gen` around plain code that throws, but
+`Effect.try` is the better tool because it puts the failure in `E`.
+
+Do not use `finally` for cleanup. When the body fails or the fiber is
+interrupted, the `finally` block does not run. Use `Effect.acquireRelease` with
+`Effect.scoped`.

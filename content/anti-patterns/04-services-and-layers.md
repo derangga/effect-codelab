@@ -61,7 +61,7 @@ It is the wrong tool for anything you build yourself. Without a `make` there is
 no single home for the construction, so every caller assembles the
 implementation and provides it, and the day the repository starts needing a
 config value, every one of those call sites has to learn about it. Give it a
-`make` and a `static layer`, as the `Formatter` above does, and the wiring
+`make` and a `static layer` that provides what `make` needs, and the wiring
 lives in one place.
 
 ## Rebuilding the layer on every call
@@ -89,8 +89,8 @@ const program = Effect.gen(function* () {
 const call = () => Effect.runPromise(program.pipe(Effect.provide(Api.layer)))
 ```
 
-Layers are shared within one build, not across builds. I measured it: calling
-that three times builds the service three times. If building it opens a
+Layers are shared within one build, not across builds. Calling that three times
+builds the service three times. If building it opens a
 connection, reads config, or starts something, you now do that per call. A
 service holding a `Ref` is worse than wasteful, because each call gets its own
 state and nothing accumulates.

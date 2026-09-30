@@ -46,13 +46,14 @@ You told the stub to say Backpack and then checked that it said Backpack. The
 only real assertion hiding in there is that decoding worked.
 
 Test the decisions instead: how many attempts a 500 causes, what a schema
-mismatch does, which branch a 404 takes. And when the question is about the
+mismatch does, which branch a 404 takes. Drive the retry cases with `TestClock`, so the test
+advances virtual time instead of sleeping. And when the question is about the
 request itself, the URL or the headers, a stub cannot answer it, so use MSW.
 
 ## Retrying because retrying sounds good
 
-From [The ProductService capstone](/learn/basic-effect/08-capstone). Three
-versions of the same misunderstanding.
+From [The ProductService capstone](/learn/basic-effect/08-capstone). The line
+below makes three mistakes at once.
 
 ```ts twoslash
 import { Effect, Schedule } from 'effect'
@@ -61,11 +62,12 @@ declare const call: Effect.Effect<number>
 const everything = call.pipe(Effect.retry(Schedule.forever))
 ```
 
-Retrying every failure means a 404 is asked four more times, and a body that
-did not match the schema is decoded again with the same result. Retrying
-forever turns a broken deploy into a self inflicted denial of service.
-Retrying without jitter means every client in the fleet comes back at the same
-instant.
+With no `while`, it retries every failure, so a 404 is asked again and a body
+that did not match the schema is decoded again with the same result. With
+`Schedule.forever`, it never stops and waits for nothing between attempts, so a
+broken deploy turns every client into a denial of service against its own
+server. A schedule that has delays but no jitter still makes the third mistake,
+because every client that failed at the same moment retries at the same moment.
 
 A policy is three decisions: which failures, how long between, and when to stop.
 
@@ -106,8 +108,8 @@ const isRetryable = (error: CallError): boolean => {
 Note what is missing: there is no `default`. Add a fourth failure to
 `CallError` and this stops compiling until somebody decides whether it is worth
 retrying. A predicate written inline as `(error) => error.status >= 500` gives
-that up, and quietly answers "no" for every failure that has no `status` at
-all.
+that up. Once the error type is loosened enough for it to compile, it quietly
+answers "no" for every failure that has no `status` at all.
 
 Then the other two decisions wrap the call.
 

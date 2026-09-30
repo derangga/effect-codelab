@@ -22,5 +22,8 @@ removes the failure. Casting removes the check. One big error type removes the
 distinction, and errors named after status codes remove the subject. A service
 for a pure function adds a requirement that buys nothing.
 
+The rest are about wiring and proof rather than types: a layer rebuilt on every
+call, a test that checks its own stub, and a retry policy that is not a policy.
+
 The types were the point. Keep the information in them for as long as you can,
 and hand it over only at the edge, on purpose.

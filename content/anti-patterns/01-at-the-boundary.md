@@ -7,8 +7,8 @@ summary: Running early, promising code cannot throw, and casting untrusted data.
 
 ## Running the program too early
 
-From [The Effect model](/learn/basic-effect/01-effect-model). The whole idea is
-that an Effect is a description, and this throws that away on the first line.
+From [The Effect model](/learn/basic-effect/01-effect-model). An Effect is a
+description of work, and this throws that away on the first line of the body.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -35,17 +35,15 @@ const getUser = (id: number): Effect.Effect<string, 'NotFound'> =>
 
 The failure is still in the type, where the caller can see it.
 
-The rule: `runPromise` belongs at the edge of your program, and nowhere else.
-
 The edge is wherever something that does not speak Effect calls in. That is a
 click handler or a route in a browser app, and it is an HTTP request handler, a
-queue consumer, a scheduled job, a CLI `main`, or the body of a test on a
-server. Same idea either way: one place where the description finally becomes
-work.
+queue consumer, a scheduled job, a CLI `main`, or a test written with plain `it`
+instead of `it.effect`. Same idea either way: one place where the description
+finally becomes work.
 
-Everything inside that boundary should hand back an Effect and let the caller
-decide. If `runPromise` shows up in the middle of your code, something is
-wrong.
+Everything inside that boundary hands back an Effect and lets the caller decide.
+A `runPromise` in the middle of your code means a caller above it has lost the
+type.
 
 ## Promising that code cannot throw
 
@@ -60,15 +58,15 @@ const parse = (raw: string) => Effect.sync(() => JSON.parse(raw) as unknown)
 //    ^?
 ```
 
-That says the parse cannot fail. `E` is `never`, so nobody will ever handle a
-bad string, and when one arrives it becomes a defect that crashes the program
-instead of a failure someone could recover from.
+That says the parse cannot fail. `E` is `never`, so no caller handles a bad
+string. When one arrives, `JSON.parse` throws, and the throw becomes a defect
+that ends the fiber instead of a failure someone could recover from.
 
-I ran this to be sure: a throwing `Effect.sync` is not catchable with
-`Effect.catch`, only with the defect handlers. It skips right past your error
-handling.
+A throwing `Effect.sync` is not catchable with `Effect.catch`, only with
+`Effect.catchDefect`. It skips right past your error handling.
 
-Use `Effect.try` and name the failure.
+Use `Effect.try` and name the failure. `Effect.promise` makes the same promise
+about a rejection, and `Effect.tryPromise` is its fix.
 
 ```ts twoslash
 import { Effect, Schema } from 'effect'
@@ -84,9 +82,8 @@ const parse = (raw: string) =>
   })
 ```
 
-`E` is `InvalidJson` now, so a caller can see the failure and decide what it
-means. The fields are the ones a handler would want: keep whatever tells
-somebody which input was bad.
+`E` is `InvalidJson` now, so a caller sees the failure in the type and decides
+what it means. Keep in the error whatever tells somebody which input was bad.
 
 ## Casting at the border
 
@@ -105,7 +102,8 @@ from the cause, with an error about `undefined`.
 
 Decode once, at the edge, and pass typed values inward.
 
-A quieter version of the same mistake is decoding in the right place but
-keeping the schema only for the fields you use today. That is fine, as long as
-you remember the schema is a claim about what the server sends, and a
-surprising `null` will now fail loudly rather than spread.
+A quieter version is decoding in the right place with a schema that lists only
+the fields you use today. That is fine, as long as you remember the schema is a
+claim about what the server sends. When the server starts sending `null` for a
+field you declared as a string, decoding fails at the edge and names the field,
+instead of an `undefined` turning up three components later.
