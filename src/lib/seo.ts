@@ -6,7 +6,7 @@ import { appName, gitConfig, siteDescription, siteUrl } from "./shared";
  * has no `template` support, so each route carries its full title.
  *
  * The og image is the site-wide logo mark (public/android-chrome-512.png,
- * 512x512) rather than a per-page or widescreen banner; it is referenced
+ * 512x512, transparent background) rather than a per-page or widescreen banner; it is referenced
  * with an absolute URL because OG requires it.
  */
 export function pageHead(
