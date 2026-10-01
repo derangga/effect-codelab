@@ -18,7 +18,7 @@ derived rather than maintained.
 
 ```ts twoslash
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 const UserId = Schema.String.pipe(Schema.brand('UserId'))
 const Email = Schema.String.pipe(Schema.brand('Email'))
@@ -58,7 +58,7 @@ lines and a decision.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -134,7 +134,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
   HttpApiSecurity,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -188,7 +188,7 @@ export const AuthApi = HttpApi.make('AuthApi')
   .middleware(ErrorHandler)
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -240,7 +240,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -249,7 +250,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -322,7 +323,7 @@ one thing it needs comes from `CurrentUser`, which the middleware attached.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -398,7 +399,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
   HttpApiSecurity,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -452,7 +453,7 @@ export const AuthApi = HttpApi.make('AuthApi')
   .middleware(ErrorHandler)
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -504,7 +505,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -513,7 +515,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -593,6 +595,11 @@ export const register = Effect.fn('register')(
   ),
 )
 
+// A real argon2id hash of a password nobody has. Verifying against it costs the
+// same as verifying a real account, so an unknown email takes as long to reject.
+const NO_ACCOUNT_HASH =
+  '$argon2id$v=19$m=65536,t=2,p=1$d9Ej3Ion8+LjpdeI7HcyisadM562uhpJSJ22JxZphhI$cSAOiN2Jmo7MHgrdmr7/4YK4UcnwvtFgSobWLeqIWc8'
+
 export const login = Effect.fn('login')(
   function* (payload: LoginPayload) {
     const users = yield* UserRepo
@@ -600,12 +607,10 @@ export const login = Effect.fn('login')(
     const tokens = yield* Tokens
 
     const found = yield* users.findByEmail(payload.email)
-    if (Option.isNone(found)) {
-      return yield* new InvalidCredentials()
-    }
+    const hash = Option.isSome(found) ? found.value.passwordHash : NO_ACCOUNT_HASH
 
-    const matches = yield* hasher.verify(payload.password, found.value.passwordHash)
-    if (!matches) {
+    const matches = yield* hasher.verify(payload.password, hash)
+    if (Option.isNone(found) || !matches) {
       return yield* new InvalidCredentials()
     }
 
@@ -631,7 +636,7 @@ export const me = Effect.gen(function* () {
 )
 // ---cut---
 // src/handlers.ts, the chain with all three filled in
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
@@ -690,7 +695,7 @@ One more middleware fixes that, and it is the last one.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -742,7 +747,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
 
 // @filename: src/api.ts
 import { Schema } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 // ---cut---
 // src/errors.ts, the last one
 export class InternalError extends Schema.TaggedError<InternalError>()(
@@ -765,7 +770,7 @@ export class InternalError extends Schema.TaggedError<InternalError>()(
 // @filename: src/api.ts
 // ---cut---
 // src/api.ts, one more middleware on the API
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { InternalError } from './errors'
 
 export class CrashHandler extends HttpApiMiddleware.Service<CrashHandler>()(
@@ -774,10 +779,58 @@ export class CrashHandler extends HttpApiMiddleware.Service<CrashHandler>()(
 ) {}
 ```
 
+A middleware that is declared and never attached does nothing, and the compiler
+stays quiet about it. Chain it onto the API next to `ErrorHandler`, and keep
+both classes above `AuthApi`, since a class cannot be used before the line that
+declares it.
+
+```ts twoslash
+// @filename: src/errors.ts
+import { Schema } from 'effect'
+
+export class ValidationFailed extends Schema.TaggedError<ValidationFailed>()(
+  'ValidationFailed',
+  {
+    issues: Schema.Array(
+      Schema.Struct({ path: Schema.String, message: Schema.String }),
+    ),
+  },
+  { httpApiStatus: 400 },
+) {}
+
+export class InternalError extends Schema.TaggedError<InternalError>()(
+  'InternalError',
+  { message: Schema.String },
+  { httpApiStatus: 500 },
+) {}
+// @filename: src/api.ts
+import { HttpApi, HttpApiGroup, HttpApiMiddleware } from 'effect/http-api'
+import { InternalError, ValidationFailed } from './errors'
+
+export const authGroup = HttpApiGroup.make('auth')
+
+export class ErrorHandler extends HttpApiMiddleware.Service<ErrorHandler>()(
+  'ErrorHandler',
+  { error: ValidationFailed },
+) {}
+
+export class CrashHandler extends HttpApiMiddleware.Service<CrashHandler>()(
+  'CrashHandler',
+  { error: InternalError },
+) {}
+// ---cut---
+// src/api.ts, replacing the AuthApi at the bottom of the file
+export const AuthApi = HttpApi.make('AuthApi')
+  .add(authGroup)
+  .middleware(ErrorHandler)
+  .middleware(CrashHandler)
+  .annotate(HttpApi.PayloadParseOptions, { errors: 'all' })
+```
+
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -859,7 +912,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
   HttpApiSecurity,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -949,7 +1002,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -958,7 +1012,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -1045,7 +1099,7 @@ piece is left, and it is the one that does not follow the pattern.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -1127,7 +1181,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
   HttpApiSecurity,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -1188,7 +1242,7 @@ export const AuthApi = HttpApi.make('AuthApi')
   .middleware(CrashHandler)
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -1240,7 +1294,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -1249,7 +1304,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -1340,6 +1395,11 @@ export const register = Effect.fn('register')(
   ),
 )
 
+// A real argon2id hash of a password nobody has. Verifying against it costs the
+// same as verifying a real account, so an unknown email takes as long to reject.
+const NO_ACCOUNT_HASH =
+  '$argon2id$v=19$m=65536,t=2,p=1$d9Ej3Ion8+LjpdeI7HcyisadM562uhpJSJ22JxZphhI$cSAOiN2Jmo7MHgrdmr7/4YK4UcnwvtFgSobWLeqIWc8'
+
 export const login = Effect.fn('login')(
   function* (payload: LoginPayload) {
     const users = yield* UserRepo
@@ -1347,12 +1407,10 @@ export const login = Effect.fn('login')(
     const tokens = yield* Tokens
 
     const found = yield* users.findByEmail(payload.email)
-    if (Option.isNone(found)) {
-      return yield* new InvalidCredentials()
-    }
+    const hash = Option.isSome(found) ? found.value.passwordHash : NO_ACCOUNT_HASH
 
-    const matches = yield* hasher.verify(payload.password, found.value.passwordHash)
-    if (!matches) {
+    const matches = yield* hasher.verify(payload.password, hash)
+    if (Option.isNone(found) || !matches) {
       return yield* new InvalidCredentials()
     }
 
@@ -1377,7 +1435,7 @@ export const me = Effect.gen(function* () {
   ),
 )
 
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
@@ -1390,8 +1448,8 @@ export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 // ---cut---
 // src/main.ts
 import { Layer } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import { SqliteClient } from '@effect/sql-sqlite-bun'
 import { AuthApi } from './api'
@@ -1431,29 +1489,23 @@ BunRuntime.runMain(Layer.launch(ServerLive))
 
 The three services behind `provideRequest` got a name, `ServicesLive`, and the
 two remaining middlewares went on with `Layer.provide`, because middleware
-belongs to the API rather than to a request.
+belongs to the API rather than to the handlers.
 
 Then `Tokens.layer` appears a second time on its own line, which looks like a
-mistake and is not. `AuthorizationLayer` reads the signing secret when the
-application starts, not when a request arrives, so it is not a per-request
-dependency and `provideRequest` never reaches it. Naming a layer twice in one
-graph still builds it once, so there is one `Tokens` and one secret.
+mistake and is not. `AuthorizationLayer` needs `Tokens` while it is being built,
+and `provideRequest` supplies only what handlers ask for, so it never reaches
+the middleware. Naming a layer twice in one graph still builds it once, so there
+is one `Tokens` and one secret.
 
 `HttpRouter.serve` turns the routes into something that wants a server.
 `BunHttpServer.layer` is that server. `Layer.launch` starts it and holds it
 open, and `runMain` handles the interrupt when you press control C.
 
-That `hostname` is not decoration. Leave it out and the code still compiles,
-then dies on startup:
-
-```
-ERROR (#2): ServeError:
-  [cause]: NetAddressError: expected exactly four decimal octets
-```
-
-Bun binds an IPv6 address when you do not name one, and the address parser in
-this release candidate reads IPv4 only. It is a bug rather than a design, and
-naming the host avoids it. Keep it in every serve snippet until it is fixed.
+The `hostname` is optional. Leave it out and the server still starts, but on
+`::`, the address that matches every network interface, and the log line reads
+`Listening on http://[::]:3000`. Naming `127.0.0.1` keeps a development server,
+and the database file behind it, on this machine, and makes the address in the
+log the one every `curl` command in this track uses.
 
 ## The whole thing, end to end
 

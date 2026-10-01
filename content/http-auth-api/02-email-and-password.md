@@ -253,7 +253,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
   { httpApiStatus: 401 },
 ) {}
 // @filename: src/api.ts
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import { LoginPayload, LoginResult, PublicUser, RegisterPayload } from './domain'
 import { EmailAlreadyTaken, InvalidCredentials } from './errors'
 
@@ -278,7 +278,7 @@ export const AuthApi = HttpApi.make('AuthApi').add(authGroup)
 // ---cut---
 // src/handlers.ts
 import { Effect } from 'effect'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
@@ -337,7 +337,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
   { httpApiStatus: 401 },
 ) {}
 // @filename: src/api.ts
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import { LoginPayload, LoginResult, PublicUser, RegisterPayload } from './domain'
 import { EmailAlreadyTaken, InvalidCredentials } from './errors'
 
@@ -360,7 +360,7 @@ export const authGroup = HttpApiGroup.make('auth').add(register, login, me)
 export const AuthApi = HttpApi.make('AuthApi').add(authGroup)
 // @filename: src/handlers.ts
 import { Effect } from 'effect'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
@@ -373,8 +373,8 @@ export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 // ---cut---
 // src/main.ts
 import { Layer } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import { AuthApi } from './api'
 import { AuthHandlers } from './handlers'

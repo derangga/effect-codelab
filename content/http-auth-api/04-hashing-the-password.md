@@ -97,7 +97,7 @@ chapter that made it.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -150,7 +150,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
 ) {}
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -202,7 +202,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -273,7 +274,7 @@ written yet`.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -325,7 +326,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
   { httpApiStatus: 401 },
 ) {}
 // @filename: src/api.ts
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -353,7 +354,7 @@ export const AuthApi = HttpApi.make('AuthApi').add(
 )
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -405,7 +406,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -445,7 +447,7 @@ export const register = Effect.fn('register')(
 )
 // ---cut---
 // src/handlers.ts, replacing the AuthHandlers that held three stubs
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
@@ -470,7 +472,7 @@ The handler asks for the hasher, so `main.ts` has to hand it over.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -522,7 +524,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
   { httpApiStatus: 401 },
 ) {}
 // @filename: src/api.ts
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -550,7 +552,7 @@ export const AuthApi = HttpApi.make('AuthApi').add(
 )
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -602,7 +604,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -615,7 +618,7 @@ import { RegisterPayload, User } from './domain'
 import { EmailAlreadyTaken } from './errors'
 import { UserRepo } from './repo'
 import { PasswordHasher } from './auth'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const register = Effect.fn('register')(
@@ -651,18 +654,19 @@ export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 )
 // @filename: src/main.ts
 import { Layer } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import { SqliteClient } from '@effect/sql-sqlite-bun'
 import { AuthApi } from './api'
 import { AuthHandlers } from './handlers'
 import { UserRepo } from './repo'
-import { PasswordHasher } from './auth'
 
 const SqlLive = SqliteClient.layer({ filename: 'auth.db' })
 // ---cut---
 // src/main.ts, the hasher added
+import { PasswordHasher } from './auth'
+
 const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
   Layer.provide(AuthHandlers),
   HttpRouter.provideRequest(
@@ -703,9 +707,8 @@ registered, so this is a trade rather than a bug. Know you made it.
 
 [Email and password](/learn/http-auth-api/02-email-and-password) left the
 caller with zero bytes. Here is why: every request that fails to decode
-produces the same shared empty response, and the messages go to the log. There
-is no setting to change that, and no option to make the decoder report every
-failure rather than the first.
+produces the same shared empty response, and the messages go to the log. No
+setting gives that response a body.
 
 There is one hook. A middleware can catch the decoding failure before it
 becomes a response, which lets you answer it yourself.
@@ -742,7 +745,7 @@ export class ValidationFailed extends Schema.TaggedError<ValidationFailed>()(
 // @filename: src/api.ts
 // ---cut---
 // src/api.ts
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ValidationFailed } from './errors'
 
 export class ErrorHandler extends HttpApiMiddleware.Service<ErrorHandler>()(
@@ -763,7 +766,7 @@ you the decoding failure and takes whatever you want to fail with instead.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -831,7 +834,7 @@ import {
   HttpApiGroup,
   HttpApiMiddleware,
   HttpApiSchema,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -893,7 +896,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -903,7 +907,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 // ---cut---
 // src/auth.ts, below the PasswordHasher service
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -927,14 +931,53 @@ export const ErrorHandlerLayer = HttpApiMiddleware.layerSchemaErrorTransform(
 [email and password](/learn/http-auth-api/02-email-and-password) formatted by
 hand, so the same formatter does the job.
 
-`ErrorHandler` goes on the API rather than on `register`, so login gets it for
-nothing, and `ErrorHandlerLayer` goes into `main.ts` with plain
-`Layer.provide`, because middleware belongs to the API, not to a request.
+Declaring `ErrorHandler` does nothing until the API uses it. It goes on the API
+rather than on `register`, so login gets it for nothing. The same expression
+asks for every failure rather than the first, with the option chapter two
+passed to `decodeUnknownEffect`, here as an annotation on request bodies.
+
+```ts twoslash
+// @filename: src/errors.ts
+import { Schema } from 'effect'
+
+export class ValidationFailed extends Schema.TaggedError<ValidationFailed>()(
+  'ValidationFailed',
+  {
+    issues: Schema.Array(
+      Schema.Struct({ path: Schema.String, message: Schema.String }),
+    ),
+  },
+  { httpApiStatus: 400 },
+) {}
+// @filename: src/api.ts
+import { HttpApi, HttpApiGroup, HttpApiMiddleware } from 'effect/http-api'
+import { ValidationFailed } from './errors'
+
+export const authGroup = HttpApiGroup.make('auth')
+
+export class ErrorHandler extends HttpApiMiddleware.Service<ErrorHandler>()(
+  'ErrorHandler',
+  { error: ValidationFailed },
+) {}
+// ---cut---
+// src/api.ts, replacing the AuthApi at the bottom of the file
+export const AuthApi = HttpApi.make('AuthApi')
+  .add(authGroup)
+  .middleware(ErrorHandler)
+  .annotate(HttpApi.PayloadParseOptions, { errors: 'all' })
+```
+
+`AuthApi` has to sit below the `ErrorHandler` class. A class is not usable
+before the line that declares it, and the compiler says so if the order is
+wrong.
+
+`ErrorHandlerLayer` goes into `main.ts` with plain `Layer.provide`, because
+middleware belongs to the API, not to the handlers.
 
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -1002,7 +1045,7 @@ import {
   HttpApiGroup,
   HttpApiMiddleware,
   HttpApiSchema,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -1035,7 +1078,7 @@ export const AuthApi = HttpApi.make('AuthApi')
   .middleware(ErrorHandler)
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -1087,7 +1130,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -1096,7 +1140,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -1120,7 +1164,7 @@ import { RegisterPayload, User } from './domain'
 import { EmailAlreadyTaken } from './errors'
 import { UserRepo } from './repo'
 import { PasswordHasher } from './auth'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const register = Effect.fn('register')(
@@ -1156,18 +1200,19 @@ export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 )
 // @filename: src/main.ts
 import { Layer } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import { SqliteClient } from '@effect/sql-sqlite-bun'
 import { AuthApi } from './api'
 import { AuthHandlers } from './handlers'
 import { UserRepo } from './repo'
-import { ErrorHandlerLayer, PasswordHasher } from './auth'
 
 const SqlLive = SqliteClient.layer({ filename: 'auth.db' })
 // ---cut---
-// src/main.ts, and the error handler
+// src/main.ts, the import from './auth' grows, and the error handler goes in
+import { ErrorHandlerLayer, PasswordHasher } from './auth'
+
 const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
   Layer.provide(AuthHandlers),
   Layer.provide(ErrorHandlerLayer),
@@ -1186,25 +1231,27 @@ HTTP/1.1 400 Bad Request
 Content-Type: application/json
 
 {"_tag":"ValidationFailed","issues":[
-  {"path":"email","message":"Not a valid email"}]}
+  {"path":"email","message":"Not a valid email"},
+  {"path":"password","message":"Password must be at least 6 characters"},
+  {"path":"password","message":"Password must contain an uppercase letter"},
+  {"path":"password","message":"Password must contain a digit"}]}
 ```
 
-One issue, not four. `{ errors: 'all' }` still returns all of them when you
-decode a value yourself, but the framework calls the decoder with no options,
-so it stops at the first field that fails. Getting every rule out of an
-endpoint means reading the body again and decoding it again inside this
-transform.
+All four sentences from chapter two, in one response. The caller went from zero
+bytes to a field and a reason for each rule it broke, which is the difference
+between a form that can point at the problem and one that cannot. A missing
+field arrives the same way, as `Missing key` at the path that was absent, and
+an empty body `{}` reports all three at once.
 
-Still, the caller went from zero bytes to a field and a reason, which is the
-difference between a form that can point at the problem and one that cannot. A
-missing field arrives the same way, as `Missing key` at the path that was
-absent.
+Leave the annotation off and the framework decodes with Schema's defaults, which
+stop at the first failure. The same request then reports only the email.
 
 ## What people get wrong
 
-Treating that middleware as a pattern to copy elsewhere. It works around a gap
-in a release candidate, and it is written once, in one file, so the day the
-option exists it is one function to delete.
+Treating that middleware as a pattern to copy elsewhere. It exists because a
+decoding failure has no body of its own, and it is written once, in one file, so
+if a later release gives that failure a default body it is one function to
+delete.
 
 ## Next
 

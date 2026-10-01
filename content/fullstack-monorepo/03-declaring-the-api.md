@@ -27,7 +27,7 @@ class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceError>()("T
   message: Schema.String,
 }) {}
 // ---cut---
-import { HttpApiEndpoint } from "effect/unstable/httpapi"
+import { HttpApiEndpoint } from "effect/http-api"
 
 const list = HttpApiEndpoint.get("list", "/todos", {
   success: Schema.Array(Todo),
@@ -62,7 +62,7 @@ class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceError>()("T
   message: Schema.String,
 }) {}
 // ---cut---
-import { HttpApiEndpoint, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApiEndpoint, HttpApiSchema } from "effect/http-api"
 
 const create = HttpApiEndpoint.post("create", "/todos", {
   payload: CreateTodoPayload,
@@ -129,7 +129,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 // ---cut---
 // packages/domain/src/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -179,7 +179,7 @@ You can see the first one right now. Make `packages/domain/try.ts`:
 
 ```ts
 // packages/domain/try.ts
-import { OpenApi } from "effect/unstable/httpapi"
+import { OpenApi } from "effect/http-api"
 import { TodosApi } from "./src/index.ts"
 
 const spec = OpenApi.fromApi(TodosApi)

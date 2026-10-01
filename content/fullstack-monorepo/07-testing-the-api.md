@@ -60,7 +60,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -85,7 +85,7 @@ export * from "./TodosApi.ts"
 // @filename: apps/server/src/TodoRepo.ts
 import { type CreateTodoPayload, Todo, TodoPersistenceError } from "@todo/domain"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 // SQLite has no boolean column, so the row stores completed as 0 | 1.
 const TodoRow = Schema.Struct({ ...Todo.fields, completed: Schema.BooleanFromBit })
@@ -151,7 +151,7 @@ export class TodoRepo extends Context.Service<TodoRepo>()("TodoRepo", {
 // @filename: apps/server/src/Http.ts
 import { TodosApi } from "@todo/domain"
 import { Effect, Layer } from "effect"
-import { HttpApiBuilder, HttpApiScalar } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiScalar } from "effect/http-api"
 import { TodoRepo } from "./TodoRepo.ts"
 
 const TodosHandlers = HttpApiBuilder.group(
@@ -171,7 +171,7 @@ export const ApiLayer = Layer.mergeAll(
 // @filename: apps/server/src/Sql.ts
 import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-bun"
 import { Config, Effect, FileSystem, Layer, Path } from "effect"
-import { Migrator, SqlClient } from "effect/unstable/sql"
+import { Migrator, SqlClient } from "effect/sql"
 
 const migrations = Migrator.fromRecord({
   "0001_create_todos": Effect.gen(function* () {
@@ -204,7 +204,7 @@ export const SqlLayer = MigratorLayer.pipe(Layer.provideMerge(ClientLayer))
 import { BunHttpServer } from "@effect/platform-bun"
 import { SqliteClient } from "@effect/sql-sqlite-bun"
 import { Layer } from "effect"
-import { HttpRouter } from "effect/unstable/http"
+import { HttpRouter } from "effect/http"
 import { ApiLayer } from "./Http.ts"
 import { MigratorLayer } from "./Sql.ts"
 // ---cut---
@@ -265,7 +265,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -290,7 +290,7 @@ export * from "./TodosApi.ts"
 // @filename: apps/server/src/TodoRepo.ts
 import { type CreateTodoPayload, Todo, TodoPersistenceError } from "@todo/domain"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 // SQLite has no boolean column, so the row stores completed as 0 | 1.
 const TodoRow = Schema.Struct({ ...Todo.fields, completed: Schema.BooleanFromBit })
@@ -356,7 +356,7 @@ export class TodoRepo extends Context.Service<TodoRepo>()("TodoRepo", {
 // @filename: apps/server/src/Http.ts
 import { TodosApi } from "@todo/domain"
 import { Effect, Layer } from "effect"
-import { HttpApiBuilder, HttpApiScalar } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiScalar } from "effect/http-api"
 import { TodoRepo } from "./TodoRepo.ts"
 
 const TodosHandlers = HttpApiBuilder.group(
@@ -376,7 +376,7 @@ export const ApiLayer = Layer.mergeAll(
 // @filename: apps/server/src/Sql.ts
 import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-bun"
 import { Config, Effect, FileSystem, Layer, Path } from "effect"
-import { Migrator, SqlClient } from "effect/unstable/sql"
+import { Migrator, SqlClient } from "effect/sql"
 
 const migrations = Migrator.fromRecord({
   "0001_create_todos": Effect.gen(function* () {
@@ -413,8 +413,8 @@ import { SqliteClient } from "@effect/sql-sqlite-bun"
 import { expect, layer } from "@effect/vitest"
 import { TodosApi } from "@todo/domain"
 import { Effect, Layer } from "effect"
-import { HttpClient, HttpClientRequest, HttpRouter } from "effect/unstable/http"
-import { HttpApiClient } from "effect/unstable/httpapi"
+import { HttpClient, HttpClientRequest, HttpRouter } from "effect/http"
+import { HttpApiClient } from "effect/http-api"
 import { ApiLayer } from "./Http.ts"
 import { MigratorLayer } from "./Sql.ts"
 

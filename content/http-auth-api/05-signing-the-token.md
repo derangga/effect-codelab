@@ -99,7 +99,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -116,6 +117,11 @@ time somebody sends a token that was edited, expired or made up, so it gets
 can catch. Use `Effect.promise` there and a bad token crashes the request into
 a 500 instead of the 401 it deserves.
 
+`requiredClaims: ['exp']` makes `jose` refuse a token that carries no expiry.
+Without it `jose` checks `exp` only when the claim is present, so a token with
+no `exp` would be valid forever. This service always writes one, which means a
+token without it did not come from here.
+
 `HS256` signs with one shared secret, which is right here because one service
 both issues and checks. Algorithms with a key pair exist so that somebody else
 can verify without being able to sign, and there is no somebody else yet.
@@ -131,7 +137,7 @@ hour later.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -194,7 +200,7 @@ export class ValidationFailed extends Schema.TaggedError<ValidationFailed>()(
 ) {}
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -246,7 +252,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -265,6 +272,11 @@ import { LoginPayload } from './domain'
 import { InvalidCredentials } from './errors'
 import { Tokens } from './auth'
 
+// A real argon2id hash of a password nobody has. Verifying against it costs the
+// same as verifying a real account, so an unknown email takes as long to reject.
+const NO_ACCOUNT_HASH =
+  '$argon2id$v=19$m=65536,t=2,p=1$d9Ej3Ion8+LjpdeI7HcyisadM562uhpJSJ22JxZphhI$cSAOiN2Jmo7MHgrdmr7/4YK4UcnwvtFgSobWLeqIWc8'
+
 export const login = Effect.fn('login')(
   function* (payload: LoginPayload) {
     const users = yield* UserRepo
@@ -272,12 +284,10 @@ export const login = Effect.fn('login')(
     const tokens = yield* Tokens
 
     const found = yield* users.findByEmail(payload.email)
-    if (Option.isNone(found)) {
-      return yield* new InvalidCredentials()
-    }
+    const hash = Option.isSome(found) ? found.value.passwordHash : NO_ACCOUNT_HASH
 
-    const matches = yield* hasher.verify(payload.password, found.value.passwordHash)
-    if (!matches) {
+    const matches = yield* hasher.verify(payload.password, hash)
+    if (Option.isNone(found) || !matches) {
       return yield* new InvalidCredentials()
     }
 
@@ -294,14 +304,24 @@ Same shape as
 function of the payload, and a transform that keeps the one failure a caller
 can act on and turns the rest into defects.
 
-Look at the two failure branches. An email nobody has registered and a wrong
-password produce the identical error, and therefore the identical 401.
+Look at the one failure the handler raises. An email nobody has registered and
+a wrong password both end in `InvalidCredentials`, and therefore the identical
+401.
 
 That is on purpose. Different answers would let anyone check whether an address
 has an account here by watching which one they get back.
 [Hashing the password](/learn/http-auth-api/04-hashing-the-password) already
 gave that away at the register endpoint, and the fact that one endpoint leaks
 is not a reason to hand it over twice.
+
+An identical body is not enough on its own. Checking an argon2 hash is slow on
+purpose, about 60 milliseconds on a laptop, so a handler that returned early
+for an unknown email would answer in about one, and anyone with a stopwatch
+could tell the two cases apart. That is why the handler always calls `verify`,
+and calls it against `NO_ACCOUNT_HASH` when there is no row. The constant is a
+real hash of a password nobody has, so the work matches. Copy it as it is, or
+make your own with
+`bun -e "import { password } from 'bun'; console.log(await password.hash('anything'))"`.
 
 ## Attaching it
 
@@ -312,7 +332,7 @@ replaced, the same way the last chapter replaced the one that stubbed
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -380,7 +400,7 @@ import {
   HttpApiGroup,
   HttpApiMiddleware,
   HttpApiSchema,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -413,7 +433,7 @@ export const AuthApi = HttpApi.make('AuthApi')
   .middleware(ErrorHandler)
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -465,7 +485,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -474,7 +495,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -527,6 +548,11 @@ export const register = Effect.fn('register')(
   ),
 )
 
+// A real argon2id hash of a password nobody has. Verifying against it costs the
+// same as verifying a real account, so an unknown email takes as long to reject.
+const NO_ACCOUNT_HASH =
+  '$argon2id$v=19$m=65536,t=2,p=1$d9Ej3Ion8+LjpdeI7HcyisadM562uhpJSJ22JxZphhI$cSAOiN2Jmo7MHgrdmr7/4YK4UcnwvtFgSobWLeqIWc8'
+
 export const login = Effect.fn('login')(
   function* (payload: LoginPayload) {
     const users = yield* UserRepo
@@ -534,12 +560,10 @@ export const login = Effect.fn('login')(
     const tokens = yield* Tokens
 
     const found = yield* users.findByEmail(payload.email)
-    if (Option.isNone(found)) {
-      return yield* new InvalidCredentials()
-    }
+    const hash = Option.isSome(found) ? found.value.passwordHash : NO_ACCOUNT_HASH
 
-    const matches = yield* hasher.verify(payload.password, found.value.passwordHash)
-    if (!matches) {
+    const matches = yield* hasher.verify(payload.password, hash)
+    if (Option.isNone(found) || !matches) {
       return yield* new InvalidCredentials()
     }
 
@@ -551,7 +575,7 @@ export const login = Effect.fn('login')(
 )
 // ---cut---
 // src/handlers.ts, replacing the AuthHandlers that still stubs login
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
@@ -572,7 +596,7 @@ what asks for it.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -640,7 +664,7 @@ import {
   HttpApiGroup,
   HttpApiMiddleware,
   HttpApiSchema,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -673,7 +697,7 @@ export const AuthApi = HttpApi.make('AuthApi')
   .middleware(ErrorHandler)
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -725,7 +749,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -734,7 +759,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -761,7 +786,7 @@ import { PasswordHasher } from './auth'
 import { LoginPayload } from './domain'
 import { InvalidCredentials } from './errors'
 import { Tokens } from './auth'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const register = Effect.fn('register')(
@@ -789,6 +814,11 @@ export const register = Effect.fn('register')(
   ),
 )
 
+// A real argon2id hash of a password nobody has. Verifying against it costs the
+// same as verifying a real account, so an unknown email takes as long to reject.
+const NO_ACCOUNT_HASH =
+  '$argon2id$v=19$m=65536,t=2,p=1$d9Ej3Ion8+LjpdeI7HcyisadM562uhpJSJ22JxZphhI$cSAOiN2Jmo7MHgrdmr7/4YK4UcnwvtFgSobWLeqIWc8'
+
 export const login = Effect.fn('login')(
   function* (payload: LoginPayload) {
     const users = yield* UserRepo
@@ -796,12 +826,10 @@ export const login = Effect.fn('login')(
     const tokens = yield* Tokens
 
     const found = yield* users.findByEmail(payload.email)
-    if (Option.isNone(found)) {
-      return yield* new InvalidCredentials()
-    }
+    const hash = Option.isSome(found) ? found.value.passwordHash : NO_ACCOUNT_HASH
 
-    const matches = yield* hasher.verify(payload.password, found.value.passwordHash)
-    if (!matches) {
+    const matches = yield* hasher.verify(payload.password, hash)
+    if (Option.isNone(found) || !matches) {
       return yield* new InvalidCredentials()
     }
 
@@ -820,18 +848,19 @@ export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 )
 // @filename: src/main.ts
 import { Layer } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import { SqliteClient } from '@effect/sql-sqlite-bun'
 import { AuthApi } from './api'
 import { AuthHandlers } from './handlers'
 import { UserRepo } from './repo'
-import { ErrorHandlerLayer, PasswordHasher, Tokens } from './auth'
 
 const SqlLive = SqliteClient.layer({ filename: 'auth.db' })
 // ---cut---
-// src/main.ts, one more on the same line
+// src/main.ts, one more on the same line, and one more import
+import { ErrorHandlerLayer, PasswordHasher, Tokens } from './auth'
+
 const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
   Layer.provide(AuthHandlers),
   Layer.provide(ErrorHandlerLayer),
@@ -842,6 +871,17 @@ const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
   ),
 )
 ```
+
+If `JWT_SECRET` is missing from `.env`, the server stops at startup with a
+message that names the key and nothing else helpful. That is the refusal to
+boot described above:
+
+```
+ERROR (#2): ConfigError: SchemaError(Expected string
+  at ["JWT_SECRET"])
+```
+
+Check that `.env` sits in the directory you run `bun` from, then restart.
 
 ```sh
 curl -s -X POST 127.0.0.1:3000/login \

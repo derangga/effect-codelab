@@ -187,7 +187,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -211,8 +211,8 @@ export * from "./Todo.ts"
 export * from "./TodosApi.ts"
 // @filename: apps/web/src/TodosClient.ts
 import { TodosApi } from "@todo/domain"
-import { FetchHttpClient } from "effect/unstable/http"
-import { AtomHttpApi } from "effect/unstable/reactivity"
+import { FetchHttpClient } from "effect/http"
+import { AtomHttpApi } from "effect/reactivity"
 
 // Client derived from the shared contract. Vite proxies /api to the server.
 export class TodosClient extends AtomHttpApi.Service<TodosClient>()("TodosClient", {
@@ -232,7 +232,7 @@ export const createTodoAtom = TodosClient.mutation("todos", "create")
 import { useAtom, useAtomValue } from "@effect/atom-react"
 import { CreateTodoPayload } from "@todo/domain"
 import { DateTime, Exit, Option, Schema } from "effect"
-import { AsyncResult } from "effect/unstable/reactivity"
+import { AsyncResult } from "effect/reactivity"
 import { type FormEvent, useState } from "react"
 import { createTodoAtom, TODOS_KEY, todosAtom } from "./TodosClient.ts"
 

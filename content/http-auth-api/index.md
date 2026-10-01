@@ -22,16 +22,21 @@ so nothing here is built inside this repository. Every code block is compiled
 when this site builds, so an example that does not typecheck fails the build
 instead of reaching you.
 
-The HTTP and SQL modules come from `effect/unstable/http`,
-`effect/unstable/httpapi` and `effect/unstable/sql`. They are in the `effect`
-package itself rather than a separate one, and that word in the middle of every
-import is the first thing most people notice about them.
+The HTTP, schema and SQL modules come from `effect/http`, `effect/http-api`,
+`effect/schema` and `effect/sql`. They are in the `effect` package itself
+rather than a separate one. Before you build on them, you should know how far
+Effect promises not to change them.
 
-## What "unstable" means here
+## Is this stable?
 
-The word stops people reaching for these modules, and it should not, because it
-is a statement about the API rather than about the code. Michael Arnaldi, who
-maintains Effect, put it plainly:
+Effect v4 is stable, and its core follows semver, so a minor release will not
+break code that uses `Effect` or `Layer`. The HTTP, schema and SQL modules are
+the exception. Their exports carry a `@stability unstable` tag in the type
+documentation, and the `4.0.0` release notes say what it means: an API with that
+tag "may have breaking changes in minor releases".
+
+The tag describes how the API may change, not whether the code works. Michael
+Arnaldi, who maintains Effect, put it plainly:
 
 > That said as for anything in Effect unstable means the api might change, not
 > that it's not ready for prod
@@ -71,15 +76,15 @@ match exactly. Mixing them is not a warning, it is a type error somewhere
 confusing.
 
 ```sh
-bun add --exact effect@4.0.0-rc.117
-bun add --exact @effect/platform-bun@4.0.0-rc.117
-bun add --exact @effect/sql-sqlite-bun@4.0.0-rc.117
+bun add --exact effect@4.0.0
+bun add --exact @effect/platform-bun@4.0.0
+bun add --exact @effect/sql-sqlite-bun@4.0.0
 bun add --exact jose@6.2.12
 bun add -d --exact @effect/tsgo@0.45.0 typescript@6.0.3
 ```
 
-`--exact` matters. Effect v4 is in release candidate, and a version range moves
-the types out from under code that compiled yesterday.
+`--exact` matters. A version range can move the types out from under code that
+compiled yesterday, and the HTTP and SQL modules may change in a minor release.
 
 `jose` is the only dependency here that is not Effect or Bun. It signs and
 verifies the token in

@@ -57,7 +57,7 @@ per request, by the middleware, and only exists behind it.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -128,7 +128,7 @@ export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
 // ---cut---
 // src/api.ts
 import { Context } from 'effect'
-import { HttpApiMiddleware, HttpApiSecurity } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware, HttpApiSecurity } from 'effect/http-api'
 import { UserId } from './domain'
 import { Unauthorized } from './errors'
 
@@ -145,6 +145,9 @@ export class Authorization extends HttpApiMiddleware.Service<
   error: Unauthorized,
 }) {}
 ```
+
+Put both classes above the endpoints in `api.ts`. `me` is about to refer to
+`Authorization`, and a class cannot be used before the line that declares it.
 
 Three things about that declaration are easy to get wrong.
 
@@ -172,7 +175,7 @@ The implementation is a layer that returns one function per named scheme.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -248,7 +251,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
   HttpApiSecurity,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -301,10 +304,9 @@ export const AuthApi = HttpApi.make('AuthApi')
   .add(HttpApiGroup.make('auth').add(register, login, me))
   .middleware(ErrorHandler)
 // @filename: src/auth.ts
-import { Config, Context, Effect, Layer, Redacted, Schema } from 'effect'
+import { Config, Context, Effect, Layer, Redacted } from 'effect'
 import { password } from 'bun'
 import { SignJWT, jwtVerify } from 'jose'
-import { UserId } from './domain'
 
 export class PasswordHasher extends Context.Service<PasswordHasher>()('PasswordHasher', {
   make: Effect.sync(() => ({
@@ -331,7 +333,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -340,7 +343,9 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 // ---cut---
 // src/auth.ts, below the error handler
+import { Schema } from 'effect'
 import { Authorization, CurrentUser } from './api'
+import { UserId } from './domain'
 import { Unauthorized } from './errors'
 
 export const AuthorizationLayer = Layer.effect(
@@ -393,7 +398,9 @@ with a different secret. Somebody is trying something.
 
 The signature can be fine and `exp` already past, which means this was a real
 token an hour ago. Nobody is trying anything, they just took too long. It is
-still a 401, because the alternative is a token that never stops working.
+still a 401, because the alternative is a token that never stops working. A
+token with no `exp` at all is refused the same way, because `verify` asks `jose`
+to require the claim.
 
 Or the token is valid and has no `sub` in it, which is why the subject goes
 through `Schema.decodeUnknownEffect` rather than being read off the payload. A
@@ -436,23 +443,28 @@ worth knowing before it surprises you.
 ## Wiring it up
 
 Declaring the middleware on an endpoint is a promise the compiler now holds you
-to. Start the server as it stands and it refuses to build, because `AuthApi`
-needs an `Authorization` and nothing in `main.ts` has one:
+to. Bun does not check types, so `bun run` would start regardless. Run the
+compiler yourself with `bunx tsc --noEmit` and it refuses, because `AuthApi`
+needs an `Authorization` and nothing in `main.ts` has one. The error lands on
+the `BunRuntime.runMain` line:
 
 ```
-Type 'Effect<never, SqlError | ConfigError | ServeError, Authorization>' is not
-assignable to parameter of type 'Effect<never, SqlError | ConfigError | ServeError, never>'.
-  Type 'Authorization' is not assignable to type 'never'.
+src/main.ts: error TS2769: No overload matches this call.
+  ...
+    Argument of type 'Effect<never, ConfigError | SqlError | ServeError, Authorization>'
+    is not assignable to parameter of type 'Effect<never, ConfigError | SqlError | ServeError, never>'.
+      Type 'Authorization' is not assignable to type 'never'.
 ```
 
 `AuthorizationLayer` is what satisfies it, and it goes beside the other two
-layers rather than inside `provideRequest`, because it is built once at startup
-and not per request.
+layers rather than inside `provideRequest`. The middleware is a part of the API
+itself, so `Layer.provide` feeds it. `provideRequest` is only for what handlers
+ask for.
 
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -528,7 +540,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
   HttpApiSecurity,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -582,7 +594,7 @@ export const AuthApi = HttpApi.make('AuthApi')
   .middleware(ErrorHandler)
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -634,7 +646,8 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
           .sign(key),
       )
 
-    const verify = (token: string) => Effect.tryPromise(() => jwtVerify(token, key))
+    const verify = (token: string) =>
+      Effect.tryPromise(() => jwtVerify(token, key, { requiredClaims: ['exp'] }))
 
     return { issue, verify } as const
   }),
@@ -643,7 +656,7 @@ export class Tokens extends Context.Service<Tokens>()('Tokens', {
 }
 
 import { SchemaIssue } from 'effect'
-import { HttpApiMiddleware } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware } from 'effect/http-api'
 import { ErrorHandler } from './api'
 import { ValidationFailed } from './errors'
 
@@ -696,7 +709,7 @@ import { PasswordHasher } from './auth'
 import { LoginPayload } from './domain'
 import { InvalidCredentials } from './errors'
 import { Tokens } from './auth'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const register = Effect.fn('register')(
@@ -724,6 +737,11 @@ export const register = Effect.fn('register')(
   ),
 )
 
+// A real argon2id hash of a password nobody has. Verifying against it costs the
+// same as verifying a real account, so an unknown email takes as long to reject.
+const NO_ACCOUNT_HASH =
+  '$argon2id$v=19$m=65536,t=2,p=1$d9Ej3Ion8+LjpdeI7HcyisadM562uhpJSJ22JxZphhI$cSAOiN2Jmo7MHgrdmr7/4YK4UcnwvtFgSobWLeqIWc8'
+
 export const login = Effect.fn('login')(
   function* (payload: LoginPayload) {
     const users = yield* UserRepo
@@ -731,12 +749,10 @@ export const login = Effect.fn('login')(
     const tokens = yield* Tokens
 
     const found = yield* users.findByEmail(payload.email)
-    if (Option.isNone(found)) {
-      return yield* new InvalidCredentials()
-    }
+    const hash = Option.isSome(found) ? found.value.passwordHash : NO_ACCOUNT_HASH
 
-    const matches = yield* hasher.verify(payload.password, found.value.passwordHash)
-    if (!matches) {
+    const matches = yield* hasher.verify(payload.password, hash)
+    if (Option.isNone(found) || !matches) {
       return yield* new InvalidCredentials()
     }
 
@@ -755,13 +771,17 @@ export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 )
 // @filename: src/main.ts
 import { Layer } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import { SqliteClient } from '@effect/sql-sqlite-bun'
 import { AuthApi } from './api'
 import { AuthHandlers } from './handlers'
 import { UserRepo } from './repo'
+
+const SqlLive = SqliteClient.layer({ filename: 'auth.db' })
+// ---cut---
+// src/main.ts, the ApiLive again, with the middleware added
 import {
   AuthorizationLayer,
   ErrorHandlerLayer,
@@ -769,9 +789,6 @@ import {
   Tokens,
 } from './auth'
 
-const SqlLive = SqliteClient.layer({ filename: 'auth.db' })
-// ---cut---
-// src/main.ts, the ApiLive again, with the middleware added
 const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
   Layer.provide(AuthHandlers),
   Layer.provide(AuthorizationLayer),
@@ -785,12 +802,23 @@ const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
 )
 ```
 
-The last line is the part that is easy to miss, and the one the compiler will
-not save you from. `AuthorizationLayer` asks for `Tokens` while it is being
-built, and the `Tokens` inside `provideRequest` is only there for the handlers.
-A layer built at startup cannot reach into a per-request one, so `Tokens` is
-provided in both places. Leave the last line off and everything still
-typechecks, and then startup fails:
+The last line is the part that is easy to miss, because the error you get when
+it is absent looks like a contradiction. `AuthorizationLayer` asks for `Tokens`
+while it is being built, and the `Tokens` inside `provideRequest` is only there
+for the handlers. `provideRequest` satisfies what a handler asks for and
+nothing else, so `Tokens` has to be provided in both places. Leave the last line
+off and `bunx tsc --noEmit` reports the same shape of error as before, naming
+`Tokens` this time:
+
+```
+src/main.ts: error TS2769: No overload matches this call.
+  ...
+      Type 'Tokens' is not assignable to type 'never'.
+```
+
+It reads like a mistake, since `Tokens.layer` is right there, but the two uses
+are separate. Skip the compiler and `bun run` starts anyway, then fails during
+startup:
 
 ```
 Error: Service not found: Tokens

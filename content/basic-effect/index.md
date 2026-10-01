@@ -26,12 +26,12 @@ about making sure it can never surprise you again.
 One package, pinned:
 
 ```sh
-bun add --exact effect@4.0.0-rc.117
+bun add --exact effect@4.0.0
 ```
 
-Effect v4 is in release candidate, and a version range moves the types out from
-under code that compiled yesterday. Every `effect` and `@effect/*` package
-shares one version number, and they must match exactly.
+A version range moves the types out from under code that compiled yesterday.
+Every `effect` and `@effect/*` package shares one version number, and they must
+match exactly.
 
 Run any file here with `bun run index.ts`, or with
 `node --experimental-strip-types index.ts` if you prefer node. Chapter one is

@@ -31,7 +31,7 @@ like a tiny global store. What makes Effect's atoms useful here is that an atom
 can also load its own value by running an effect, and it keeps track of
 whether that load is still running, succeeded or failed.
 
-The atoms live in `effect/unstable/reactivity`. The React hooks that read them
+The atoms live in `effect/reactivity`. The React hooks that read them
 come from `@effect/atom-react`, and the next chapter uses those.
 
 ## A client made from the description
@@ -68,7 +68,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -94,8 +94,8 @@ export * from "./TodosApi.ts"
 // ---cut---
 // apps/web/src/TodosClient.ts
 import { TodosApi } from "@todo/domain"
-import { FetchHttpClient } from "effect/unstable/http"
-import { AtomHttpApi } from "effect/unstable/reactivity"
+import { FetchHttpClient } from "effect/http"
+import { AtomHttpApi } from "effect/reactivity"
 
 // Client derived from the shared contract. Vite proxies /api to the server.
 export class TodosClient extends AtomHttpApi.Service<TodosClient>()("TodosClient", {
@@ -147,7 +147,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -171,8 +171,8 @@ export * from "./Todo.ts"
 export * from "./TodosApi.ts"
 // @filename: apps/web/src/TodosClient.ts
 import { TodosApi } from "@todo/domain"
-import { FetchHttpClient } from "effect/unstable/http"
-import { AtomHttpApi } from "effect/unstable/reactivity"
+import { FetchHttpClient } from "effect/http"
+import { AtomHttpApi } from "effect/reactivity"
 
 export class TodosClient extends AtomHttpApi.Service<TodosClient>()("TodosClient", {
   api: TodosApi,
@@ -237,7 +237,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -261,8 +261,8 @@ export * from "./Todo.ts"
 export * from "./TodosApi.ts"
 // @filename: apps/web/src/TodosClient.ts
 import { TodosApi } from "@todo/domain"
-import { FetchHttpClient } from "effect/unstable/http"
-import { AtomHttpApi } from "effect/unstable/reactivity"
+import { FetchHttpClient } from "effect/http"
+import { AtomHttpApi } from "effect/reactivity"
 
 export class TodosClient extends AtomHttpApi.Service<TodosClient>()("TodosClient", {
   api: TodosApi,
@@ -326,7 +326,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -352,8 +352,8 @@ export * from "./TodosApi.ts"
 // ---cut---
 // apps/web/src/TodosClient.ts
 import { TodosApi } from "@todo/domain"
-import { FetchHttpClient } from "effect/unstable/http"
-import { AtomHttpApi } from "effect/unstable/reactivity"
+import { FetchHttpClient } from "effect/http"
+import { AtomHttpApi } from "effect/reactivity"
 
 // Client derived from the shared contract. Vite proxies /api to the server.
 export class TodosClient extends AtomHttpApi.Service<TodosClient>()("TodosClient", {
