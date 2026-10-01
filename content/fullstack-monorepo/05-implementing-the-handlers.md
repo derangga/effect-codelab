@@ -48,7 +48,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -73,7 +73,7 @@ export * from "./TodosApi.ts"
 // @filename: apps/server/src/TodoRepo.ts
 import { type CreateTodoPayload, Todo, TodoPersistenceError } from "@todo/domain"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 // SQLite has no boolean column, so the row stores completed as 0 | 1.
 const TodoRow = Schema.Struct({ ...Todo.fields, completed: Schema.BooleanFromBit })
@@ -140,7 +140,7 @@ export class TodoRepo extends Context.Service<TodoRepo>()("TodoRepo", {
 // ---cut---
 import { TodosApi } from "@todo/domain"
 import { Effect } from "effect"
-import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { HttpApiBuilder } from "effect/http-api"
 import { TodoRepo } from "./TodoRepo.ts"
 
 const TodosHandlers = HttpApiBuilder.group(
@@ -217,7 +217,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -242,7 +242,7 @@ export * from "./TodosApi.ts"
 // @filename: apps/server/src/TodoRepo.ts
 import { type CreateTodoPayload, Todo, TodoPersistenceError } from "@todo/domain"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 // SQLite has no boolean column, so the row stores completed as 0 | 1.
 const TodoRow = Schema.Struct({ ...Todo.fields, completed: Schema.BooleanFromBit })
@@ -310,7 +310,7 @@ export class TodoRepo extends Context.Service<TodoRepo>()("TodoRepo", {
 // apps/server/src/Http.ts
 import { TodosApi } from "@todo/domain"
 import { Effect, Layer } from "effect"
-import { HttpApiBuilder, HttpApiScalar } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiScalar } from "effect/http-api"
 import { TodoRepo } from "./TodoRepo.ts"
 
 const TodosHandlers = HttpApiBuilder.group(
@@ -363,7 +363,12 @@ cd apps/server
 bun run typecheck
 ```
 
-No output means it compiles. Then prove the checklist to yourself: delete the
+```
+$ tsc -p tsconfig.json
+```
+
+That line is just `bun` echoing the script. `tsc` printed nothing after it, which
+means the package compiles. Then prove the checklist to yourself: delete the
 `.handle("create", ...)` part, run the typecheck again, and look for
 `Endpoint not handled: create` in the error. Put it back before moving on.
 

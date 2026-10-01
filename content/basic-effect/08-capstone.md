@@ -5,13 +5,15 @@ slug: 08-capstone
 summary: The whole catalog module in one file, from branded schemas through the layer that wires it, with every decision from the earlier chapters visible in one place.
 ---
 
-Seven chapters have each added one piece to the same catalog. Read separately
-they look like seven techniques. Read together they are one module with a
-single shape, and the shape is the point.
+Chapters four to seven each added one piece to the same catalog. Read
+separately they look like four techniques. Read together they are one module
+with a single shape, and the shape is the point.
 
-This chapter prints that module top to bottom. Nothing here is new. What is
-new is seeing where each earlier decision ended up, and which of them are load
-bearing.
+This chapter prints that module top to bottom. Almost nothing here is new. Two
+small things are: the repository starts with two seeded products so the tests
+in chapter nine have something to list, and `create` logs the product it made.
+What else is new is seeing where each earlier decision ended up, and which of
+them are load bearing.
 
 ## The domain
 
@@ -20,8 +22,8 @@ string, so a function that wants an id cannot be handed any string that
 happens to be lying around.
 
 ```ts twoslash
+// product.ts, from chapter four
 import { Schema } from 'effect'
-// ---cut---
 export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 export type ProductId = Schema.Schema.Type<typeof ProductId>
 
@@ -57,10 +59,11 @@ is not there, and a caller can create one when the catalog is full. Each gets
 its own tag and carries the fields a handler would need.
 
 ```ts twoslash
-import { Schema } from 'effect'
 export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 export type ProductId = Schema.Schema.Type<typeof ProductId>
 // ---cut---
+// product.ts, below the schemas
+import { Schema } from 'effect'
 export class ProductNotFoundError extends Schema.TaggedError<ProductNotFoundError>()(
   'ProductNotFoundError',
   {
@@ -88,7 +91,7 @@ The repository owns storage and nothing else. It holds its products in a
 `Ref`, which is how Effect represents state that several fibers may touch.
 
 ```ts twoslash
-import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
+import { Schema } from 'effect'
 export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 export type ProductId = Schema.Schema.Type<typeof ProductId>
 export const ProductName = Schema.String.check(Schema.isMinLength(1))
@@ -105,6 +108,8 @@ export const CreateProduct = Schema.Struct({
 })
 export type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
 // ---cut---
+// product.ts, below the failures
+import { Context, Effect, Layer, Option, Ref } from 'effect'
 const initialProducts: ReadonlyArray<Product> = [
   { id: ProductId.make('product-1'), name: 'Mechanical keyboard', price: 120 },
   { id: ProductId.make('product-2'), name: 'USB-C dock', price: 85 },
@@ -186,7 +191,7 @@ dependency, reads one setting from config, and turns storage answers into
 domain answers.
 
 ```ts twoslash
-import { Config, Context, Effect, Layer, Option, Ref, Schema } from 'effect'
+import { Option, Ref, Schema } from 'effect'
 export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 export type ProductId = Schema.Schema.Type<typeof ProductId>
 export const ProductName = Schema.String.check(Schema.isMinLength(1))
@@ -252,6 +257,8 @@ export class ProductRepository extends Context.Service<ProductRepository>()(
   static readonly layer = Layer.effect(this, this.make)
 }
 // ---cut---
+// product.ts, below ProductRepository
+import { Config, Context, Effect, Layer } from 'effect'
 export class ProductService extends Context.Service<ProductService>()(
   'ProductService',
   {
@@ -320,51 +327,333 @@ The capacity check sits in the service for the same reason. The repository can
 store any number of products. It is the catalog that has a limit, so the
 catalog owns the rule and the error.
 
-## Wiring it up
+## The whole file
 
-`ProductService.layer` provides `ProductRepository.layer` to itself. A caller
-asks for the service and gets the whole tree.
-
-```ts twoslash
-import { Schema } from 'effect'
-const CreateProduct = Schema.Struct({
-  name: Schema.String.check(Schema.isMinLength(1)),
-  price: Schema.Finite.check(Schema.isGreaterThan(0)),
-})
-// ---cut---
-const decodeCreate = Schema.decodeUnknownEffect(CreateProduct)
-```
-
-Decoding happens at the edge, before the service is called. The service takes
-a `CreateProduct` that has already been proven to be one, which is why none of
-its methods carry a parse failure in `E`.
-
-Only the edge runs the Effect:
+Everything above, in the order a file needs it. Save this as `product.ts`. It
+is the module that chapter nine tests, and it holds the imports the fragments
+leave out.
 
 ```ts twoslash
-import { Context, Effect, Layer, Schema } from 'effect'
+// product.ts
+import { Config, Context, Effect, Layer, Option, Ref, Schema } from 'effect'
+
 export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 export type ProductId = Schema.Schema.Type<typeof ProductId>
+
+export const ProductName = Schema.String.check(Schema.isMinLength(1))
+export const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
+
+export const Product = Schema.Struct({
+  id: ProductId,
+  name: ProductName,
+  price: ProductPrice,
+})
+export type Product = Schema.Schema.Type<typeof Product>
+
 export const CreateProduct = Schema.Struct({
-  name: Schema.String,
-  price: Schema.Finite,
+  name: ProductName,
+  price: ProductPrice,
 })
 export type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
-export class ProductService extends Context.Service<ProductService>()(
-  'ProductService',
+
+export class ProductNotFoundError extends Schema.TaggedError<ProductNotFoundError>()(
+  'ProductNotFoundError',
   {
-    make: Effect.succeed({
-      create: (input: CreateProduct) =>
-        Effect.succeed({ id: ProductId.make('product-1'), ...input }),
-      findById: (id: ProductId) =>
-        Effect.succeed({ id, name: 'Desk mat', price: 30 }),
+    productId: ProductId,
+    message: Schema.String,
+  },
+) {}
+
+export class CatalogCapacityError extends Schema.TaggedError<CatalogCapacityError>()(
+  'CatalogCapacityError',
+  {
+    maximum: Schema.Finite,
+    message: Schema.String,
+  },
+) {}
+
+const initialProducts: ReadonlyArray<Product> = [
+  { id: ProductId.make('product-1'), name: 'Mechanical keyboard', price: 120 },
+  { id: ProductId.make('product-2'), name: 'USB-C dock', price: 85 },
+]
+
+interface RepositoryState {
+  readonly nextId: number
+  readonly products: ReadonlyArray<Product>
+}
+
+export class ProductRepository extends Context.Service<ProductRepository>()(
+  'ProductRepository',
+  {
+    make: Effect.gen(function* () {
+      const state = yield* Ref.make<RepositoryState>({
+        nextId: 3,
+        products: initialProducts,
+      })
+
+      const list = Effect.fn('ProductRepository.list')(function* () {
+        const current = yield* Ref.get(state)
+        return current.products
+      })
+
+      const findById = Effect.fn('ProductRepository.findById')(function* (
+        productId: ProductId,
+      ) {
+        const current = yield* Ref.get(state)
+        return Option.fromUndefinedOr(
+          current.products.find((product) => product.id === productId),
+        )
+      })
+
+      const insert = Effect.fn('ProductRepository.insert')(function* (
+        input: CreateProduct,
+      ) {
+        return yield* Ref.modify(state, (current) => {
+          const product: Product = {
+            id: ProductId.make(`product-${current.nextId}`),
+            ...input,
+          }
+
+          return [
+            product,
+            {
+              nextId: current.nextId + 1,
+              products: [...current.products, product],
+            },
+          ] as const
+        })
+      })
+
+      return { list, findById, insert }
     }),
   },
 ) {
   static readonly layer = Layer.effect(this, this.make)
 }
-const decodeCreate = Schema.decodeUnknownEffect(CreateProduct)
+
+export class ProductService extends Context.Service<ProductService>()(
+  'ProductService',
+  {
+    make: Effect.gen(function* () {
+      const repository = yield* ProductRepository
+      const maximumProducts = yield* Config.Int('CATALOG_MAX_PRODUCTS').pipe(
+        Config.withDefault(100),
+      )
+
+      const list = Effect.fn('ProductService.list')(function* () {
+        return yield* repository.list()
+      })
+
+      const findById = Effect.fn('ProductService.findById')(function* (
+        productId: ProductId,
+      ) {
+        const product = yield* repository.findById(productId)
+
+        return yield* Effect.fromOption(
+          product,
+          () =>
+            new ProductNotFoundError({
+              productId,
+              message: `Product ${productId} was not found`,
+            }),
+        )
+      })
+
+      const create = Effect.fn('ProductService.create')(function* (
+        input: CreateProduct,
+      ) {
+        const products = yield* repository.list()
+
+        if (products.length >= maximumProducts) {
+          return yield* new CatalogCapacityError({
+            maximum: maximumProducts,
+            message: `The catalog is limited to ${maximumProducts} products`,
+          })
+        }
+
+        const product = yield* repository.insert(input)
+        yield* Effect.log('Product created', { productId: product.id })
+        return product
+      })
+
+      return { list, findById, create }
+    }),
+  },
+) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(ProductRepository.layer),
+  )
+}
+```
+
+## Wiring it up
+
+`ProductService.layer` provides `ProductRepository.layer` to itself. A caller
+asks for the service and gets the whole tree.
+
+Decoding happens at the edge, before the service is called, and only the edge
+runs the Effect. Save this as `main.ts` next to `product.ts`:
+
+```ts twoslash
+// @filename: product.ts
+// product.ts
+import { Config, Context, Effect, Layer, Option, Ref, Schema } from 'effect'
+
+export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
+export type ProductId = Schema.Schema.Type<typeof ProductId>
+
+export const ProductName = Schema.String.check(Schema.isMinLength(1))
+export const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
+
+export const Product = Schema.Struct({
+  id: ProductId,
+  name: ProductName,
+  price: ProductPrice,
+})
+export type Product = Schema.Schema.Type<typeof Product>
+
+export const CreateProduct = Schema.Struct({
+  name: ProductName,
+  price: ProductPrice,
+})
+export type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
+
+export class ProductNotFoundError extends Schema.TaggedError<ProductNotFoundError>()(
+  'ProductNotFoundError',
+  {
+    productId: ProductId,
+    message: Schema.String,
+  },
+) {}
+
+export class CatalogCapacityError extends Schema.TaggedError<CatalogCapacityError>()(
+  'CatalogCapacityError',
+  {
+    maximum: Schema.Finite,
+    message: Schema.String,
+  },
+) {}
+
+const initialProducts: ReadonlyArray<Product> = [
+  { id: ProductId.make('product-1'), name: 'Mechanical keyboard', price: 120 },
+  { id: ProductId.make('product-2'), name: 'USB-C dock', price: 85 },
+]
+
+interface RepositoryState {
+  readonly nextId: number
+  readonly products: ReadonlyArray<Product>
+}
+
+export class ProductRepository extends Context.Service<ProductRepository>()(
+  'ProductRepository',
+  {
+    make: Effect.gen(function* () {
+      const state = yield* Ref.make<RepositoryState>({
+        nextId: 3,
+        products: initialProducts,
+      })
+
+      const list = Effect.fn('ProductRepository.list')(function* () {
+        const current = yield* Ref.get(state)
+        return current.products
+      })
+
+      const findById = Effect.fn('ProductRepository.findById')(function* (
+        productId: ProductId,
+      ) {
+        const current = yield* Ref.get(state)
+        return Option.fromUndefinedOr(
+          current.products.find((product) => product.id === productId),
+        )
+      })
+
+      const insert = Effect.fn('ProductRepository.insert')(function* (
+        input: CreateProduct,
+      ) {
+        return yield* Ref.modify(state, (current) => {
+          const product: Product = {
+            id: ProductId.make(`product-${current.nextId}`),
+            ...input,
+          }
+
+          return [
+            product,
+            {
+              nextId: current.nextId + 1,
+              products: [...current.products, product],
+            },
+          ] as const
+        })
+      })
+
+      return { list, findById, insert }
+    }),
+  },
+) {
+  static readonly layer = Layer.effect(this, this.make)
+}
+
+export class ProductService extends Context.Service<ProductService>()(
+  'ProductService',
+  {
+    make: Effect.gen(function* () {
+      const repository = yield* ProductRepository
+      const maximumProducts = yield* Config.Int('CATALOG_MAX_PRODUCTS').pipe(
+        Config.withDefault(100),
+      )
+
+      const list = Effect.fn('ProductService.list')(function* () {
+        return yield* repository.list()
+      })
+
+      const findById = Effect.fn('ProductService.findById')(function* (
+        productId: ProductId,
+      ) {
+        const product = yield* repository.findById(productId)
+
+        return yield* Effect.fromOption(
+          product,
+          () =>
+            new ProductNotFoundError({
+              productId,
+              message: `Product ${productId} was not found`,
+            }),
+        )
+      })
+
+      const create = Effect.fn('ProductService.create')(function* (
+        input: CreateProduct,
+      ) {
+        const products = yield* repository.list()
+
+        if (products.length >= maximumProducts) {
+          return yield* new CatalogCapacityError({
+            maximum: maximumProducts,
+            message: `The catalog is limited to ${maximumProducts} products`,
+          })
+        }
+
+        const product = yield* repository.insert(input)
+        yield* Effect.log('Product created', { productId: product.id })
+        return product
+      })
+
+      return { list, findById, create }
+    }),
+  },
+) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(ProductRepository.layer),
+  )
+}
+// @filename: main.ts
 // ---cut---
+// main.ts
+import { Effect, Schema } from 'effect'
+import { CreateProduct, ProductService } from './product'
+
+const decodeCreate = Schema.decodeUnknownEffect(CreateProduct)
+
 const program = Effect.gen(function* () {
   const products = yield* ProductService
   const input = yield* decodeCreate({ name: 'Desk mat', price: 30 })
@@ -376,7 +665,25 @@ const main = program.pipe(
   Effect.provide(ProductService.layer),
   Effect.runPromise,
 )
+
+main.then(console.log)
 ```
+
+`bun run main.ts` prints the log line from `create`, then the product:
+
+```
+[11:54:56.750] INFO (#1): Product created {
+  productId: "product-3",
+}
+{
+  id: "product-3",
+  name: "Desk mat",
+  price: 30,
+}
+```
+
+The service takes a `CreateProduct` that has already been proven to be one,
+which is why none of its methods carry a parse failure in `E`.
 
 `Effect.runPromise` appears once, at the outermost edge. Every layer beneath
 it returns descriptions. That is what makes the module portable: put it behind
@@ -389,21 +696,163 @@ a route parameter is not one until something says so.
 
 ```ts twoslash
 // @errors: 2345
-import { Context, Effect, Layer, Schema } from 'effect'
+// @filename: product.ts
+// product.ts
+import { Config, Context, Effect, Layer, Option, Ref, Schema } from 'effect'
+
 export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 export type ProductId = Schema.Schema.Type<typeof ProductId>
-export class ProductService extends Context.Service<ProductService>()(
-  'ProductService',
+
+export const ProductName = Schema.String.check(Schema.isMinLength(1))
+export const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
+
+export const Product = Schema.Struct({
+  id: ProductId,
+  name: ProductName,
+  price: ProductPrice,
+})
+export type Product = Schema.Schema.Type<typeof Product>
+
+export const CreateProduct = Schema.Struct({
+  name: ProductName,
+  price: ProductPrice,
+})
+export type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
+
+export class ProductNotFoundError extends Schema.TaggedError<ProductNotFoundError>()(
+  'ProductNotFoundError',
   {
-    make: Effect.succeed({
-      findById: (id: ProductId) =>
-        Effect.succeed({ id, name: 'Desk mat', price: 30 }),
+    productId: ProductId,
+    message: Schema.String,
+  },
+) {}
+
+export class CatalogCapacityError extends Schema.TaggedError<CatalogCapacityError>()(
+  'CatalogCapacityError',
+  {
+    maximum: Schema.Finite,
+    message: Schema.String,
+  },
+) {}
+
+const initialProducts: ReadonlyArray<Product> = [
+  { id: ProductId.make('product-1'), name: 'Mechanical keyboard', price: 120 },
+  { id: ProductId.make('product-2'), name: 'USB-C dock', price: 85 },
+]
+
+interface RepositoryState {
+  readonly nextId: number
+  readonly products: ReadonlyArray<Product>
+}
+
+export class ProductRepository extends Context.Service<ProductRepository>()(
+  'ProductRepository',
+  {
+    make: Effect.gen(function* () {
+      const state = yield* Ref.make<RepositoryState>({
+        nextId: 3,
+        products: initialProducts,
+      })
+
+      const list = Effect.fn('ProductRepository.list')(function* () {
+        const current = yield* Ref.get(state)
+        return current.products
+      })
+
+      const findById = Effect.fn('ProductRepository.findById')(function* (
+        productId: ProductId,
+      ) {
+        const current = yield* Ref.get(state)
+        return Option.fromUndefinedOr(
+          current.products.find((product) => product.id === productId),
+        )
+      })
+
+      const insert = Effect.fn('ProductRepository.insert')(function* (
+        input: CreateProduct,
+      ) {
+        return yield* Ref.modify(state, (current) => {
+          const product: Product = {
+            id: ProductId.make(`product-${current.nextId}`),
+            ...input,
+          }
+
+          return [
+            product,
+            {
+              nextId: current.nextId + 1,
+              products: [...current.products, product],
+            },
+          ] as const
+        })
+      })
+
+      return { list, findById, insert }
     }),
   },
 ) {
   static readonly layer = Layer.effect(this, this.make)
 }
+
+export class ProductService extends Context.Service<ProductService>()(
+  'ProductService',
+  {
+    make: Effect.gen(function* () {
+      const repository = yield* ProductRepository
+      const maximumProducts = yield* Config.Int('CATALOG_MAX_PRODUCTS').pipe(
+        Config.withDefault(100),
+      )
+
+      const list = Effect.fn('ProductService.list')(function* () {
+        return yield* repository.list()
+      })
+
+      const findById = Effect.fn('ProductService.findById')(function* (
+        productId: ProductId,
+      ) {
+        const product = yield* repository.findById(productId)
+
+        return yield* Effect.fromOption(
+          product,
+          () =>
+            new ProductNotFoundError({
+              productId,
+              message: `Product ${productId} was not found`,
+            }),
+        )
+      })
+
+      const create = Effect.fn('ProductService.create')(function* (
+        input: CreateProduct,
+      ) {
+        const products = yield* repository.list()
+
+        if (products.length >= maximumProducts) {
+          return yield* new CatalogCapacityError({
+            maximum: maximumProducts,
+            message: `The catalog is limited to ${maximumProducts} products`,
+          })
+        }
+
+        const product = yield* repository.insert(input)
+        yield* Effect.log('Product created', { productId: product.id })
+        return product
+      })
+
+      return { list, findById, create }
+    }),
+  },
+) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(ProductRepository.layer),
+  )
+}
+// @filename: lookup.ts
 // ---cut---
+// lookup.ts
+import { Effect } from 'effect'
+import { ProductService } from './product'
+
 const lookup = Effect.gen(function* () {
   const products = yield* ProductService
   return yield* products.findById('product-1')

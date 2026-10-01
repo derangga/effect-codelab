@@ -83,7 +83,6 @@ user id and any other string stop being interchangeable.
 
 ```ts twoslash
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
 
 const Email = Schema.String.pipe(
   Schema.check(
@@ -93,6 +92,8 @@ const Email = Schema.String.pipe(
 )
 // ---cut---
 // src/domain.ts
+import { Model } from 'effect/schema'
+
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
 export class User extends Model.Class<User>('User')({
@@ -104,7 +105,8 @@ export class User extends Model.Class<User>('User')({
 }) {}
 ```
 
-`UserId` has no check on it, unlike `Email`. There is no shape to test for,
+The `Model` import goes at the top of `domain.ts` with the other one, and the
+rest goes below `Email`. `UserId` has no check on it, unlike `Email`. There is no shape to test for,
 because nothing hand writes one: the next section generates every id there will
 ever be.
 
@@ -125,7 +127,7 @@ does not merely prefer a branded schema, it requires one. Hand it a plain
 
 ```ts twoslash
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 const UserId = Schema.String.pipe(Schema.brand('UserId'))
 const Email = Schema.String.pipe(Schema.brand('Email'))
@@ -151,8 +153,89 @@ would otherwise be trusting yourself to remember.
 That retires something. The `PublicUser` you wrote in `domain.ts` in
 [the API as a value](/learn/http-auth-api/01-the-api-as-a-value) was the first
 sketch of this shape, and `User.json` is the same idea derived rather than
-typed. Delete `PublicUser`, and change the two endpoints that name it to use
-`User.json` instead. That is the last hand written copy of a user gone.
+typed. Delete `PublicUser` from `domain.ts`, and change `api.ts` to use
+`User.json` where `PublicUser` was. The two endpoints that named it are
+`register` and `me`, and the file now reads:
+
+```ts twoslash
+// @filename: src/domain.ts
+import { Schema } from 'effect'
+import { Model } from 'effect/schema'
+
+export const UserId = Schema.String.pipe(Schema.brand('UserId'))
+
+export const Email = Schema.String.pipe(
+  Schema.check(
+    Schema.isPattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, { message: 'Not a valid email' }),
+  ),
+  Schema.brand('Email'),
+)
+
+export const Password = Schema.String.pipe(
+  Schema.check(Schema.isMinLength(6, { message: 'Too short' })),
+)
+
+export const RegisterPayload = Schema.Struct({
+  name: Schema.String,
+  email: Email,
+  password: Password,
+})
+
+export const LoginPayload = Schema.Struct({
+  email: Email,
+  password: Schema.String,
+})
+
+export const LoginResult = Schema.Struct({ token: Schema.String })
+
+export class User extends Model.Class<User>('User')({
+  id: Model.UuidV7Insert(UserId),
+  name: Schema.String,
+  email: Email,
+  passwordHash: Model.Sensitive(Schema.String),
+  createdAt: Model.DateTimeInsert,
+}) {}
+// @filename: src/errors.ts
+import { Schema } from 'effect'
+
+export class EmailAlreadyTaken extends Schema.TaggedError<EmailAlreadyTaken>()(
+  'EmailAlreadyTaken',
+  { email: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
+export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()(
+  'InvalidCredentials',
+  {},
+  { httpApiStatus: 401 },
+) {}
+// @filename: src/api.ts
+// ---cut---
+// src/api.ts, with PublicUser gone
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
+import { LoginPayload, LoginResult, RegisterPayload, User } from './domain'
+import { EmailAlreadyTaken, InvalidCredentials } from './errors'
+
+export const register = HttpApiEndpoint.post('register', '/register', {
+  payload: RegisterPayload,
+  success: User.json.pipe(HttpApiSchema.status(201)),
+  error: EmailAlreadyTaken,
+})
+
+export const login = HttpApiEndpoint.post('login', '/login', {
+  payload: LoginPayload,
+  success: LoginResult,
+  error: InvalidCredentials,
+})
+
+export const me = HttpApiEndpoint.get('me', '/me', { success: User.json })
+
+export const authGroup = HttpApiGroup.make('auth').add(register, login, me)
+
+export const AuthApi = HttpApi.make('AuthApi').add(authGroup)
+```
+
+That is the last hand written copy of a user gone.
 
 ## The table that matches
 
@@ -188,7 +271,7 @@ from the model.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -229,7 +312,7 @@ export class User extends Model.Class<User>('User')({
 // ---cut---
 // src/repo.ts
 import { Effect } from 'effect'
-import { SqlModel } from 'effect/unstable/sql'
+import { SqlModel } from 'effect/sql'
 import { User } from './domain'
 
 const repository = Effect.gen(function* () {
@@ -252,7 +335,7 @@ methods, and the one query written by hand.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -293,7 +376,7 @@ export class User extends Model.Class<User>('User')({
 // ---cut---
 // src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -345,7 +428,7 @@ for either. `main.ts` is where that happens.
 ```ts twoslash
 // @filename: src/domain.ts
 import { Schema } from 'effect'
-import { Model } from 'effect/unstable/schema'
+import { Model } from 'effect/schema'
 
 export const UserId = Schema.String.pipe(Schema.brand('UserId'))
 
@@ -397,7 +480,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
   { httpApiStatus: 401 },
 ) {}
 // @filename: src/api.ts
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from 'effect/http-api'
 import {
   LoginPayload,
   LoginResult,
@@ -425,7 +508,7 @@ export const AuthApi = HttpApi.make('AuthApi').add(
 )
 // @filename: src/repo.ts
 import { Context, Effect, Layer } from 'effect'
-import { SqlClient, SqlModel, SqlSchema } from 'effect/unstable/sql'
+import { SqlClient, SqlModel, SqlSchema } from 'effect/sql'
 import { Email, User } from './domain'
 
 export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
@@ -448,7 +531,7 @@ export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
 }
 // @filename: src/handlers.ts
 import { Effect } from 'effect'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 import { AuthApi } from './api'
 
 export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
@@ -459,15 +542,16 @@ export const AuthHandlers = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 )
 // @filename: src/main.ts
 import { Layer } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun'
 import { SqliteClient } from '@effect/sql-sqlite-bun'
 import { AuthApi } from './api'
 import { AuthHandlers } from './handlers'
-import { UserRepo } from './repo'
 // ---cut---
 // src/main.ts, the ApiLive from the last chapter with the repository added
+import { UserRepo } from './repo'
+
 const SqlLive = SqliteClient.layer({ filename: 'auth.db' })
 
 const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
@@ -478,24 +562,32 @@ const ApiLive = HttpApiBuilder.layer(AuthApi).pipe(
 
 `SqlLive` goes to `UserRepo.layer` rather than to the application, because the
 repository is the only thing that wants a database. `provideRequest` is the
-version of `Layer.provide` that reaches a handler, and
-[me and the public user](/learn/http-auth-api/07-me-and-the-public-user) says
-why handlers need their own. No handler asks for `UserRepo` yet, so no response
-changes.
+version of `Layer.provide` that reaches a handler. What a handler asks for is
+tracked as its own kind of requirement, and a plain `Layer.provide` does not
+satisfy it: swap the two and the compiler keeps asking for `UserRepo` once a
+handler uses it. The layer is still built once, when the server starts. No
+handler asks for `UserRepo` yet, so no response changes.
 
-Something on disk does:
+Something on disk does. If the `--watch` from
+[email and password](/learn/http-auth-api/02-email-and-password) is still
+running, saving `main.ts` restarted it. If not, start it:
 
 ```sh
-bun run src/main.ts
+bun run --watch src/main.ts
+```
+
+The server holds that terminal, so look at the database from a second one:
+
+```sh
 sqlite3 auth.db '.schema users'
 ```
 
 ```
 CREATE TABLE users (
-  id           TEXT PRIMARY KEY,
-  name         TEXT NOT NULL,
-  ...
-);
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      ...
+    );
 ```
 
 The file and the table both appeared at startup, because building `UserRepo`

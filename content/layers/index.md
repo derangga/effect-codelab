@@ -74,12 +74,15 @@ is the wiring around it rather than the SQL inside it. One package:
 mkdir effect-feed
 cd effect-feed
 bun init -y
-bun add --exact effect@4.0.0-rc.117
-bun add -d --exact @effect/tsgo@0.45.0 typescript@6.0.3
+bun add --exact effect@4.0.0
+bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 
-`--exact` matters. Effect v4 is in release candidate, and a version range moves
-the types out from under code that compiled yesterday.
+`--exact` matters. A version range moves the types out from under code that
+compiled yesterday.
+
+`typescript@7.0.2` is the rewritten compiler. It still installs a command called
+`tsc`, and `bunx tsc --version` should print `Version 7.0.2`.
 
 In `tsconfig.json`:
 

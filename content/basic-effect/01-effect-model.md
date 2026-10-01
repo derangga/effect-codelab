@@ -118,9 +118,9 @@ Effect.runPromise(program).then((response) => {
 })
 ```
 
-`Effect.tryPromise` takes the Promise you would have awaited and the function
-that turns a rejection into a value you chose. What comes back is not a request
-in flight. It is a description of one.
+`Effect.tryPromise` takes a function that returns the Promise you would have
+awaited, and a function that turns a rejection into a value you chose. What
+comes back is not a request in flight. It is a description of one.
 
 ```sh
 nothing has been requested yet

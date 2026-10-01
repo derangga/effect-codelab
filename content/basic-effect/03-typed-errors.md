@@ -212,10 +212,14 @@ branch, `error.id` is a number and the compiler knows it. Inside the other,
 `error.status` is there when the server answered and absent when the network
 did not.
 
-Take one handler out and the channel is no longer `never`. Add a fourth error
-somewhere deep in the stack and every `catchTags` that does not cover it stops
-compiling. That is the failure mode worth having, because the alternative is
-the one from chapter one, where a new way to fail is discovered by a user.
+Take one handler out and the missing error stays in the channel, so `describe`
+is no longer `Effect<string, never>`. The same happens when you add a third
+error somewhere deep in the stack. A `catchTags` that does not cover it still
+compiles, and the new error flows through to the first place that expects
+`never`, such as a function whose return type promises it cannot fail. That
+place stops compiling. That is the failure mode worth having, because the
+alternative is the one from chapter one, where a new way to fail is discovered
+by a user.
 
 ### The mistake
 

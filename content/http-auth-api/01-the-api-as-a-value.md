@@ -88,9 +88,9 @@ return ends up in it, so when a handler fails with something and you want to
 know what a caller sees, there is one place to look rather than five.
 
 ```ts twoslash
-import { Schema } from 'effect'
-// ---cut---
 // src/errors.ts
+import { Schema } from 'effect'
+
 export class EmailAlreadyTaken extends Schema.TaggedError<EmailAlreadyTaken>()(
   'EmailAlreadyTaken',
   { email: Schema.String },
@@ -147,7 +147,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
 // @filename: src/api.ts
 // ---cut---
 // src/api.ts
-import { HttpApiEndpoint, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApiEndpoint, HttpApiSchema } from 'effect/http-api'
 import { PublicUser, RegisterPayload } from './domain'
 import { EmailAlreadyTaken } from './errors'
 
@@ -239,7 +239,7 @@ export class InvalidCredentials extends Schema.TaggedError<InvalidCredentials>()
   { httpApiStatus: 401 },
 ) {}
 // @filename: src/api.ts
-import { HttpApiEndpoint, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApiEndpoint, HttpApiSchema } from 'effect/http-api'
 import { PublicUser, RegisterPayload } from './domain'
 import { EmailAlreadyTaken } from './errors'
 
@@ -250,7 +250,7 @@ export const register = HttpApiEndpoint.post('register', '/register', {
 })
 // ---cut---
 // src/api.ts, below the register endpoint
-import { HttpApi, HttpApiGroup } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiGroup } from 'effect/http-api'
 import { LoginPayload, LoginResult } from './domain'
 import { InvalidCredentials } from './errors'
 
@@ -300,7 +300,7 @@ in the middle of declaring.
 ```ts twoslash
 // @errors: 2310 2506
 import { Schema } from 'effect'
-import { HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApiSchema } from 'effect/http-api'
 
 class TooManyRequests extends Schema.TaggedError<TooManyRequests>()(
   'TooManyRequests',

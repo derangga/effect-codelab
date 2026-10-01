@@ -51,24 +51,28 @@ agreement every time you build.
   gets a plain explanation the first time it shows up, with a link to the
   [Basic Effect](/learn/basic-effect) track if you want the longer story.
 
-The versions are pinned exactly:
+Every dependency in the `package.json` files is pinned to an exact version, with
+no `^` and no `latest`. These are the ones that must not drift:
 
 ```sh
-effect@4.0.0-rc.117
-@effect/platform-bun@4.0.0-rc.117
-@effect/sql-sqlite-bun@4.0.0-rc.117
-@effect/atom-react@4.0.0-rc.117
-@effect/vitest@4.0.0-rc.117
+effect@4.0.0
+@effect/platform-bun@4.0.0
+@effect/sql-sqlite-bun@4.0.0
+@effect/atom-react@4.0.0
+@effect/vitest@4.0.0
 typescript@7.0.2
 ```
 
-Effect v4 is a release candidate, and every `effect` and `@effect/*` package
-shares one version number. Mixing versions is the fastest way to get type
-errors that make no sense, so keep them identical.
+Every `effect` and `@effect/*` package shares one version number. Mixing
+versions is the fastest way to get type errors that make no sense, so keep them
+identical.
 
-Several modules come from paths like `effect/unstable/http` and
-`effect/unstable/sql`. They live inside the `effect` package itself, and the
-word `unstable` is honest: their names can still change before v4 is final.
+Several modules come from paths like `effect/http-api` and `effect/sql`. They
+live inside the `effect` package itself. Effect v4 is stable, but those modules
+are tagged `@stability unstable` in their documentation, which the
+[release notes](https://github.com/Effect-TS/effect/releases/tag/effect%404.0.0)
+define as "may have breaking changes in minor releases". That is why the
+versions above are pinned exactly.
 
 ## How the chapters work
 

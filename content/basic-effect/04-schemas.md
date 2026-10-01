@@ -13,9 +13,8 @@ interface Product { readonly id: string }
 declare function createProduct(name: string, price: number): Product
 ```
 
-It accepts an empty name and a price of `-5`. It accepts the name and the price
-swapped, if someone writes `createProduct(price, name)` and the price happens
-to be a string. And when the input arrives from a request body rather than from
+It accepts an empty name, a price of `-5`, and a price of `NaN`, which is a
+`number` too. And when the input arrives from a request body rather than from
 your own code, you do not even have a `string` and a `number`. You have
 `unknown`, and most codebases turn that into a type with a cast and hope.
 
@@ -23,11 +22,19 @@ A schema is one declaration that fixes all of it. It gives you the TypeScript
 type, the runtime validation, and a decoder for untrusted input, and they
 cannot drift apart because they are the same thing.
 
+From here the course leaves `fetch` and `index.ts` behind. The catalog lives in
+memory, and the module you build in this and the next four chapters goes in a
+new file, `product.ts`. A block that opens with a file name belongs in that
+file. A block without one is an illustration to read. Each block shows the
+imports it uses, so if your file already imports a name, add it to the existing
+line instead of pasting a second one. The end of this chapter prints the file
+as it should look.
+
 ## Describing a value
 
 ```ts twoslash
+// product.ts
 import { Schema } from 'effect'
-// ---cut---
 const Product = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
@@ -50,8 +57,8 @@ them in agreement when a field changes.
 A check is a predicate attached to a schema.
 
 ```ts twoslash
+// product.ts, above Product
 import { Schema } from 'effect'
-// ---cut---
 const ProductName = Schema.String.check(Schema.isMinLength(1))
 const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
 ```
@@ -61,10 +68,11 @@ a thing you can name, reuse, and read. Every struct that uses it gets the rule,
 and the rule is written once.
 
 ```ts twoslash
-import { Schema } from 'effect'
 const ProductName = Schema.String.check(Schema.isMinLength(1))
 const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
 // ---cut---
+// product.ts, replacing Product
+import { Schema } from 'effect'
 const Product = Schema.Struct({
   id: Schema.String,
   name: ProductName,
@@ -82,8 +90,8 @@ them at the boundary, which is where values you did not construct arrive.
 with every product id. A brand fixes that without changing the runtime value.
 
 ```ts twoslash
+// product.ts, above Product
 import { Schema } from 'effect'
-// ---cut---
 const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 type ProductId = Schema.Schema.Type<typeof ProductId>
 ```
@@ -107,11 +115,12 @@ A product that exists and a request to create one are different shapes, so they
 are different schemas.
 
 ```ts twoslash
-import { Schema } from 'effect'
 const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 const ProductName = Schema.String.check(Schema.isMinLength(1))
 const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
 // ---cut---
+// product.ts, replacing Product, with CreateProduct below it
+import { Schema } from 'effect'
 const Product = Schema.Struct({
   id: ProductId,
   name: ProductName,
@@ -140,7 +149,6 @@ positive is stated once and enforced on both paths.
 an Effect.
 
 ```ts twoslash
-import { Schema } from 'effect'
 const ProductName = Schema.String.check(Schema.isMinLength(1))
 const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
 const CreateProduct = Schema.Struct({
@@ -148,6 +156,7 @@ const CreateProduct = Schema.Struct({
   price: ProductPrice,
 })
 // ---cut---
+import { Schema } from 'effect'
 const decodeCreateProduct = Schema.decodeUnknownEffect(CreateProduct)
 
 const parsed = decodeCreateProduct({ name: 'Desk mat', price: 30 })
@@ -167,23 +176,30 @@ methods later in this course carry `SchemaError` in their signatures.
 ## Optional means Option
 
 For a field that genuinely may be absent, model the absence rather than leaving
-a `null` in the type.
+a `null` or an `undefined` in the type. `Schema.OptionFromOptionalKey` decodes a
+key that may be missing from the input into an `Option`.
 
 ```ts twoslash
-import { Schema } from 'effect'
 const ProductName = Schema.String.check(Schema.isMinLength(1))
 // ---cut---
-const Product = Schema.Struct({
+import { Schema } from 'effect'
+const ProductDetails = Schema.Struct({
   name: ProductName,
-  description: Schema.Option(Schema.String),
+  description: Schema.OptionFromOptionalKey(Schema.String),
 })
-type Product = Schema.Schema.Type<typeof Product>
+type ProductDetails = Schema.Schema.Type<typeof ProductDetails>
 ```
 
-`description` is an `Option<string>`. Reading it means saying what happens when
-it is absent, through `Option.match` or `Option.getOrElse`, rather than
-remembering a null check that is easy to skip and impossible to see in a
-signature.
+`description` is an `Option<string>`. Input with no `description` key decodes to
+`Option.none()`, and input with a string decodes to `Option.some`. Reading it
+means saying what happens when it is absent, through `Option.match` or
+`Option.getOrElse`, rather than remembering a null check that is easy to skip
+and impossible to see in a signature.
+
+Do not reach for `Schema.Option(Schema.String)` here. It describes a value that
+is already an `Option`, so decoding rejects a plain string, a `null` and a
+missing key alike. When the input spells absence as `null`, as many JSON APIs
+do, use `Schema.OptionFromNullOr(Schema.String)`.
 
 ## What people get wrong
 
@@ -215,6 +231,35 @@ exactly the false confidence branding was supposed to remove. Decode it.
 
 The [anti-patterns track](/learn/anti-patterns/01-at-the-boundary) has the
 longer version, alongside the other two ways a boundary leaks.
+
+## Where product.ts stands
+
+```ts twoslash
+// product.ts
+import { Schema } from 'effect'
+
+export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
+export type ProductId = Schema.Schema.Type<typeof ProductId>
+
+export const ProductName = Schema.String.check(Schema.isMinLength(1))
+export const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
+
+export const Product = Schema.Struct({
+  id: ProductId,
+  name: ProductName,
+  price: ProductPrice,
+})
+export type Product = Schema.Schema.Type<typeof Product>
+
+export const CreateProduct = Schema.Struct({
+  name: ProductName,
+  price: ProductPrice,
+})
+export type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
+```
+
+The `export` keywords are new. The service chapters and the tests import from
+this module, so everything it defines is public.
 
 ## Next
 

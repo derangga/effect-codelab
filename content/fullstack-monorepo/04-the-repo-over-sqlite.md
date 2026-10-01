@@ -49,7 +49,7 @@ somewhere to go.
 // apps/server/src/Sql.ts
 import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-bun"
 import { Config, Effect, FileSystem, Layer, Path } from "effect"
-import { Migrator, SqlClient } from "effect/unstable/sql"
+import { Migrator, SqlClient } from "effect/sql"
 
 const migrations = Migrator.fromRecord({
   "0001_create_todos": Effect.gen(function* () {
@@ -111,7 +111,7 @@ on its own, to look at its type:
 
 ```ts twoslash
 import { Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 const Todo = Schema.Struct({ id: Schema.Int, title: Schema.String })
 declare const sql: SqlClient.SqlClient
 // ---cut---
@@ -164,7 +164,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 // apps/server/src/TodoRepo.ts
 import { type CreateTodoPayload, Todo, TodoPersistenceError } from "@todo/domain"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 // SQLite has no boolean column, so the row stores completed as 0 | 1.
 const TodoRow = Schema.Struct({ ...Todo.fields, completed: Schema.BooleanFromBit })
@@ -291,7 +291,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 // @filename: apps/server/src/TodoRepo.ts
 import { type CreateTodoPayload, Todo, TodoPersistenceError } from "@todo/domain"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 // SQLite has no boolean column, so the row stores completed as 0 | 1.
 const TodoRow = Schema.Struct({ ...Todo.fields, completed: Schema.BooleanFromBit })

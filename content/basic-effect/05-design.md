@@ -93,7 +93,7 @@ Written as types, that table is the target the next three chapters have to
 hit.
 
 ```ts twoslash
-import { Effect, Option, Schema } from 'effect'
+import { Schema } from 'effect'
 const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 type ProductId = Schema.Schema.Type<typeof ProductId>
 interface Product {
@@ -114,6 +114,7 @@ class CatalogCapacityError extends Schema.TaggedError<CatalogCapacityError>()(
   { maximum: Schema.Finite, message: Schema.String },
 ) {}
 // ---cut---
+import { Effect, Option } from 'effect'
 type RepositoryFindById = (
   id: ProductId,
 ) => Effect.Effect<Option.Option<Product>>
@@ -128,7 +129,10 @@ type ServiceCreate = (
 ```
 
 The `Option` in the first line and its absence in the second is the whole
-design, written down before any of it exists.
+design, written down before any of it exists. The two error classes are the one
+part that does not exist yet. Chapter six writes `ProductNotFoundError` and
+chapter seven writes `CatalogCapacityError`, so this block compiles against
+stand-ins until then.
 
 Two things in that table are claims worth checking later.
 

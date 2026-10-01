@@ -187,7 +187,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -211,8 +211,8 @@ export * from "./Todo.ts"
 export * from "./TodosApi.ts"
 // @filename: apps/web/src/TodosClient.ts
 import { TodosApi } from "@todo/domain"
-import { FetchHttpClient } from "effect/unstable/http"
-import { AtomHttpApi } from "effect/unstable/reactivity"
+import { FetchHttpClient } from "effect/http"
+import { AtomHttpApi } from "effect/reactivity"
 
 // Client derived from the shared contract. Vite proxies /api to the server.
 export class TodosClient extends AtomHttpApi.Service<TodosClient>()("TodosClient", {
@@ -232,7 +232,7 @@ export const createTodoAtom = TodosClient.mutation("todos", "create")
 import { useAtom, useAtomValue } from "@effect/atom-react"
 import { CreateTodoPayload } from "@todo/domain"
 import { DateTime, Exit, Option, Schema } from "effect"
-import { AsyncResult } from "effect/unstable/reactivity"
+import { AsyncResult } from "effect/reactivity"
 import { type FormEvent, useState } from "react"
 import { createTodoAtom, TODOS_KEY, todosAtom } from "./TodosClient.ts"
 
@@ -356,9 +356,16 @@ bun run typecheck
 
 ```
 @todo/domain typecheck: Exited with code 0
-@todo/server typecheck: src/TodosApi.test.ts(26,20): error TS2339: Property 'title' does not exist on type 'Todo'.
-@todo/web typecheck: src/App.tsx(66,91): error TS2339: Property 'title' does not exist on type 'Todo'.
+@todo/server typecheck: src/TodosApi.test.ts(27,20): error TS2339: Property 'title' does not exist on type 'Todo'.
+@todo/server typecheck: Exited with code 1
+@todo/web typecheck: src/App.tsx(67,91): error TS2339: Property 'title' does not exist on type 'Todo'.
+@todo/web typecheck: Exited with code 1
+error: script "typecheck" exited with code 1
 ```
+
+The packages check in parallel, so the server and web lines can swap places.
+Your line numbers match only if your files start with the same path comment as
+the blocks in this track.
 
 One change in the shared package, and both apps fail to build, each pointing at
 the exact line that still says `title`. In two separate repositories, the same

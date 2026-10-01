@@ -4,34 +4,38 @@ order: 2
 theme: foundations
 level: beginner
 icon: BookOpen
-summary: Nine chapters that rebuild one fetch against a public product API until every way it can fail is written in its type, ending in a service, its layer, and a test suite that never touches the network.
+summary: Nine chapters that rebuild one fetch against a public product API until every way it can fail is written in its type, then build an in-memory product catalog as a service with a layer and a test suite.
 prereq: TypeScript generics, tagged unions, modules, async/await, and Promises
 ---
 
 This course takes one ordinary function, a `fetch` against a public product
-API, and rebuilds it until every way it can fail is written in its type. By the
-last chapter that function is a service, its dependencies arrive through a
-layer, its configuration comes from the environment, and its tests run against
-a mock server instead of the internet.
+API, and rebuilds it until every way it can fail is written in its type. From
+chapter four the course leaves the network behind and builds the same kind of
+module over an in-memory catalog. By the last chapter it is a service, its
+dependencies arrive through a layer, its one setting comes from the
+environment, and its tests run in memory.
 
 The API is [fakestoreapi.com](https://fakestoreapi.com). It is free, it needs
 no key, and it holds twenty products. It also has one habit that makes it
 better teaching material than a well behaved API would be. Ask it for a product
 that does not exist and it answers `200 OK` with an empty body. Chapter one
-walks into that on purpose, and a good part of the eight chapters after it are
-about making sure it can never surprise you again.
+walks into that on purpose, and chapter three makes sure it can never surprise
+you again.
 
 ## What you need
 
-One package, pinned:
+Start in an empty folder with `bun init -y`, which creates `index.ts` and a
+`tsconfig.json` that already has `strict` on. Then one package and the compiler
+to check it with, both pinned:
 
 ```sh
-bun add --exact effect@4.0.0-rc.117
+bun add --exact effect@4.0.0
+bun add -d --exact typescript@7.0.2
 ```
 
-Effect v4 is in release candidate, and a version range moves the types out from
-under code that compiled yesterday. Every `effect` and `@effect/*` package
-shares one version number, and they must match exactly.
+A version range moves the types out from under code that compiled yesterday.
+Every `effect` and `@effect/*` package shares one version number, and they must
+match exactly.
 
 Run any file here with `bun run index.ts`, or with
 `node --experimental-strip-types index.ts` if you prefer node. Chapter one is
@@ -40,22 +44,28 @@ run it in, turn `strict` on in `tsconfig.json`. Effect reads the failure and
 requirement channels off your code, and without `strict` those readings are
 wrong in ways that are hard to notice.
 
-Packages arrive when a chapter needs them. Chapter seven adds an env file,
-chapter nine adds a test runner and a mock server.
+Packages arrive when a chapter needs them. Chapter nine installs a test runner.
+Chapter seven reads an environment variable, but it has a default, so there is
+no env file to write.
 
 ## Which file you are editing
 
-Every code block opens with the name of the file it belongs in:
+A code block that belongs in a file opens with the file's name:
 
 ```ts
 // index.ts
 ```
 
 For the first three chapters there is only `index.ts`, and each chapter
-rewrites part of it. When a block replaces something you wrote earlier, it says
-so on the second line. Chapter four splits the file, because by then it is too
-long to hold one idea, and from that point on the block tells you which of
-`index.ts`, `error.ts` or `product.ts` you are in.
+rewrites part of it. When a block replaces something you wrote earlier, the comment with the file
+name says so. Chapter four starts a new file, `product.ts`, and leaves
+`index.ts` behind. Chapter eight adds `main.ts` and chapter nine adds
+`product.test.ts`. A block without a file name is an illustration to read, not
+something to save.
+
+Chapters two, three, four, six, seven and nine each print the whole file as it
+should look, so a missed edit shows up as a difference rather than a mystery.
+Chapter eight prints `product.ts` in one piece.
 
 The snippets compile as the real set of files you are building, not as isolated
 examples, so an import that does not resolve or a type that does not line up
@@ -80,18 +90,20 @@ build it, the file names are there for exactly that.
 4. [Schemas and domain modeling](/learn/basic-effect/04-schemas)
 5. [Design the product service](/learn/basic-effect/05-design)
 6. [Services with Context.Service](/learn/basic-effect/06-services)
-7. [Config, dependencies, and layers](/learn/basic-effect/07-layers)
-8. [The ProductApi capstone](/learn/basic-effect/08-capstone)
+7. [Repository state, layers, and config](/learn/basic-effect/07-layers)
+8. [The ProductService capstone](/learn/basic-effect/08-capstone)
 9. [Effect-native testing and review](/learn/basic-effect/09-testing)
 
 ## About the terminal output
 
-Every terminal block in this course is copied from a real run against the live
-API on 16 September 2026. The data is theirs and it moves, so a price or a
-title on this page may not be the one you get. The shapes will be.
+The terminal blocks in chapters one to three are copied from real runs against
+the live API on 16 September 2026. The data is theirs and it moves, so a price
+or a title on this page may not be the one you get. The shapes will be. The
+blocks in chapters eight and nine are real runs of the finished module, and
+those do not change.
 
-If the API is down when you read this, chapter nine is the chapter that keeps
-working, because by then nothing you run touches the network.
+If the API is down when you read this, chapters four to nine keep working,
+because from chapter four nothing you run touches the network.
 
 ## What this course leaves out
 

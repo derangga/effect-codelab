@@ -37,9 +37,8 @@ unpleasant to a person.
 **Scalar** renders that JSON as something readable, and it is one more layer.
 
 ```ts twoslash
-import { Layer } from 'effect'
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiScalar } from 'effect/unstable/httpapi'
 import { Schema } from 'effect'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
 
 const AuthApi = HttpApi.make('AuthApi').add(
   HttpApiGroup.make('auth').add(
@@ -47,7 +46,9 @@ const AuthApi = HttpApi.make('AuthApi').add(
   ),
 )
 // ---cut---
-// src/main.ts
+// src/main.ts, with HttpApiScalar added to the import from 'effect/http-api'
+import { HttpApiBuilder, HttpApiScalar } from 'effect/http-api'
+
 const DocsLive = HttpApiScalar.layer(AuthApi, { path: '/docs' })
 //    ^?
 ```
@@ -56,14 +57,14 @@ It goes next to the API layer in the line that serves them:
 
 ```ts twoslash
 import { Layer, Schema } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
+import { HttpRouter } from 'effect/http'
 import {
   HttpApi,
   HttpApiBuilder,
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiScalar,
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import { BunHttpServer } from '@effect/platform-bun'
 
 const AuthApi = HttpApi.make('AuthApi').add(
@@ -99,16 +100,52 @@ see that `/register` takes an email and a password. What they cannot see is
 that the password rules exist, or that a second signup with the same address is
 a 409 rather than an overwrite.
 
-Annotations put that in, next to the thing they describe.
+Annotations put that in, next to the thing they describe. Three of them go on
+the end of the `AuthApi` chain you already have.
 
 ```ts twoslash
-import { HttpApi, HttpApiGroup, OpenApi } from 'effect/unstable/httpapi'
+// @filename: src/errors.ts
+import { Schema } from 'effect'
+
+export class ValidationFailed extends Schema.TaggedError<ValidationFailed>()(
+  'ValidationFailed',
+  {
+    issues: Schema.Array(
+      Schema.Struct({ path: Schema.String, message: Schema.String }),
+    ),
+  },
+  { httpApiStatus: 400 },
+) {}
+
+export class InternalError extends Schema.TaggedError<InternalError>()(
+  'InternalError',
+  { message: Schema.String },
+  { httpApiStatus: 500 },
+) {}
+// @filename: src/api.ts
+import { HttpApi, HttpApiGroup, HttpApiMiddleware } from 'effect/http-api'
+import { InternalError, ValidationFailed } from './errors'
 
 const authGroup = HttpApiGroup.make('auth')
+
+class ErrorHandler extends HttpApiMiddleware.Service<ErrorHandler>()(
+  'ErrorHandler',
+  { error: ValidationFailed },
+) {}
+
+class CrashHandler extends HttpApiMiddleware.Service<CrashHandler>()(
+  'CrashHandler',
+  { error: InternalError },
+) {}
 // ---cut---
-// src/api.ts
-const AuthApi = HttpApi.make('AuthApi')
+// src/api.ts, with OpenApi added to the import from 'effect/http-api'
+import { OpenApi } from 'effect/http-api'
+
+export const AuthApi = HttpApi.make('AuthApi')
   .add(authGroup)
+  .middleware(ErrorHandler)
+  .middleware(CrashHandler)
+  .annotate(HttpApi.PayloadParseOptions, { errors: 'all' })
   .annotate(OpenApi.Title, 'Auth API')
   .annotate(OpenApi.Version, '1.0.0')
   .annotate(
@@ -167,10 +204,10 @@ generating it was meant to remove.
 
 ## Where this leaves you
 
-The service is about two hundred lines. It validates input and explains what it
-rejected, stores no password anywhere, hands out a token nobody can forge,
-refuses a request without one, and cannot return a password hash even by
-mistake. Each of those is a property of a type or a declaration rather than a
+The service is about three hundred and fifty lines. It validates input and
+explains what it rejected, stores no password anywhere, hands out a token
+nobody can forge, refuses a request without one, and cannot return a password
+hash even by mistake. Each of those is a property of a type or a declaration rather than a
 rule somebody has to keep following.
 
 Three things are worth doing next.

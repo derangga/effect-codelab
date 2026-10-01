@@ -42,7 +42,7 @@ export class TodoPersistenceError extends Schema.TaggedError<TodoPersistenceErro
 ) {}
 // @filename: node_modules/@todo/domain/TodosApi.ts
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { CreateTodoPayload, Todo, TodoPersistenceError } from "./Todo.ts"
 
 export const TodosGroup = HttpApiGroup.make("todos")
@@ -67,7 +67,7 @@ export * from "./TodosApi.ts"
 // @filename: apps/server/src/TodoRepo.ts
 import { type CreateTodoPayload, Todo, TodoPersistenceError } from "@todo/domain"
 import { Context, DateTime, Effect, Layer, Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 // SQLite has no boolean column, so the row stores completed as 0 | 1.
 const TodoRow = Schema.Struct({ ...Todo.fields, completed: Schema.BooleanFromBit })
@@ -133,7 +133,7 @@ export class TodoRepo extends Context.Service<TodoRepo>()("TodoRepo", {
 // @filename: apps/server/src/Http.ts
 import { TodosApi } from "@todo/domain"
 import { Effect, Layer } from "effect"
-import { HttpApiBuilder, HttpApiScalar } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiScalar } from "effect/http-api"
 import { TodoRepo } from "./TodoRepo.ts"
 
 const TodosHandlers = HttpApiBuilder.group(
@@ -153,7 +153,7 @@ export const ApiLayer = Layer.mergeAll(
 // @filename: apps/server/src/Sql.ts
 import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-bun"
 import { Config, Effect, FileSystem, Layer, Path } from "effect"
-import { Migrator, SqlClient } from "effect/unstable/sql"
+import { Migrator, SqlClient } from "effect/sql"
 
 const migrations = Migrator.fromRecord({
   "0001_create_todos": Effect.gen(function* () {
@@ -187,7 +187,7 @@ export const SqlLayer = MigratorLayer.pipe(Layer.provideMerge(ClientLayer))
 // apps/server/src/main.ts
 import { BunHttpServer, BunRuntime } from "@effect/platform-bun"
 import { Config, Layer } from "effect"
-import { HttpRouter } from "effect/unstable/http"
+import { HttpRouter } from "effect/http"
 import { ApiLayer } from "./Http.ts"
 import { SqlLayer } from "./Sql.ts"
 
@@ -195,15 +195,10 @@ const ServerLayer = BunHttpServer.layerConfig({
   port: Config.Int("PORT").pipe(Config.withDefault(3000)),
 })
 
-HttpRouter.serve(ApiLayer).pipe(
-  Layer.provide(SqlLayer),
-  Layer.provide(ServerLayer),
-  Layer.launch,
-  BunRuntime.runMain,
-)
+HttpRouter.serve(ApiLayer).pipe(Layer.provide(SqlLayer), Layer.provide(ServerLayer), Layer.launch, BunRuntime.runMain)
 ```
 
-Line by line:
+Biome puts the whole pipe on one line because it fits in 120 columns. Line by line:
 
 - `BunHttpServer.layerConfig` is the HTTP server that Bun provides, with its
   port read from the `PORT` environment variable, or `3000` if that is not set.
@@ -307,17 +302,27 @@ curl -si -X POST localhost:3000/api/todos \
 
 ```
 HTTP/1.1 400 Bad Request
+Date: Thu, 01 Oct 2026 05:01:47 GMT
 Content-Length: 0
 ```
 
 The handler never ran. Look at the first terminal, where the server logged why:
 
 ```
-INFO (#11) http.span=4ms: HttpApiSchemaError: Payload {
+[12:01:47.577] INFO (#15) http.span=1ms: HttpApiSchemaError: Payload {
   [cause]: SchemaError: Expected a value with a length of at least 1
     at ["title"]
+} {
+  "http.method": "POST",
+  "http.url": "/api/todos",
+  "http.status": 400,
 }
 ```
+
+The block after the message is the request: method, url and the status that went
+out. Every request logs one of these, including the successful ones. The two
+`curl` calls that created todos are in that terminal too, as `Sent HTTP response`
+lines with status 201.
 
 Finally, open [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
 in a browser. That page was generated from the description in `domain`. You

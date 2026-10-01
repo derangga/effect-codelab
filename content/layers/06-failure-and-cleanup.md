@@ -29,6 +29,10 @@ ConfigError: SchemaError(Expected string
   at ["DATABASE_URL"])
 ```
 
+Bun then prints the error object, about 60 more lines of nested `cause` and
+`issue` fields. The two lines above are the message. The rest is the same
+information as a tree.
+
 Nothing started. That is a defensible choice for a database, and a bad one for
 anything optional, so it should be a choice rather than the shape you happened
 to end up with.
@@ -127,8 +131,111 @@ so the build fails if it is wrong. `never` in the second slot is the point: the
 failure is handled inside the layer, so nothing above it has to think about
 database urls.
 
-Wire `layerOrMemory` in instead of `layer`, delete `DATABASE_URL` again, and the
-app runs:
+Wire `layerOrMemory` in, delete `DATABASE_URL` again, and the part of the app
+that needs only a database runs. Here is `ArticleRepo` on its own, in place of
+the feed program in `src/main.ts`:
+
+```ts twoslash
+// @filename: src/config.ts
+import { Config, Context, Effect, Layer } from 'effect'
+export class AppConfig extends Context.Service<AppConfig>()('AppConfig', {
+  make: Effect.gen(function* () {
+    const databaseUrl = yield* Config.String('DATABASE_URL')
+    const feedSize = yield* Config.Int('FEED_SIZE').pipe(Config.withDefault(20))
+    return { databaseUrl, feedSize }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+  static readonly layerTest = Layer.succeed(this, {
+    databaseUrl: 'memory://feed',
+    feedSize: 3,
+  })
+}
+// @filename: src/database.ts
+import { Context, Effect, Layer } from 'effect'
+import { AppConfig } from './config'
+export interface Row {
+  readonly id: string
+  readonly title: string
+}
+export class Database extends Context.Service<Database>()('Database', {
+  make: Effect.gen(function* () {
+    const config = yield* AppConfig
+    const connection = yield* Effect.acquireRelease(
+      Effect.gen(function* () {
+        yield* Effect.log(`opening ${config.databaseUrl}`)
+        return { url: config.databaseUrl }
+      }),
+      () => Effect.log('closing the connection'),
+    )
+    const query = Effect.fn('Database.query')(function* (sql: string) {
+      yield* Effect.log(`${connection.url}: ${sql}`)
+      return [] as ReadonlyArray<Row>
+    })
+    return { query }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(AppConfig.layer),
+  )
+
+  static readonly layerMemory = Layer.succeed(this, {
+    query: (sql: string) => Effect.succeed([{ id: 'row-1', title: sql }]),
+  })
+
+  static readonly layerOrMemory: Layer.Layer<Database> = this.layer.pipe(
+    Layer.catchTag('ConfigError', () => this.layerMemory),
+  )
+}
+// @filename: src/repos.ts
+import { Context, Effect, Layer } from 'effect'
+import { Database } from './database'
+export class UserRepo extends Context.Service<UserRepo>()('UserRepo', {
+  make: Effect.gen(function* () {
+    const database = yield* Database
+    const findById = Effect.fn('UserRepo.findById')(function* (id: string) {
+      return yield* database.query(`select * from users where id = '${id}'`)
+    })
+    return { findById }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}
+export class ArticleRepo extends Context.Service<ArticleRepo>()('ArticleRepo', {
+  make: Effect.gen(function* () {
+    const database = yield* Database
+    const listByAuthor = Effect.fn('ArticleRepo.listByAuthor')(function* (
+      id: string,
+    ) {
+      return yield* database.query(
+        `select * from articles where author = '${id}'`,
+      )
+    })
+    return { listByAuthor }
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}
+// @filename: src/main.ts
+// ---cut---
+// src/main.ts, replacing the feed program for this run
+import { Effect, Layer } from 'effect'
+import { Database } from './database'
+import { ArticleRepo } from './repos'
+
+const program = Effect.gen(function* () {
+  const articles = yield* ArticleRepo
+  return yield* articles.listByAuthor('u1')
+})
+
+Effect.runPromise(
+  program.pipe(
+    Effect.provide(
+      ArticleRepo.layer.pipe(Layer.provide(Database.layerOrMemory)),
+    ),
+  ),
+).then(console.log)
+```
 
 ```
 [
@@ -139,11 +246,24 @@ app runs:
 ]
 ```
 
-No connection opened, no startup failure, and a real feed came back. That is the
-shape worth copying for anything optional. A tracing exporter, mail in local
-development, a cache that can be skipped. The fallback is a real implementation
-of the same service that does less, which means no caller learns that the real
-one is missing.
+No connection opened and no startup failure. The title is the query text,
+because `layerMemory` echoes the sql back as a row.
+
+The feed does not get that far. Put `Database.layerOrMemory` in place of
+`Database.layer` in `FeedService.layer`, run the feed program from chapter
+five, and it ends with the same `ConfigError` as before.
+`FeedService.layer` also provides `AppConfig.layer` for `feedSize`, and that
+layer reads `DATABASE_URL` too. Nothing catches that failure. A fallback covers
+the layer it is attached to, and every other layer in the graph that reads the
+variable still fails. To run the feed without the variable, give
+`FeedService` a config that does not read it, for example `AppConfig.layerTest`
+in place of `AppConfig.layer` in the `Layer.provide` array in `src/feed.ts`.
+
+That is the shape worth copying for anything optional. A tracing exporter, mail
+in local development, a cache that can be skipped. The fallback is a real
+implementation of the same service that does less, which means no caller learns
+that the real one is missing. Check that nothing else in the graph needs the
+thing you made optional.
 
 `Layer.catchCause` is the same idea with the full cause, so it also catches
 defects and interruption. Use it when you are writing the last line of defence
@@ -231,16 +351,64 @@ finishes. You have seen that line at the end of every run so far:
 
 It closes on every ending, which is the part that matters. The same line appears
 when the program fails, when it is interrupted, and when a later layer in the
-graph fails to build. That last one is the case people do not think about, so
-here it is with a cache layered over the database and a third layer that fails
-after both are up:
+graph fails to build. That last one is the case people do not think about. The
+feed app has no layer that fails after the database is up, so this one is a
+separate experiment, a file of its own. `Cache` is built over a `Database`,
+and `Broken` is built over the cache and fails once both are open:
+
+```ts twoslash
+// experiment.ts
+import { Context, Effect, Layer } from 'effect'
+
+const noted = (name: string) =>
+  Effect.acquireRelease(
+    Effect.log(`acquire ${name}`).pipe(Effect.as({})),
+    () => Effect.log(`release ${name}`),
+  )
+
+class Database extends Context.Service<Database>()('Database', {
+  make: noted('Database'),
+}) {
+  static readonly layer = Layer.effect(this, this.make)
+}
+
+class Cache extends Context.Service<Cache>()('Cache', {
+  make: Effect.gen(function* () {
+    yield* Database
+    return yield* noted('Cache')
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(Database.layer),
+  )
+}
+
+class Broken extends Context.Service<Broken>()('Broken', {
+  make: Effect.gen(function* () {
+    yield* Cache
+    yield* Effect.log('about to fail')
+    return yield* Effect.fail('boom')
+  }),
+}) {
+  static readonly layer = Layer.effect(this, this.make).pipe(
+    Layer.provide(Cache.layer),
+  )
+}
+
+Effect.runPromiseExit(Effect.void.pipe(Effect.provide(Broken.layer))).then(
+  (exit) => console.log(exit._tag),
+)
+```
+
+`bun run experiment.ts`:
 
 ```
-[11:16:12.481] INFO (#2): acquire Database
-[11:16:12.483] INFO (#2): acquire Cache
-[11:16:12.484] INFO (#3): about to fail
-[11:16:12.485] INFO (#5): release Cache
-[11:16:12.485] INFO (#5): release Database
+[11:40:02.517] INFO (#1): acquire Database
+[11:40:02.520] INFO (#1): acquire Cache
+[11:40:02.520] INFO (#1): about to fail
+[11:40:02.520] INFO (#1): release Cache
+[11:40:02.520] INFO (#1): release Database
+Failure
 ```
 
 Nothing was left open. Releases run in reverse order of acquisition, so the cache
