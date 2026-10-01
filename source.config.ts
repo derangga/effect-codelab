@@ -32,6 +32,84 @@ function escapeMermaidLabels(source: string) {
   );
 }
 
+// A .md chapter cannot hold JSX: the compiler leaves <Tabs> as plain text.
+// Nodes a plugin creates are fine, which is how the mermaid fence works, so
+// tabs are written as a run of "#### Tab: Name" sections instead. Each section
+// runs until the next heading of depth 4 or less, and a heading that is not a
+// "Tab:" one closes the group. Running before Fumadocs' own plugins keeps the
+// "Tab:" headings out of the table of contents.
+const textOf = (node: any): string =>
+  node.value ?? (node.children ?? []).map(textOf).join("");
+
+const tabLabel = (node: any): string | undefined =>
+  node.type === "heading" && node.depth === 4
+    ? /^Tab: (.+)$/.exec(textOf(node))?.[1]
+    : undefined;
+
+const jsxAttr = (name: string, value: any) => ({
+  type: "mdxJsxAttribute",
+  name,
+  value,
+});
+
+const jsxElement = (name: string, attributes: any[], children: any[]) => ({
+  type: "mdxJsxFlowElement",
+  name,
+  attributes,
+  children,
+});
+
+function remarkTabs() {
+  return (tree: any) => {
+    const nodes: any[] = tree.children;
+    const out: any[] = [];
+    for (let i = 0; i < nodes.length; ) {
+      if (tabLabel(nodes[i]) === undefined) {
+        out.push(nodes[i++]);
+        continue;
+      }
+      const tabs: Array<{ label: string; children: any[] }> = [];
+      while (i < nodes.length) {
+        const label = tabLabel(nodes[i]);
+        if (label !== undefined) tabs.push({ label, children: [] });
+        else if (nodes[i].type === "heading" && nodes[i].depth <= 4) break;
+        else tabs[tabs.length - 1].children.push(nodes[i]);
+        i++;
+      }
+      const labels = tabs.map((tab) => tab.label);
+      const items = {
+        type: "mdxJsxAttributeValueExpression",
+        value: JSON.stringify(labels),
+        data: {
+          estree: {
+            type: "Program",
+            sourceType: "module",
+            body: [
+              {
+                type: "ExpressionStatement",
+                expression: {
+                  type: "ArrayExpression",
+                  elements: labels.map((value) => ({ type: "Literal", value })),
+                },
+              },
+            ],
+          },
+        },
+      };
+      out.push(
+        jsxElement(
+          "Tabs",
+          [jsxAttr("items", items)],
+          tabs.map((tab) =>
+            jsxElement("Tab", [jsxAttr("value", tab.label)], tab.children),
+          ),
+        ),
+      );
+    }
+    tree.children = out;
+  };
+}
+
 // rehypeCode is always the first rehype plugin, so a mermaid fence would be
 // syntax highlighted before any rehype pass of ours could claim it. Taking it
 // at the remark stage gets there first.
@@ -79,7 +157,7 @@ function rehypeMarkTwoslashPopups() {
 
 export default defineConfig({
   mdxOptions: {
-    remarkPlugins: (v) => [...v, remarkMermaid],
+    remarkPlugins: (v) => [remarkTabs, ...v, remarkMermaid],
     rehypePlugins: (v) => [...v, rehypeMarkTwoslashPopups],
     rehypeCodeOptions: {
       // Catppuccin, matching the site's Latte/Macchiato UI theme.

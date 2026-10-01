@@ -1,6 +1,6 @@
 ---
 title: Fullstack Monorepo
-order: 2
+order: 3
 theme: applications
 level: intermediate
 icon: Server

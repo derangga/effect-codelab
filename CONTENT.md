@@ -221,6 +221,34 @@ Mermaid is around half a megabyte and loads only on chapters that contain a
 diagram, so do not add one out of habit. Add one when a picture explains
 something that a paragraph does not.
 
+## Tabs
+
+Chapters are plain `.md`, and the compiler leaves JSX in a `.md` file as text,
+so `<Tabs>` cannot be written by hand. A remark plugin in `source.config.ts`
+builds the tabs from headings instead. Write a run of `#### Tab: Name` sections:
+
+```
+#### Tab: Docker
+
+Prose and code for the Docker path.
+
+#### Tab: Nix
+
+Prose and code for the Nix path.
+
+### The next section
+```
+
+Each tab runs until the next heading of depth 4 or less, so the group needs a
+heading after it, and that heading closes the tabs. A heading inside a tab has
+to be depth 5 or deeper. The `Tab:` headings do not reach the table of contents.
+In the raw markdown, which is what `llms.txt` serves, they read as ordinary
+headings.
+
+Use tabs where two readers need different instructions for the same step, not
+to shorten a page. Only the active tab is in the prerendered HTML, so the first
+one is what a reader without JavaScript sees.
+
 ## Shape of a chapter
 
 Judgement calls, all of it, except the last paragraph.
