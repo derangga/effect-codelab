@@ -3,7 +3,9 @@
 Effect Atom is a reactive state management library that integrates with Effect. It provides atoms (reactive containers), automatic dependency tracking, and seamless React integration.
 
 > **Effect v4.** The React package is **`@effect/atom-react`**. `Atom` and `AsyncResult`
-> are imported from **`effect/unstable/reactivity`**.
+> are imported from **`effect/reactivity`** (the `effect/unstable/reactivity` path from the
+> release candidates is gone). The module is still marked `@stability unstable`, so pin your
+> Effect version.
 
 ## Core Concepts
 
@@ -16,7 +18,7 @@ Effect Atom is a reactive state management library that integrates with Effect. 
 
 ```typescript
 // Core atom and result modules, from effect
-import { Atom, AsyncResult } from "effect/unstable/reactivity"
+import { Atom, AsyncResult } from "effect/reactivity"
 
 // React bindings, from the framework package
 import { useAtom, useAtomMount, useAtomSet, useAtomValue } from "@effect/atom-react"
@@ -29,7 +31,7 @@ Sibling packages `@effect/atom-solid` and `@effect/atom-vue` follow the same spl
 ### Basic Atoms
 
 ```typescript
-import { Atom } from "effect/unstable/reactivity"
+import { Atom } from "effect/reactivity"
 
 // Simple value atom
 const countAtom = Atom.make(0)
@@ -95,7 +97,7 @@ const resolvedThemeAtom = Atom.transform(themeAtom, (get) => {
 Use `Atom.family` for per entity state:
 
 ```typescript
-import { Atom } from "effect/unstable/reactivity"
+import { Atom } from "effect/reactivity"
 
 // Create a family of atoms, one per channelId
 const replyToMessageAtomFamily = Atom.family((channelId: string) =>
@@ -270,13 +272,14 @@ function PaywallPage() {
 Mutations can specify `reactivityKeys` to automatically invalidate queries that share the same keys, with no manual `refresh()` calls needed.
 
 `reactivityKeys` lives on `AtomRuntime.fn`, so both atoms hang off a runtime built from the
-layer that provides your services plus `Reactivity.layer`:
+layer that provides your services. `Atom.runtime` already provides `Reactivity` itself, so you
+do not merge `Reactivity.layer` in:
 
 ```typescript
-import { Effect, Layer } from "effect"
-import { Atom, Reactivity } from "effect/unstable/reactivity"
+import { Effect } from "effect"
+import { Atom, Reactivity } from "effect/reactivity"
 
-const runtime = Atom.runtime(Layer.mergeAll(PaywallService.layer, Reactivity.layer))
+const runtime = Atom.runtime(PaywallService.layer)
 
 // Query atom. Reactivity.stream re runs the effect when the keys are invalidated
 const paywallsAtom = runtime.atom(
@@ -304,6 +307,8 @@ const archivePaywallMutation = runtime.fn(
 - Both the mutation and query must share at least one matching key
 - After the mutation succeeds, all atoms with matching keys re execute
 - This pattern takes the place of manual calls such as `refreshPaywalls()` after mutations
+- For an existing query atom, `runtime.atom(effect).pipe(Atom.withReactivity(["paywalls"]))`
+  refreshes it on the same keys without switching to `Reactivity.stream`
 - `Atom.make` has no `reactivityKeys` option. Its options are `{ initialValue, uninterruptible }`,
   and it takes an `Effect` or a `Stream`, never a function that returns one
 
@@ -312,7 +317,7 @@ const archivePaywallMutation = runtime.fn(
 ### Effectful Atoms Return AsyncResult
 
 ```typescript
-import { Atom, AsyncResult } from "effect/unstable/reactivity"
+import { Atom, AsyncResult } from "effect/reactivity"
 import { Effect } from "effect"
 
 const userAtom = Atom.make(
@@ -331,7 +336,7 @@ orthogonal to all three. A `Success` can have `waiting: true` while it refreshes
 Use `AsyncResult.match` for the three states:
 
 ```tsx
-import { AsyncResult } from "effect/unstable/reactivity"
+import { AsyncResult } from "effect/reactivity"
 import { useAtomValue } from "@effect/atom-react"
 
 function UserProfile() {
@@ -463,7 +468,7 @@ means the registry's own `set` and `update`:
 ```typescript
 import * as React from "react"
 import { RegistryContext } from "@effect/atom-react"
-import { Atom } from "effect/unstable/reactivity"
+import { Atom } from "effect/reactivity"
 
 const useOpenModal = () => {
     const registry = React.useContext(RegistryContext)
@@ -491,7 +496,7 @@ return `void`.
 
 ```typescript
 import { BrowserKeyValueStore } from "@effect/platform-browser"
-import { Atom } from "effect/unstable/reactivity"
+import { Atom } from "effect/reactivity"
 import { Schema } from "effect"
 
 // Create runtime with localStorage

@@ -38,7 +38,9 @@ A `Fiber` is a handle, not an `Effect`. Join it with `Fiber.join` to get its res
 | `Effect.forkIn` | A specific `Scope` | Fiber tied to a scope you choose |
 
 To run many background tasks, fork individually with `forkChild`, or use `Effect.all` or
-`Effect.forEach` with a `concurrency` option. For error handling on a forked fiber, observe it
+`Effect.forEach` with a `concurrency` option. For a dynamic set of fibers owned by a scope, use
+`FiberSet`, `FiberMap`, or `FiberHandle`. `FiberSet.run(set, effect)` forks into the set and starts
+immediately unless you pass `startImmediately: false`. For error handling on a forked fiber, observe it
 with `Fiber.join` or `Fiber.await`.
 
 ```typescript
@@ -158,33 +160,32 @@ const program = Effect.gen(function* () {
     // Cause.Done in the error type is what makes Queue.end available later
     const queue = yield* Queue.bounded<Job, Cause.Done>(100)
 
-    // Producer fiber
+    // Producer fiber, ends the queue once every job is offered
     const producer = yield* Effect.forkChild(
         Effect.forEach(
             jobs,
             (job) => Queue.offer(queue, job),
             { discard: true },
-        ),
+        ).pipe(Effect.andThen(Queue.end(queue))),
     )
 
-    // Consumer fiber
+    // Consumer fiber, Queue.take fails with Done once the queue is drained
     const consumer = yield* Effect.forkChild(
         Effect.forever(
             Effect.gen(function* () {
                 const job = yield* Queue.take(queue)
                 yield* processJob(job)
             }),
-        ),
+        ).pipe(Effect.catchIf(Cause.isDone, () => Effect.void)),
     )
 
-    // Wait for producer to finish
     yield* Fiber.join(producer)
-
-    // Signal consumer to stop
-    yield* Queue.shutdown(queue)
     yield* Fiber.join(consumer)
 })
 ```
+
+Use `Queue.end`, not `Queue.shutdown`, to stop a consumer. `shutdown` discards buffered messages and
+interrupts waiting fibers, so joining a consumer after it interrupts the joiner too.
 
 ### Queue Operations
 
@@ -198,8 +199,11 @@ yield* Queue.offerAll(queue, items)
 // Take item (suspends if empty)
 const item = yield* Queue.take(queue)
 
-// Take all available items (non-blocking)
+// Take everything buffered. Waits for at least one item when empty, returns a non-empty array
 const items = yield* Queue.takeAll(queue)
+
+// Take between min and max items, waiting until min are available
+const batch = yield* Queue.takeBetween(queue, 1, 10)
 
 // Take one without blocking, returns Option
 const maybe = yield* Queue.poll(queue)
@@ -246,6 +250,10 @@ const program = Effect.gen(function* () {
 `PubSub.subscribe` returns a `Subscription`, not a `Queue`. Read it with `PubSub.take` or
 `PubSub.takeAll`. The subscription is scoped, so the program needs a `Scope`.
 
+To tell every subscriber that no more messages will follow, call `PubSub.end(pubsub, finalMessage)`.
+Subscribers read their buffered messages first, then the final message, which stays sticky on
+later takes. Later publishes return `false`. Use `PubSub.shutdown` to interrupt subscribers instead.
+
 ### PubSub Variants
 
 | Variant | Behavior When Full |
@@ -285,11 +293,19 @@ const program = Effect.gen(function* () {
 // Heavy operation requires 2 permits
 const heavyQuery = semaphore.withPermits(2)(expensiveOperation)
 
-// Non-blocking variant, skips when no permit is free
+// Non-blocking variant, skips when no permit is free. Returns Option<A>
 const opportunistic = semaphore.withPermitsIfAvailable(1)(optionalWork)
 ```
 
-For per-key limiting (for example one permit per tenant), use `PartitionedSemaphore`.
+For per-key limiting (for example one permit per tenant), use `PartitionedSemaphore`. The permits
+are shared, and released permits go to waiting keys in round-robin order:
+
+```typescript
+import { PartitionedSemaphore } from "effect"
+
+const limiter = yield* PartitionedSemaphore.make<string>({ permits: 4 })
+yield* limiter.withPermit(tenantId)(handleRequest)
+```
 
 ## Deferred & Latch
 
@@ -564,7 +580,7 @@ const repeatWhileInput = Effect.repeat(
 const repeatWhileOutput = Effect.repeat(
     checkStatus,
     Schedule.exponential(Duration.seconds(1)).pipe(
-        Schedule.while((meta) => meta.output < Duration.seconds(30)),
+        Schedule.while((meta) => Duration.isLessThan(meta.output, Duration.seconds(30))),
         Schedule.upTo({ times: 10 }),
     ),
 )
@@ -578,6 +594,7 @@ const repeatWhileOutput = Effect.repeat(
 | `Schedule.fixed(d)` | Run at fixed intervals (accounts for execution time) |
 | `Schedule.exponential(d)` | Double the delay each time: `d`, `2d`, `4d`, `8d`... |
 | `Schedule.recurs(n)` | Repeat at most `n` times |
+| `Schedule.once` | Recur once, so the effect runs twice in total |
 | `Schedule.min([a, b])` | Fastest-delay composition, one array argument |
 | `Schedule.max([a, b])` | Slowest-delay composition, one array argument |
 | `Schedule.while(f)` | Continue while predicate over `meta.input` and `meta.output` holds |
@@ -599,7 +616,7 @@ const repeatWhileOutput = Effect.repeat(
 | `Queue.dropping` | `Queue` | `Queue.dropping<A>(n)` | Drop newest when full |
 | `PubSub.bounded` | `PubSub` | `PubSub.bounded<A>(n)` | Broadcast with backpressure |
 | `Semaphore.make` | `Semaphore` | `Semaphore.make(n)` | Limit concurrent access |
-| `PartitionedSemaphore` | `PartitionedSemaphore` | n/a | Per-key concurrency limiting |
+| `PartitionedSemaphore.make` | `PartitionedSemaphore` | `PartitionedSemaphore.make<K>({ permits })` | Per-key concurrency limiting |
 | `Deferred.make` | `Deferred` | `Deferred.make<A>()` | One-time signal |
 | `Latch.make` | `Latch` | `Latch.make()` | Open/close gate |
 | `Ref.make` | `Ref` | `Ref.make(initial)` | Atomic shared state |

@@ -1,6 +1,6 @@
 # Schema Patterns
 
-> **Effect v4 (4.0.0-rc.113).** Schema defines codecs with Type and Encoded forms. Refinements are checks applied with `.check(...)`. Transformations are defined with `decodeTo` and `SchemaTransformation` or `SchemaGetter`. Failures are expressed with `SchemaIssue` and reported as `Schema.SchemaError`. `Schema.brand`, `Schema.Struct`, `Schema.Class`, and `Schema.TaggedError` define nominal types, structs, classes, and errors.
+> **Effect v4 (4.0.0).** Schema defines codecs with Type and Encoded forms. Refinements are checks applied with `.check(...)`. Transformations are defined with `decodeTo` and `SchemaTransformation` or `SchemaGetter`. Failures are expressed with `SchemaIssue` and reported as `Schema.SchemaError`. `Schema.brand`, `Schema.Struct`, `Schema.Class`, and `Schema.TaggedError` define nominal types, structs, classes, and errors.
 
 ## Branded Types for IDs
 
@@ -28,6 +28,11 @@ export type ProductId = Schema.Schema.Type<typeof ProductId>
 `Schema.String.check(Schema.isUUID())` validates UUID strings. `Schema.isUUID(version?)`
 accepts an optional UUID version pin. `Schema.String.check(Schema.isULID())` validates ULID
 strings the same way.
+
+`Schema.brand` takes one concrete string identifier and only narrows the TypeScript type. It
+adds no runtime check and stores nothing in the AST, so a schema rebuilt from a
+`SchemaRepresentation` loses the brand. Reapply `Schema.brand` after rebuilding. To stack two
+brands, apply `Schema.brand` twice. Put the runtime validation in `.check(...)` before it.
 
 ### Branding Convention
 
@@ -73,8 +78,11 @@ Apply refinements as checks with `.check(...)`, which accepts several checks at 
 | --- | --- |
 | `Schema.isPattern(re)` | String matches `re` |
 | `Schema.isMinLength(n)`, `Schema.isMaxLength(n)` | String length bounds |
-| `Schema.isLengthBetween(min, max)` | String or collection size range, exact length with equal bounds |
-| `Schema.isNonEmpty()` | Non empty string or collection |
+| `Schema.isBetweenLength(min, max)` | String or array length range, exact length with equal bounds |
+| `Schema.isMinCodePoints(n)`, `Schema.isMaxCodePoints(n)`, `Schema.isBetweenCodePoints(min, max)` | String length counted in Unicode code points |
+| `Schema.isMinSize(n)`, `Schema.isMaxSize(n)`, `Schema.isBetweenSize(min, max)` | `Map` and `Set` size (anything with `size`) |
+| `Schema.isStartingWith(s)`, `Schema.isEndingWith(s)`, `Schema.isIncluding(s)` | String affix and substring |
+| `Schema.isNonEmpty()` | Non empty string or array |
 | `Schema.isInt()` | Integer numbers |
 | `Schema.isGreaterThan(n)` | Numbers above `n`, positive numbers with `Schema.isGreaterThan(0)` |
 | `Schema.isBetween({ minimum, maximum })` | Numbers within inclusive bounds |
@@ -209,7 +217,7 @@ For JSON strings, define:
 export const AppSettingsFromJson = Schema.fromJsonString(AppSettings)
 
 // Untyped JSON string
-export const AnyJson = Schema.UnknownFromJsonString
+export const AnyJson = Schema.fromJsonString(Schema.Unknown)
 ```
 
 ## Schema.Class for Entities with Methods
@@ -268,7 +276,7 @@ export const CreateOrderInput = Schema.Struct({
         line1: Schema.String.annotate({ description: "Street address" }),
         line2: Schema.optional(Schema.String),
         city: Schema.String,
-        state: Schema.String.check(Schema.isLengthBetween(2, 2)),
+        state: Schema.String.check(Schema.isBetweenLength(2, 2)),
         zip: Schema.String.check(Schema.isPattern(/^\d{5}(-\d{4})?$/)),
     }).annotate({ description: "Shipping destination" }),
 }).annotate({

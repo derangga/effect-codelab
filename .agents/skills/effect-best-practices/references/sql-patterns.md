@@ -1,11 +1,12 @@
 # SQL Patterns
 
 > Effect v4. SQL clients live in provider packages, and the shared interfaces live in
-> `effect/unstable/sql`. The provider packages are `@effect/sql-clickhouse`, `@effect/sql-d1`,
+> `effect/sql` (marked `@stability unstable` in the source). The provider packages are
+> `@effect/sql-clickhouse`, `@effect/sql-d1`,
 > `@effect/sql-libsql`, `@effect/sql-mssql`, `@effect/sql-mysql2`, `@effect/sql-pg`,
 > `@effect/sql-pglite`, `@effect/sql-sqlite-bun`, `@effect/sql-sqlite-do`,
 > `@effect/sql-sqlite-node`, `@effect/sql-sqlite-react-native`, and `@effect/sql-sqlite-wasm`.
-> The core module `effect/unstable/sql` exports `Migrator`, `SqlClient`, `SqlConnection`,
+> The core module `effect/sql` exports `Migrator`, `SqlClient`, `SqlConnection`,
 > `SqlError`, `SqlModel`, `SqlResolver`, `SqlSchema`, `SqlStream`, and `Statement`.
 
 ## Provider Packages and the Core Interface
@@ -22,7 +23,7 @@ import { PgClient } from "@effect/sql-pg"
 ```
 
 Provider layers provide two context keys at once: the concrete tag such as `PgClient.PgClient`,
-and the generic `SqlClient.SqlClient` tag from `effect/unstable/sql`. Repos can depend on
+and the generic `SqlClient.SqlClient` tag from `effect/sql`. Repos can depend on
 either key, depending on whether they want to be provider specific or portable.
 
 ## Client Basics
@@ -111,7 +112,7 @@ Ordinary interpolation always binds. Build dynamic clauses from fragments, ident
 and the array helpers:
 
 ```typescript
-import { Statement } from "effect/unstable/sql"
+import { Statement } from "effect/sql"
 
 const findActive = (statuses: ReadonlyArray<string>) =>
     sql`SELECT * FROM ${sql("users")}
@@ -143,7 +144,7 @@ explicit connection threading is needed:
 
 ```typescript
 import { Effect } from "effect"
-import { SqlClient } from "effect/unstable/sql"
+import { SqlClient } from "effect/sql"
 
 const transfer = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
@@ -164,10 +165,19 @@ Semantics, verified in `SqlClient.makeWithTransaction`:
    interruption.
 2. Nested calls inside a running transaction create a savepoint pair instead. A nested
    failure rolls back to its savepoint only, and the outer effect decides the outcome.
+   Providers that set `releaseSavepoint` (Postgres does) also release the savepoint after a
+   nested success or a successful rollback, so repeated nested calls do not pile up
+   savepoints. MSSQL cannot release savepoints, so its clients leave them in place.
 3. The wrapped effect runs under an uninterruptible region, and concurrent nested
    transactions serialize through a per transaction semaphore.
-4. The error channel gains `SqlError` for begin, commit, and rollback failures, and keeps
-   the wrapped effect's own errors unchanged.
+4. The error channel gains `SqlError` for connection acquisition and `BEGIN` or `SAVEPOINT`
+   failures, and keeps the wrapped effect's own errors unchanged. `COMMIT`, `ROLLBACK`, and
+   savepoint cleanup failures are defects (`Effect.orDie`), not typed errors.
+5. A failed `COMMIT` is never reported as success. `PgClient` fails it when Postgres answers
+   `COMMIT` with `ROLLBACK` for an aborted transaction, and the SQLite clients roll back the
+   open transaction before the connection is reused. Custom clients built with
+   `SqlClient.make` can pass `commit` as an effect, plus `onCommitFailure` and
+   `releaseSavepoint`.
 
 Because nested calls are savepoints, an effect composed of smaller transactional
 functions still produces one physical transaction.
@@ -179,7 +189,7 @@ encoded before execution, rows are decoded after:
 
 ```typescript
 import { Schema } from "effect"
-import { SqlClient, SqlSchema } from "effect/unstable/sql"
+import { SqlClient, SqlSchema } from "effect/sql"
 
 class User extends Schema.Class<User>("User")({
     id: Schema.Number,
@@ -227,7 +237,7 @@ equality, batched into one SQL call, and each request completes with its own exi
 
 ```typescript
 import { Effect, Schema } from "effect"
-import { SqlClient, SqlResolver } from "effect/unstable/sql"
+import { SqlClient, SqlResolver } from "effect/sql"
 
 class User extends Schema.Class<User>("User")({
     id: Schema.Number,
@@ -247,7 +257,7 @@ const makeUserByIdResolver = Effect.gen(function* () {
 
 const program = Effect.gen(function* () {
     const resolveUser = yield* makeUserByIdResolver
-    // Five concurrent requests for overlapping ids become one SELECT
+    // Concurrent requests for overlapping ids become one SELECT
     const [alice, bob] = yield* Effect.all([
         SqlResolver.request(1, resolveUser),
         SqlResolver.request(2, resolveUser),
@@ -284,7 +294,7 @@ the `FileSystem` and `Path` services:
 
 ```typescript
 import { Effect } from "effect"
-import { Migrator } from "effect/unstable/sql"
+import { Migrator } from "effect/sql"
 import { PgMigrator } from "@effect/sql-pg"
 
 const runMigrations = PgMigrator.run({
@@ -328,12 +338,13 @@ Useful facts, verified in `Migrator.ts` and `PgMigrator.ts`:
 `LockTimeoutError`, `StatementTimeoutError`, `UnknownError`.
 
 The reason carries `message`, optional `cause` and `operation`, and an `isRetryable`
-getter. Connection failures are retryable, everything else is not. `UniqueViolation` and
-`ConstraintError` additionally carry the violated `constraint` name:
+getter. `ConnectionError`, `DeadlockError`, `SerializationError`, `LockTimeoutError`, and
+`StatementTimeoutError` are retryable. The other reasons are not. `UniqueViolation`
+additionally carries the violated `constraint` name (`ConstraintError` does not):
 
 ```typescript
 import { Effect } from "effect"
-import { SqlClient, SqlError } from "effect/unstable/sql"
+import { SqlClient, SqlError } from "effect/sql"
 
 const saveUser = (user: NewUser) =>
     Effect.gen(function* () {
@@ -343,7 +354,7 @@ const saveUser = (user: NewUser) =>
 
 const register = (user: NewUser) =>
     saveUser(user).pipe(
-        Effect.catchTag("SqlError", (error) => {
+        Effect.catchTag("SqlError", (error): Effect.Effect<never, EmailTakenError | TransientDbError> => {
             switch (error.reason._tag) {
                 case "UniqueViolation":
                     return Effect.fail(new EmailTakenError({ constraint: error.reason.constraint }))
@@ -369,18 +380,18 @@ useful in `Effect.filterOrElse` or interop boundaries.
 materializing the full result set:
 
 ```typescript
-import { Effect, Sink, Stream } from "effect"
+import { Effect, Stream } from "effect"
 
 const exportUsers = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
     yield* sql`SELECT * FROM ${sql("users")}`.stream.pipe(
-        Stream.run(Sink.forEach((user: UserRow) => Effect.logInfo(user.name))),
+        Stream.runForEach((user) => Effect.logInfo(user.name)),
     )
 })
 ```
 
 Provider packages drive this with the interop helper `SqlStream.asyncPauseResume` from
-`effect/unstable/sql`, which adapts callback style cursors and emitters into a Stream with
+`effect/sql`, which adapts callback style cursors and emitters into a Stream with
 backpressure. Application code consumes `.stream` and does not need the adapter.
 
 ## Layer Wiring
@@ -437,14 +448,17 @@ The pool knobs live on `PgPoolConfig`: `maxConnections`, `minConnections`,
 `idleTimeout`, and `connectionTTL`. Two flags worth knowing on `PgClientConfig`:
 `prepare: false` for poolers that cannot preserve named prepared statements, and
 `multiplex: true` to pipeline queries from multiple fibers onto pooled connections.
+`password` also accepts an `Effect<Redacted>` evaluated per connection attempt, which fits
+rotating tokens, and `startupParameters` sets session defaults in the startup packet.
 
 ## SqlModel: Generated CRUD Repositories
 
 `SqlModel.makeRepository` builds insert, update, `findById`, and delete operations for a
-`Model.Any` schema, with optional soft delete support:
+`Model.Any` schema. Pass `softDeleteColumn` to make reads skip soft deleted rows and
+`delete` set that column to `CURRENT_TIMESTAMP` instead of removing the row:
 
 ```typescript
-import { SqlModel } from "effect/unstable/sql"
+import { SqlModel } from "effect/sql"
 
 const UserRepo = SqlModel.makeRepository(UserModel, {
     tableName: "users",

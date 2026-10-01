@@ -263,8 +263,8 @@ const dbConfig = Config.all({
 })
 ```
 
-The check annotations carry the failure message, as in
-`Schema.isGreaterThan(0, { description: "Max connections must be positive" })`.
+A check takes an annotations argument, and its `message` is the failure message, as in
+`Schema.isGreaterThan(0, { message: "Max connections must be positive" })`.
 
 ### Redacted Config
 
@@ -313,6 +313,10 @@ const appConfig = Config.all({
 
 Use `Config.nested` to compose lookup path prefixes.
 
+Put `Config.withDefault` and `Config.option` on individual fields, as above. On a `Config.all`
+group, one absent field replaces the whole group with the default (or `None`), so the other
+fields that were set are thrown away. Validation and source errors still propagate either way.
+
 ## Log Level Configuration
 
 `LogLevel` values are plain string literals: `"Fatal"`, `"Error"`, `"Warn"`, `"Info"`,
@@ -345,11 +349,33 @@ const JsonLoggerLive = Logger.layer([Logger.consoleJson, Logger.tracerLogger])
 const PrettyLoggerLive = Logger.layer([Logger.consolePretty(), Logger.tracerLogger])
 ```
 
-Omit `tracerLogger` only when trace log events should stay disabled.
+Omit `tracerLogger` only when trace log events should stay disabled. `Logger.layer` replaces the
+current logger set, so pass `{ mergeWithExisting: true }` as the second argument to add loggers
+alongside the defaults instead.
 
 Other configurable context values live in `References` as well. `References.CurrentLogLevel`,
 `References.CurrentLogAnnotations`, and `References.TracerEnabled` are all set with
 `Effect.provideService` or a `Layer.succeed`.
+
+## Exporting Telemetry
+
+`effect/observability` ships OTLP exporters for logs, metrics, and traces. `Otlp.layerJson`
+installs all three from one config. It needs an `HttpClient`:
+
+```typescript
+import { Layer } from "effect"
+import { FetchHttpClient } from "effect/http"
+import { Otlp } from "effect/observability"
+
+const ObservabilityLive = Otlp.layerJson({
+    baseUrl: "http://localhost:4318",
+    resource: { serviceName: "checkout-api", serviceVersion: "1.0.0" },
+}).pipe(Layer.provide(FetchHttpClient.layer))
+```
+
+Provide it at the edge of the app so every span, log, and metric is exported. `Otlp.layerProtobuf`
+is the protobuf variant, and `OtlpTracer`, `OtlpLogger`, and `OtlpMetrics` each export one signal.
+The module is `@stability unstable`. For the OpenTelemetry SDK instead, use `@effect/opentelemetry`.
 
 ## Combining Observability
 

@@ -164,7 +164,7 @@ const program = Effect.gen(function* () {
 | `Stream.grouped(n)` | Fixed size batches |
 | `Stream.groupedWithin(n, d)` | Batches by size or time |
 | `Stream.mapAccum(() => s, f)` | Stateful transform, initial state is a thunk |
-| `Stream.scan(s, f)` | Running accumulation |
+| `Stream.scan(() => s, f)` | Running accumulation, initial state is a thunk |
 | `Stream.chunks` | Expose internal batches |
 | `Stream.rechunk(n)` | Rebalance batch sizes |
 
@@ -177,7 +177,10 @@ Notes:
 - `mapAccum` receives `initial` as a `LazyArg<S>`, so write `Stream.mapAccum(() => 0, f)`, not
   `Stream.mapAccum(0, f)`. `f` returns `readonly [state, values]`, where `values` is an array of
   emitted outputs. An optional `{ onHalt }` decides what to emit when the stream halts.
-  `Stream.scan(initial, f)` takes a plain value, not a thunk.
+  `Stream.scan(() => 0, f)` takes a thunk too, and so does `Sink.fold`.
+- `Stream.partition` returns `[passes, fails]`, takes a `Filter` rather than a predicate,
+  and its `capacity` option replaced `bufferSize`. `Stream.mapBoth` takes
+  `{ onElement, onError }`.
 - `Stream.chunks` returns a stream of `NonEmptyReadonlyArray<A>` batches. Use it
   when batch boundaries matter. Otherwise let combinators handle chunking
   transparently.
@@ -202,7 +205,7 @@ const program = Effect.gen(function* () {
 ```
 
 Other effectful combinators: `filterEffect`, `dropWhileEffect`, `takeWhileEffect`,
-`takeUntilEffect`, `mapAccumEffect`, `scanEffect`, `tap`, `tapEffect`. There is
+`takeUntilEffect`, `mapAccumEffect`, `scanEffect`, `tap` (runs an effect per element). There is
 no `Stream.toEffect`. Inside `Effect.gen`, consume streams with the run family:
 
 ```typescript
@@ -250,7 +253,7 @@ const program = Effect.gen(function* () {
 `merge` runs both streams and emits values as they arrive. When one side ends,
 the merged stream continues with the other. Use
 `options: { haltStrategy }` with `"left"`, `"right"`, `"both"`, or `"either"` to
-control how failures propagate.
+control when the merged stream halts.
 
 To process each element through a child stream with parallelism, use
 `flatMap` with the concurrency option:
@@ -262,7 +265,7 @@ const processed = Stream.fromIterable(paths).pipe(
 ```
 
 There is no separate concurrent flat map combinator. `flatMap` with
-`{ concurrency: number | "unbounded" }` and an optional `bufferSize` covers it.
+`{ concurrency: number | "unbounded" | "inherit" }` and an optional `bufferSize` covers it.
 `switchMap` is the variant that cancels the previous child stream when a new
 element arrives.
 
@@ -291,15 +294,16 @@ const unbounded = source.pipe(Stream.buffer({ capacity: "unbounded" }))
 | Combinator | Purpose |
 | ------------ | --------- |
 | `Stream.buffer({ capacity, strategy? })` | Decouple producer from consumer |
-| `Stream.broadcast(options)` | Fan out to independent streams, requires `Scope` |
-| `Stream.share(options)` | Multiple consumers share one source |
+| `Stream.broadcast(options)` | `Effect` yielding a stream many consumers can run, requires `Scope` |
+| `Stream.share(options)` | Same, and `idleTimeToLive` sets how long the source stays up with no consumers |
 | `Stream.debounce(d)` | Emit only after a quiet period |
 | `Stream.throttle({ cost, units, duration })` | Rate limit by cost |
 | `Stream.switchMap(f)` | Cancel the previous child on each element |
 
-`Stream.broadcast` returns an `Effect` producing several `Stream` values backed
-by one shared source. `Stream.share` does the same for many consumers with
-options for capacity, strategy, replay, and `idleTimeToLive`. See
+`Stream.broadcast` and `Stream.share` return an `Effect` (they need a `Scope`) that
+produces one `Stream` backed by a single shared source. Run that stream once per
+consumer. Both take `{ capacity, strategy?, replay? }`, and `share` adds
+`idleTimeToLive`. See
 [Queue] and [PubSub] in `concurrency-patterns.md` for the queue variants
 (`"dropping"`, `"sliding"`, `"suspend"`) these options reuse.
 
@@ -496,6 +500,8 @@ const program = Effect.gen(function* () {
 | `Stream.catchCause(f)` | Handle the full `Cause` |
 | `Stream.mapError(f)` | Transform the error |
 | `Stream.onError(cleanup)` | Run an effect on failure with the `Cause` |
+| `Stream.tapErrorTag(tag, f)` | Run an effect for one tagged error, keep the failure |
+| `Stream.tapDefect(f)` | Run an effect when the stream dies with a defect |
 | `Stream.onExit(f)` | Run an effect when the stream exits either way |
 | `Stream.orDie` | Remove the error channel by dying |
 
@@ -512,8 +518,9 @@ const program = Effect.gen(function* () {
 // WRONG: each run re-executes the pipeline, the counter restarts every time
 const stream = Stream.fromEffect(Ref.get(counter))
 
-// FIX: use share for many consumers over one source, or broadcast for fan out
-const shared = source.pipe(Stream.share({ capacity: 64 }))
+// FIX: use share for many consumers over one source, or broadcast for fan out.
+// Both return a scoped Effect that yields the shared stream
+const shared = yield* source.pipe(Stream.share({ capacity: 64 }))
 ```
 
 ### Collecting an infinite stream
@@ -582,6 +589,7 @@ Effect is not driving the loop.
 | `Stream.groupAdjacentBy(keyOf)` | `Stream` | Group consecutive equal keys |
 | `Stream.grouped(n)` | `Stream` | Fixed size batches |
 | `Stream.mapAccum(() => s, f)` | `Stream` | Stateful transform, thunked initial state |
+| `Stream.scan(() => s, f)` | `Stream` | Running accumulation, thunked initial state |
 | `Stream.chunks` / `rechunk(n)` | `Stream` | Work at batch level |
 | `Stream.merge(self, that, opts?)` | `Stream` | Interleave with haltStrategy |
 | `Stream.mergeAll(streams, opts)` | `Stream` | Merge many with concurrency |
@@ -589,8 +597,8 @@ Effect is not driving the loop.
 | `Stream.zipLatest(self, that)` | `Stream` | Latest of both sides |
 | `Stream.combine(self, that, s, f)` | `Stream` | Custom pull combination |
 | `Stream.buffer(opts)` | `Stream` | Bounded or unbounded buffer |
-| `Stream.broadcast(opts)` | `Stream` | Fan out, scoped |
-| `Stream.share(opts)` | `Stream` | Shared source, many consumers |
+| `Stream.broadcast(opts)` | `Stream` | Fan out, scoped `Effect` yielding a stream |
+| `Stream.share(opts)` | `Stream` | Shared source, many consumers, scoped |
 | `Stream.debounce(d)` | `Stream` | Emit after quiet period |
 | `Stream.throttle(opts)` | `Stream` | Cost based rate limit |
 | `Stream.switchMap(f)` | `Stream` | Cancel previous child |

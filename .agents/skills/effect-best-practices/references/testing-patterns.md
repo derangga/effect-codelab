@@ -1,7 +1,7 @@
 # Testing Patterns
 
 > Effect v4. Tests use `@effect/vitest`, with `it.effect` for Effect-returning tests and `assert`
-> rather than Vitest's `expect`.
+> rather than Vitest's `expect`. `@effect/vitest@4` has a peer dependency of `vitest@^5`.
 
 ## Test Runner Basics
 
@@ -342,7 +342,7 @@ implementations.
 | `crypto.randomUUID()` | `IdGenerator` service | none |
 | `Math.random()` | `RandomNumber` service | none |
 | `Date.now()` / `new Date()` | Use `Clock` directly | `Clock.currentTimeMillis` |
-| `fetch(url)` | `HttpClient` service | `effect/unstable/http` `HttpClient` |
+| `fetch(url)` | `HttpClient` service | `effect/http` `HttpClient` |
 
 ### Correct Pattern
 
@@ -352,7 +352,7 @@ import { Context, Effect, Layer } from "effect"
 // IdGenerator wraps crypto.randomUUID
 export class IdGenerator extends Context.Service<IdGenerator>()("IdGenerator", {
     make: Effect.sync(() => ({
-        generate: Effect.sync(() => crypto.randomUUID()),
+        generate: Effect.sync((): string => crypto.randomUUID()),
     })),
 }) {
     static readonly layer = Layer.effect(this, this.make)
@@ -457,57 +457,76 @@ vi.spyOn(crypto, "randomUUID").mockReturnValue("fixed-id" as any)
 
 ## Property-Based Testing with Schema Arbitraries
 
-Schema arbitraries are native in Effect v4 and live in `effect/unstable/arbitrary`. Derive an
-`Arbitrary` from any Schema with `Arbitrary.schema`, then run property checks with
-`checkEffect` inside `it.effect`:
+Schema arbitraries are native in Effect v4 and live in `effect/Arbitrary`. The simplest entry
+point is `it.effect.prop`. It takes Schemas or `Arbitrary` values (an array or a record), derives
+the generators, shrinks the first counterexample, and fails the test with a replayable message:
 
 ```typescript
 import { assert, it } from "@effect/vitest"
 import { Effect } from "effect"
-import { Arbitrary } from "effect/unstable/arbitrary"
 
-// Reuse your domain schemas, the Arbitrary follows every check and brand
+// Reuse your domain schemas, the generated values follow every check and brand
+it.effect.prop("created users keep their fields", [CreateUserInput], ([input]) =>
+    Effect.gen(function* () {
+        const users = yield* UserService
+        const created = yield* users.create(input)
+        return created.email === input.email && created.name === input.name
+    }).pipe(Effect.provide(UserService.layerTest))
+)
+
+// Record form, with run count passed through the options argument
+it.effect.prop(
+    "addition commutes",
+    { a: Schema.Int, b: Schema.Int },
+    ({ a, b }) => Effect.succeed(a + b === b + a),
+    { arbitrary: { runs: 500 } },
+)
+```
+
+Returning `false`, failing, or throwing (including a failed `assert`) falsifies the property.
+Interruption and the Vitest timeout stop the test rather than counting as a falsification.
+
+For a custom reporter, call the runner directly. `Arbitrary.checkEffect` returns a
+`CheckResult`, and `Arbitrary.formatCheckFailure` turns it into a message:
+
+```typescript
+import { Effect } from "effect"
+import * as Arbitrary from "effect/Arbitrary"
+
 const CreateUserInputArb = Arbitrary.schema(CreateUserInput)
 
-it.effect("created users always round-trip their fields", () =>
-    Arbitrary.checkEffect(CreateUserInputArb, (input) =>
-        Effect.gen(function* () {
-            const users = yield* UserService
-            const created = yield* users.create(input)
-            return created.email === input.email && created.name === input.name
-        }).pipe(Effect.provide(UserService.layerTest))
-    ).pipe(
-        Effect.tap((result) => {
-            const message = Arbitrary.formatCheckFailure(result)
-            if (message) {
-                // Fails the test with the shrunk counterexample
-                return Effect.fail(new Error(message))
-            }
-            return Effect.void
-        }),
-        Effect.asVoid,
-    )
+const check = Arbitrary.checkEffect(CreateUserInputArb, (input) =>
+    Effect.gen(function* () {
+        const users = yield* UserService
+        const created = yield* users.create(input)
+        return created.email === input.email
+    }).pipe(Effect.provide(UserService.layerTest))
+).pipe(
+    Effect.flatMap((result) => {
+        const message = Arbitrary.formatCheckFailure(result)
+        return message === undefined ? Effect.void : Effect.fail(new Error(message))
+    })
 )
 ```
 
 Notes:
 
-- `checkEffect` runs the property across generated inputs and shrinks the first falsification.
-  `Arbitrary.formatCheckFailure(result)` returns `undefined` for a passed result and a
-  diagnostic with the shrunk input otherwise. Check the `result._tag` directly when you need
-  the `Passed | Falsified | Exhausted | ReplayMismatch` distinction.
+- `formatCheckFailure(result)` returns `undefined` for a passed result and a diagnostic with the
+  shrunk input and a replay token otherwise. Check `result._tag` directly when you need the
+  `Passed | Falsified | Exhausted | ReplayMismatch` distinction. Pass `{ replay }` in the check
+  options to rerun a recorded failure.
 - Properties must be deterministic per input and must not mutate generated values. Acquire any
   stateful fixture inside each evaluation rather than sharing it across runs.
 - Use `Arbitrary.sampleEffect(arb, { count })` when you need a bounded batch of generated values
   as fixtures, for example fuzzing a decoder:
 
 ```typescript
-const users = yield* Arbitrary.sampleEffect(UserArb, { count: 100 })
+const users = yield* Arbitrary.sampleEffect(CreateUserInputArb, { count: 100 })
 for (const user of users) {
-    const encoded = yield* Schema.encodeEffect(User)(user)
-    assert.deepStrictEqual(yield* Schema.decodeUnknownEffect(User)(encoded), user)
+    const encoded = yield* Schema.encodeEffect(CreateUserInput)(user)
+    assert.deepStrictEqual(yield* Schema.decodeUnknownEffect(CreateUserInput)(encoded), user)
 }
 ```
 
-`effect/unstable/arbitrary` is an unstable module, so pin your Effect version when you depend
-on it. See `v4-semantics.md`.
+`effect/Arbitrary` is `@stability unstable`, so pin your Effect version when you depend on it.
+See `v4-semantics.md`.

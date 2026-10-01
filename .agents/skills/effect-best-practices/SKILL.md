@@ -1,7 +1,7 @@
 ---
 name: effect-best-practices
 description: Enforces Effect v4 patterns for services, errors, layers, atoms, streams, SQL, and transactional state. Use when writing code with Context.Service, Schema.TaggedError, Layer composition, Stream, @effect/sql, or @effect/atom React components.
-version: 2.1.0
+version: 3.0.0
 ---
 
 # Effect-TS Best Practices
@@ -10,18 +10,18 @@ This skill enforces opinionated, consistent patterns for Effect-TS codebases. Th
 
 ## Version: Effect v4
 
-This skill targets **Effect v4** (`4.0.0-rc.113` at time of writing). Install from the `rc` tag:
+This skill targets **Effect v4 stable** (`4.0.0`). Install from the default `latest` tag:
 
 ```bash
-pnpm add effect@rc
+pnpm add effect
 ```
 
 Two facts that shape everything below:
 
-- **Package layout.** HTTP, RPC, cluster, workflow, and related modules live in core `effect` under `effect/unstable/*`. Separate packages: `@effect/platform-*`, `@effect/sql-*`, `@effect/ai-*`, `@effect/atom-*`, `@effect/opentelemetry`, `@effect/vitest`.
-- **Single version number.** Every `effect` / `@effect/*` package shares one version. If you use `effect@4.0.0-rc.113`, use the same version for `@effect/sql-pg`.
+- **Package layout.** HTTP, HttpApi, RPC, cluster, workflow, SQL, reactivity, and related modules live in core `effect` as subpaths: `effect/http`, `effect/http-api`, `effect/rpc`, `effect/cluster`, `effect/workflow`, `effect/sql`, `effect/reactivity`. The `effect/unstable/*` paths from the betas and release candidates no longer exist. Stability is a per-API `@stability` tag, not part of the import path. Separate packages: `@effect/platform-*`, `@effect/sql-*`, `@effect/ai-*`, `@effect/atom-*`, `@effect/opentelemetry`, `@effect/vitest`.
+- **Single version number.** Every `effect` / `@effect/*` package shares one version. If you use `effect@4.0.0`, use `@effect/sql-pg@4.0.0`.
 
-See `references/v4-semantics.md` for core semantics (what can be yielded, structural equality, fiber keep-alive, unstable-module policy).
+See `references/v4-semantics.md` for core semantics (what can be yielded, structural equality, fiber keep-alive, stability policy, `effect/unstable/*` migration).
 
 ## Effect Language Server (Required)
 
@@ -29,14 +29,23 @@ See `references/v4-semantics.md` for core semantics (what can be yielded, struct
 
 ### Setup
 
-1. Install:
+Effect v4 needs TypeScript 5.9 or newer and recommends TypeScript 7. Pick the package by TypeScript version:
+
+| TypeScript  | Package                     | CLI                       |
+| ----------- | --------------------------- | ------------------------- |
+| 7 or newer  | `@effect/tsgo`              | `effect-tsgo`             |
+| 5.9 and 6.x | `@effect/language-service`  | `effect-language-service` |
 
 ```bash
+# TypeScript 7: interactive setup edits tsconfig.json and your editor config
 npm install @effect/tsgo --save-dev
+npx @effect/tsgo setup
+
+# TypeScript 5.9 / 6
+npm install @effect/language-service --save-dev
 ```
 
-1. Add to `tsconfig.json`. The plugin name stays `@effect/language-service` even though the
-   installed package is `@effect/tsgo`:
+The plugin name in `tsconfig.json` is `@effect/language-service` for both packages:
 
 ```json
 {
@@ -46,13 +55,16 @@ npm install @effect/tsgo --save-dev
 }
 ```
 
-1. Configure your editor to use workspace TypeScript:
-   - **VSCode**: F1 → "TypeScript: Select TypeScript Version" → "Use Workspace Version"
-   - **JetBrains**: Settings → Languages & Frameworks → TypeScript → Use workspace version
+For `@effect/language-service`, point your editor at the workspace TypeScript:
+
+- **VSCode**: F1 → "TypeScript: Select TypeScript Version" → "Use Workspace Version"
+- **JetBrains**: Settings → Languages & Frameworks → TypeScript → Use workspace version
+
+`@effect/tsgo` also needs a native `typescript` >= 7 install next to it, and `effect-tsgo` replaces the official `tsgo` binary.
 
 ### Features
 
-- **Diagnostics**: Detects 30+ Effect-specific issues (floating Effects, missing requirements, incorrect yield patterns)
+- **Diagnostics**: Effect-specific rules such as floating Effects, missing requirements, and incorrect yield patterns, each with a configurable severity
 - **Quick Info**: Hover to see Effect type parameters (Success, Error, Requirements)
 - **Completions**: Auto-complete `Self`, Duration strings, Schema brands
 - **Refactors**: Convert async → Effect.gen, auto-compose Layers, transform to Schema
@@ -62,7 +74,8 @@ npm install @effect/tsgo --save-dev
 For CI enforcement:
 
 ```bash
-npx effect-tsgo patch
+npx effect-tsgo patch                # TypeScript 7
+npx effect-language-service patch    # TypeScript 5.9 / 6
 ```
 
 See `references/language-server.md` for configuration options and CLI tools.
@@ -162,7 +175,7 @@ See `references/service-patterns.md` for detailed patterns.
 
 ```typescript
 import { Schema } from 'effect'
-import { HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApiSchema } from 'effect/http-api'
 
 export class UserNotFoundError extends Schema.TaggedError<UserNotFoundError>()(
   'UserNotFoundError',
@@ -448,12 +461,12 @@ const upperName = Option.map(maybeName, (n) => n.toUpperCase())
 
 ## Effect Atom (Frontend State)
 
-Effect Atom provides reactive state management for React with Effect integration. The React package is `@effect/atom-react`, and `Atom` lives in core Effect under `effect/unstable/reactivity`.
+Effect Atom provides reactive state management for React with Effect integration. The React package is `@effect/atom-react`, and `Atom` lives in core Effect under `effect/reactivity`.
 
 ### Basic Atoms
 
 ```typescript
-import { Atom } from 'effect/unstable/reactivity'
+import { Atom } from 'effect/reactivity'
 
 // Define atoms OUTSIDE components
 const countAtom = Atom.make(0)
@@ -492,7 +505,7 @@ function App() {
 Use `AsyncResult` for async atom states. Use `AsyncResult.match` for the three states, or `matchWithError` when you need typed errors separated from defects:
 
 ```tsx
-import { AsyncResult } from "effect/unstable/reactivity"
+import { AsyncResult } from "effect/reactivity"
 
 function UserProfile() {
     const userResult = useAtomValue(userAtom) // AsyncResult<User, UserNotFoundError>
@@ -545,7 +558,7 @@ For RPC contracts and cluster workflows, see:
 
 - `references/rpc-cluster-patterns.md` - RpcGroup, Workflow.make, Activity patterns
 
-The modules are `effect/unstable/rpc`, `effect/unstable/cluster`, `effect/unstable/workflow`.
+The modules are `effect/rpc`, `effect/cluster`, `effect/workflow`.
 
 ## Concurrency
 
@@ -611,10 +624,10 @@ See `references/resource-patterns.md` for resource hierarchies, pooling, Managed
 
 ## HTTP API
 
-**Use `HttpApiEndpoint` + `HttpApiGroup` + `HttpApiBuilder`** for type-safe HTTP APIs. The modules live in `effect/unstable/httpapi`, and endpoints are declared with an options object:
+**Use `HttpApiEndpoint` + `HttpApiGroup` + `HttpApiBuilder`** for type-safe HTTP APIs. The modules live in `effect/http-api`, and endpoints are declared with an options object:
 
 ```typescript
-import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
 
 // Define the API. .add is a method on the group and api values
 const MyApi = HttpApi.make('MyApi').add(
@@ -628,22 +641,24 @@ const MyApi = HttpApi.make('MyApi').add(
 )
 
 // Implement handlers
-const UsersApiLive = HttpApiBuilder.group(MyApi, 'users', (handlers) =>
-  handlers.handle('getUser', ({ params }) =>
-    Effect.gen(function* () {
-      const users = yield* UserService
-      return yield* users.findById(params.id)
-    })
-  )
+const UsersApiLive = HttpApiBuilder.group(
+  MyApi,
+  'users',
+  Effect.fn(function* (handlers) {
+    // Yield services here, once. Yielding inside a handler body makes them
+    // request-level requirements on HttpRouter.serve instead of the group layer.
+    const users = yield* UserService
+    return handlers.handle('getUser', ({ params }) => users.findById(params.id))
+  })
 )
 ```
 
-`HttpApiEndpoint.get(id, path, options)` declares method, path, and schemas. `HttpApiBuilder.layer` serves the API, `HttpApiBuilder.endpoint` defines a single handler, CORS uses `HttpRouter.cors`, and errors are declared per endpoint.
+`HttpApiEndpoint.get(id, path, options)` declares method, path, and schemas. `HttpApiBuilder.layer(api)` registers the API's routes on `HttpRouter` and `HttpRouter.serve` serves them, `handlers.handle` inside `HttpApiBuilder.group` implements each endpoint, CORS uses `HttpRouter.cors`, and errors are declared per endpoint.
 
 On the client side, derive a fully-typed client from the same `HttpApi` with `HttpApiClient.make(MyApi)`. Every endpoint, payload, success, and typed error comes from the contract, so no manual URL strings or JSON wrappers:
 
 ```typescript
-import { HttpApiClient } from 'effect/unstable/httpapi'
+import { HttpApiClient } from 'effect/http-api'
 
 const program = Effect.gen(function* () {
   const client = yield* HttpApiClient.make(MyApi, { baseUrl: 'http://localhost:3000' })
@@ -728,7 +743,7 @@ See `references/observability-patterns.md` for metrics and tracing patterns.
 
 For detailed patterns, consult these reference files in the `references/` directory:
 
-- `v4-semantics.md` - what can be yielded, structural equality, fiber keep-alive, unstable-module policy
+- `v4-semantics.md` - what can be yielded, structural equality, fiber keep-alive, stability policy, `effect/unstable/*` migration
 - `language-server.md` - Effect Language Service setup, diagnostics, refactors, CLI tools
 - `service-patterns.md` - Context.Service, Effect.fn, services without `make`, Context.Reference
 - `error-patterns.md` - Schema.TaggedError, error remapping, retry patterns, flattened Cause

@@ -102,14 +102,18 @@ const program = Effect.scoped(
 effect completes:
 
 ```typescript
-import { Effect, Scope } from "effect"
+import { Effect, Exit, Scope } from "effect"
 
 const program = Effect.gen(function* () {
     const scope = yield* Scope.make()
     yield* myScopedEffect.pipe(Scope.provide(scope))
     // scope still open, close it explicitly when done
+    yield* Scope.close(scope, Exit.void)
 })
 ```
+
+`Scope.close` and `Scope.closeUnsafe` require a `Scope.Closeable`, which is what `Scope.make` returns.
+A plain `Scope` (the kind an effect requests) cannot be closed by the code that uses it.
 
 Note: in tests, `it.effect` and `it.live` already provide and close a `Scope` per test, so do not
 wrap test bodies in `Effect.scoped`. See `testing-patterns.md`.
@@ -123,6 +127,9 @@ The release function in `acquireRelease` is guaranteed to run regardless of how 
 | Success | Yes | After the scoped effect returns |
 | Failure | Yes | After the error propagates |
 | Interruption | Yes | After the fiber is interrupted |
+
+Finalizers run uninterruptibly by default when a scope closes, so interrupting the fiber that is
+closing the scope waits for release to finish.
 
 ```typescript
 const safeResource = Effect.acquireRelease(
@@ -233,10 +240,14 @@ const program = Effect.gen(function* () {
             return yield* conn.query("SELECT * FROM users")
         }),
     )
+
+    // Or borrow for a single operation, no scope needed
+    const users = yield* Pool.use(pool, (conn) => conn.query("SELECT * FROM users"))
 })
 ```
 
-`Pool.get(pool)` is a module function. Call it with the pool as the argument.
+`Pool.get(pool)` is a module function. Call it with the pool as the argument. Prefer
+`Pool.use(pool, f)` when one effect needs the item, since it skips the scope and finalizer.
 
 ### Pool Configuration
 
@@ -284,12 +295,7 @@ export class DatabasePool extends Context.Service<DatabasePool>()("DatabasePool"
         return {
             query: (sql: string) => pool.query(sql),
             transaction: (fn: (conn: Connection) => Effect.Effect<void>) =>
-                Effect.scoped(
-                    Effect.gen(function* () {
-                        const conn = yield* Pool.get(pool)
-                        yield* fn(conn)
-                    }),
-                ),
+                pool.withTransaction(fn),
         }
     }),
 }) {
@@ -444,11 +450,13 @@ Facts about `ManagedRuntime` in Effect v4:
 - It is a handle, not an `Effect`, so call its run methods directly. Use `contextEffect` when
   the built context is needed inside an Effect.
 - `runtime.contextEffect` and `runtime.context` expose the built context.
+- `dispose` interrupts fibers started through the runtime and waits for them before it runs the
+  layer finalizers. Use `runtime.disposeEffect` from inside an Effect.
 - `ManagedRuntime.make(layer, { memoMap })` accepts a shared memo map.
 - `ManagedRuntime.ManagedRuntime.Services<T>` extracts the service type.
 
-Available methods: `runPromise`, `runPromiseExit`, `runFork`, `runSync`, `context`,
-`contextEffect`, `dispose`.
+Available methods: `runPromise`, `runPromiseExit`, `runFork`, `runSync`, `runSyncExit`,
+`runCallback`, `context`, `contextEffect`, `dispose`, `disposeEffect`.
 
 ### Provide a Prebuilt Context
 
@@ -480,9 +488,11 @@ The `Runtime` module contains `Teardown`, `defaultTeardown`, and `makeRunMain`.
 | `Effect.scoped` | `Effect` | Create scope for resource lifetime |
 | `Effect.addFinalizer(fn)` | `Effect` | Register cleanup in current scope |
 | `Scope.provide(scope)` | `Scope` | Provide a scope without closing it |
+| `Scope.close(scope, exit)` | `Scope` | Close a `Scope.Closeable` and run its finalizers |
 | `Pool.make({ acquire, size })` | `Pool` | Fixed-size reusable resource pool |
 | `Pool.makeWithTTL({ acquire, min, max, timeToLive })` | `Pool` | Elastic pool with TTL |
 | `Pool.get(pool)` | `Pool` | Borrow resource from pool (auto-returned) |
+| `Pool.use(pool, f)` | `Pool` | Borrow for one operation, no scope needed |
 | `Layer.effect` | `Layer` | Build layer, scoped or not |
 | `Layer.fresh(layer)` | `Layer` | Bypass shared memoization |
 | `ManagedRuntime.make(layer, opts?)` | `ManagedRuntime` | Long-lived runtime sharing layers |

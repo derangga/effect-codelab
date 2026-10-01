@@ -47,12 +47,15 @@ const program = Effect.gen(function* () {
 journal together with the version observed at first access. At commit time every journaled
 version is checked against the live value:
 
-- All versions still match: the journaled writes are committed and the versions bump.
+- All versions still match: the journaled writes are committed. Only refs the transaction
+  wrote are touched. A write bumps the version when the new value differs under `Object.is`,
+  and it wakes any `Effect.txRetry` waiters on that ref.
 - Any version changed (another transaction committed first): the journal is discarded and the
   body re-runs from the start.
 
-Reads participate in conflict detection too. `TxRef.get` is implemented as a modify, so a
-transaction that only reads a `TxRef` still tracks it and retries if it changes. Because every
+Reads participate in conflict detection too. `TxRef.get` records the ref in the journal, so a
+transaction that only reads a `TxRef` still tracks it and retries if it changes. A read-only
+ref is never written back and does not wake other waiters. Because every
 accessed `TxRef` is journaled, invariants that span several variables hold at commit time:
 
 ```typescript
@@ -99,7 +102,9 @@ unit: a concurrent fiber can read between them. `Effect.tx` closes that gap.
 
 `Effect.txRetry` marks the current transaction for retry. The body stops, the transaction
 suspends until one of the `TxRef` values it accessed is committed by another transaction, and
-then the body re-runs from the start with a fresh journal:
+then the body re-runs from the start with a fresh journal. If a ref the body read already
+changed while the transaction was suspending, the body re-runs immediately instead of
+waiting for a later commit:
 
 ```typescript
 import { Effect, TxRef } from "effect"
@@ -156,7 +161,7 @@ Also: `has`, `clear`, `size`, `modify`, `modifyAt`, `keys`, `values`, `entries`,
 
 `TxHashSet` is a transactional set backed by a `TxRef` of a `HashSet`. Constructors: `empty`,
 `make(...values)`, `fromIterable`, `fromHashSet`. Add and remove with `add` and `remove`,
-query with `has`, `size`, `isEmpty`, read out an immutable `HashSet` with `toHashSet`. Set
+query with `has`, `size`, `isEmpty`, `isNonEmpty`, read out an immutable `HashSet` with `toHashSet`. Set
 algebra is transactional: `union`, `intersection`, `difference`, `isSubset`, plus `some`,
 `every`, `map`, `filter`, `reduce`.
 
@@ -185,7 +190,7 @@ The type is split into `TxEnqueue` (producer side), `TxDequeue` (consumer side),
 a queue failed with `TxQueue.fail` or `failCause` re-raises that error or cause to `take`.
 `TxQueue.end` sends the graceful `Cause.Done` signal, `shutdown` terminates waiters, and
 `poll` returns `Option` instead of suspending. Also: `offerAll`, `takeAll`, `takeN`,
-`takeBetween`, `peek`, `size`, `isEmpty`, `isFull`, `clear`, `isOpen`, `interrupt`.
+`takeBetween`, `peek`, `size`, `isEmpty`, `isNonEmpty`, `isFull`, `clear`, `isOpen`, `interrupt`.
 
 ### TxPubSub
 
@@ -213,7 +218,7 @@ const program = Effect.gen(function* () {
 `subscribe` returns `Effect<TxQueue<A>, never, Scope>`; read the subscription with `TxQueue`
 operations. Variants: `bounded(capacity)`, `dropping(capacity)`, `sliding(capacity)`,
 `unbounded()`. Also `publishAll`, `size`, `capacity` (a plain function, not an `Effect`),
-`awaitShutdown`, `shutdown`, `isShutdown`. `acquireSubscriber` and `releaseSubscriber` expose
+`isNonEmpty`, `awaitShutdown`, `shutdown`, `isShutdown`. `acquireSubscriber` and `releaseSubscriber` expose
 the acquire and release steps so subscription registration can be composed with other
 operations in a single transaction, which is how `TxSubscriptionRef.changes` is built.
 
@@ -222,7 +227,8 @@ operations in a single transaction, which is how `TxSubscriptionRef.changes` is 
 A transactional counting semaphore. `acquire` suspends through `Effect.txRetry` when no permit
 is free, and `acquireN(n)` takes several at once, dying with a defect for `n <= 0`;
 requesting more than the fixed capacity can wait forever. Non-blocking attempts:
-`tryAcquire`, `tryAcquireN`. Automatic release: `withPermit`, `withPermits`, and the scoped
+`tryAcquire`, `tryAcquireN`. `acquireN`, `tryAcquireN`, and `releaseN` also have data-last forms,
+such as `TxSemaphore.acquireN(2)(permits)`. Automatic release: `withPermit`, `withPermits`, and the scoped
 `withPermitScoped`. Release with `release` and `releaseN`. `available` and `capacity` report
 state:
 
@@ -258,10 +264,11 @@ After `set(ref, 1)` then `set(ref, 2)`, the first `changesStream` element is `2`
 **`TxChunk`** is a transactional sequence backed by a `TxRef` of a `Chunk`; `TxQueue` uses it
 for its items. Fit for growing or slicing a list atomically: `make`, `empty`, `fromIterable`,
 `get`, `set`, `update`, `modify`, `append`, `prepend`, `appendAll`, `prependAll`, `concat`,
-`take`, `drop`, `slice`, `size`, `map`, `filter`.
+`take`, `drop`, `slice`, `size`, `map`, `filter`, plus the `isTxChunk` guard.
 
 **`TxPriorityQueue`** is a transactional priority queue ordered by an `Order`, built with
-`empty(order)`, `make(order)(...elements)`, or `fromIterable`. `take` and `takeOption`
+`empty(order)`, `make(order)(...elements)`, or `fromIterable(order, iterable)` (also
+callable data-last as `fromIterable(order)(iterable)`). `take` and `takeOption`
 suspend or return `Option.none` when empty via `Effect.txRetry`. Also `peek`, `peekOption`,
 `offer`, `offerAll`, `takeAll`, `takeUpTo`, `removeIf`, `retainIf`, `toArray`, `size`.
 

@@ -1,8 +1,9 @@
 # HTTP API Patterns
 
-> **Effect v4.** HTTP API modules live in `effect/unstable/httpapi`. Server and client
-> primitives live in `effect/unstable/http`. Platform adapters (`@effect/platform-node`,
-> `-bun`, `-deno`, `-browser`) remain separate packages.
+> **Effect v4.** HTTP API modules live in `effect/http-api`. Server and client
+> primitives live in `effect/http`. Both ship inside the `effect` package and are marked
+> `@stability unstable`. Platform adapters (`@effect/platform-node`, `-bun`, `-deno`,
+> `-browser`) remain separate packages.
 >
 > Endpoints use an options object on the constructor with `.add` and `.middleware` methods
 > on the values.
@@ -12,7 +13,7 @@
 **Use `HttpApi.make`** to define your API, composed of groups and endpoints:
 
 ```typescript
-import { HttpApi, HttpApiGroup, HttpApiEndpoint, OpenApi } from 'effect/unstable/httpapi'
+import { HttpApi, HttpApiGroup, HttpApiEndpoint, OpenApi } from 'effect/http-api'
 
 const MyApi = HttpApi.make('MyApi')
   .add(UsersApi)
@@ -31,16 +32,21 @@ Group related endpoints. `.add` is variadic:
 ```typescript
 const UsersApi = HttpApiGroup.make('users').add(getUser, createUser, updateUser, deleteUser)
 
-// With a shared path prefix
-const AdminApi = HttpApiGroup.make('admin').prefix('/admin').add(deleteUser)
+// With a shared path prefix. `.prefix` and `.middleware` only touch endpoints already
+// added, so call them after `.add`
+const AdminApi = HttpApiGroup.make('admin').add(deleteUser).prefix('/admin')
 ```
+
+`HttpApi` has `.add` (variadic), `.addHttpApi(other)` to merge another API's groups, `.prefix`,
+and `.middleware`. `HttpApiGroup.make('name', { topLevel: true })` exposes the group's endpoints
+directly on the derived client instead of nesting them under the group name.
 
 ## Endpoint Configuration
 
 ### Defining Endpoints
 
 ```typescript
-import { HttpApiEndpoint, HttpApiSchema } from 'effect/unstable/httpapi'
+import { HttpApiEndpoint, HttpApiSchema } from 'effect/http-api'
 import { Schema } from 'effect'
 
 // GET with path parameters. The key is `params`
@@ -75,6 +81,9 @@ const deleteUser = HttpApiEndpoint.delete('deleteUser', '/users/:id', {
 `params`, `query`, and `headers` accept either a `Schema.Struct` or a bare fields object.
 `{ id: UserId }` is shorthand for `Schema.Struct({ id: UserId })`.
 
+Literal suffixes after a param work on the server, the client, and in OpenAPI, so
+`/operations/:id:wait` matches `/operations/42:wait` with `params.id === "42"`.
+
 ### Available HTTP Methods
 
 | Method  | Constructor                                   |
@@ -86,6 +95,12 @@ const deleteUser = HttpApiEndpoint.delete('deleteUser', '/users/:id', {
 | DELETE  | `HttpApiEndpoint.delete(id, path, options?)`  |
 | HEAD    | `HttpApiEndpoint.head(id, path, options?)`    |
 | OPTIONS | `HttpApiEndpoint.options(id, path, options?)` |
+| QUERY   | `HttpApiEndpoint.query(id, path, options?)`   |
+
+`GET`, `HEAD`, and `OPTIONS` have no body, so `payload` there is a bare fields object encoded in
+the query string, and each field must encode to `string`, an array of strings, or `undefined`.
+Other methods, including `QUERY`, send `payload` as the request body (JSON by default) and take a
+schema, not a bare fields object.
 
 ### Endpoint Options
 
@@ -94,7 +109,7 @@ const deleteUser = HttpApiEndpoint.delete('deleteUser', '/users/:id', {
 | `params`  | Path parameters (`/:id`, `/:slug`)       |
 | `query`   | Query string parameters                  |
 | `headers` | Required headers                         |
-| `payload` | Request body                             |
+| `payload` | Request body (query string for GET)      |
 | `success` | Success response schema                  |
 | `error`   | Error response, one schema or an array   |
 
@@ -145,6 +160,10 @@ plain schema value:
 success: User.pipe(HttpApiSchema.status(201))
 ```
 
+It also takes a literal name (`HttpApiSchema.status("Created")`). `HttpApiSchema.Created`,
+`Accepted`, and `NoContent` are ready-made empty schemas, and `NoContent` is the default
+`success` when you omit it.
+
 It does not work in a class heritage clause. `status` returns `S["Rebuild"]`, so
 `class E extends Schema.TaggedError<E>()('E', { ... }).pipe(HttpApiSchema.status(404)) {}` makes
 `E` reference itself in its own base expression and fails to compile.
@@ -156,58 +175,53 @@ It does not work in a class heritage clause. `status` returns `S["Rebuild"]`, so
 
 ### Implementing Handlers
 
-`handlers.handle(...)` is a method on the handlers object:
+`handlers.handle(...)` is a method on the handlers object. **Acquire services once in the build
+effect**, then close over them in each handler:
 
 ```typescript
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { HttpApiBuilder } from 'effect/http-api'
 
-const UsersApiLive = HttpApiBuilder.group(MyApi, 'users', (handlers) =>
-  handlers
-    .handle('getUser', ({ params }) =>
-      Effect.gen(function* () {
-        const userService = yield* UserService
-        return yield* userService.findById(params.id)
-      })
-    )
-    .handle('createUser', ({ payload }) =>
-      Effect.gen(function* () {
-        const userService = yield* UserService
-        return yield* userService.create(payload)
-      })
-    )
-    .handle('updateUser', ({ params, payload }) =>
-      Effect.gen(function* () {
-        const userService = yield* UserService
-        return yield* userService.update(params.id, payload)
-      })
-    )
-    .handle('deleteUser', ({ params }) =>
-      Effect.gen(function* () {
-        const userService = yield* UserService
-        yield* userService.delete(params.id)
-      })
-    )
+const UsersApiLive = HttpApiBuilder.group(
+  MyApi,
+  'users',
+  Effect.fn(function* (handlers) {
+    const userService = yield* UserService
+
+    return handlers
+      .handle('getUser', ({ params }) => userService.findById(params.id))
+      .handle('createUser', ({ payload }) => userService.create(payload))
+      .handle('updateUser', ({ params, payload }) => userService.update(params.id, payload))
+      .handle('deleteUser', ({ params }) => userService.delete(params.id))
+  })
 )
 ```
 
-For a single standalone endpoint outside a group, use `HttpApiBuilder.endpoint`:
+`build` may also return the handlers directly, without an effect. To register every endpoint in
+one call, use `handlers.handleAll({ getUser: ..., createUser: ... })`. Missing or extra keys are
+type errors.
 
-```typescript
-const HealthLive = HttpApiBuilder.endpoint(MyApi, 'system', 'health', () =>
-  Effect.succeed({ status: 'ok' as const })
-)
-```
+A service yielded **inside** a handler body is not a layer dependency of the group. It becomes a
+request-level requirement (`HttpRouter.Request<"Requires", _>`) that `HttpRouter.serve` surfaces
+as a plain requirement on the final server layer. Providing it to `HttpApiBuilder.layer` does not
+remove it. Acquiring in the build effect keeps the dependency on the group layer where
+`Layer.provide` can see it.
+
+`HttpApiBuilder.endpoint(api, group, endpoint, handler)` builds the server `HttpEffect` for one
+endpoint, not a `Layer`. Reach for it only when you mount an endpoint on a router yourself.
 
 ### Handler Parameters
 
 The handler function receives a destructurable object whose keys match the endpoint options:
 
-| Property  | Source          | Declared by       |
-| --------- | --------------- | ----------------- |
-| `params`  | URL path params | `params` option   |
-| `query`   | Query string    | `query` option    |
-| `payload` | Request body    | `payload` option  |
-| `headers` | HTTP headers    | `headers` option  |
+| Property  | Source                  | Declared by      |
+| --------- | ----------------------- | ---------------- |
+| `params`  | URL path params         | `params` option  |
+| `query`   | Query string            | `query` option   |
+| `payload` | Request body            | `payload` option |
+| `headers` | HTTP headers            | `headers` option |
+| `request` | Raw `HttpServerRequest` | always present   |
+
+`endpoint` and `group` are also present on the argument.
 
 ### Providing Dependencies
 
@@ -229,7 +243,7 @@ The same `HttpApi` definition that drives the server also derives a fully typed 
 ### Basic Derivation
 
 ```typescript
-import { HttpApiClient } from 'effect/unstable/httpapi'
+import { HttpApiClient } from 'effect/http-api'
 import { Effect } from 'effect'
 
 const program = Effect.gen(function* () {
@@ -246,14 +260,16 @@ const program = Effect.gen(function* () {
 })
 ```
 
-The call returns `Effect<Success, TypedErrorUnion | HttpClientError>`. The typed error union is exactly what was declared with the `error` option on each endpoint, so consumers can `catchTag("UserNotFoundError", ...)` with full exhaustiveness.
+The call returns `Effect<Success, TypedErrorUnion | HttpClientError | SchemaError>`. The typed error union is exactly what was declared with the `error` option on each endpoint, so consumers can `catchTag("UserNotFoundError", ...)` with full exhaustiveness. Pass `responseMode: "decoded-and-response"` to get `[value, response]`, or `"response-only"` to skip decoding.
+
+`HttpApiClient.make` needs an `HttpClient` in context (for example `FetchHttpClient.layer`). If a middleware is declared with `requiredForClient: true`, the client also needs its client side half, built with `HttpApiMiddleware.layerClient(Middleware, ({ next, request }) => next(HttpClientRequest.bearerToken(request, token)))`. `HttpApiClient.urlBuilder(api, { baseUrl })` builds typed URL strings without making a request.
 
 ### Dynamic Base URL with `HttpClient.mapRequest`
 
-When the base URL comes from `Config` (env driven, differs between SSR and browser), prepend it on the underlying `HttpClient`. Use `HttpApiClient.makeWith` when supplying your own client:
+`HttpApiClient.make` and `makeWith` take a `baseUrl` option and prepend it themselves. When the base URL comes from `Config` (env driven, differs between SSR and browser) and you also need the prefixed `HttpClient` for calls outside the contract, prepend it once on the underlying `HttpClient` and pass that client to `HttpApiClient.makeWith` **without** `baseUrl`, or it is prepended twice:
 
 ```typescript
-import { HttpClient, HttpClientRequest } from 'effect/unstable/http'
+import { HttpClient, HttpClientRequest } from 'effect/http'
 
 const baseHttpClient = (yield * HttpClient.HttpClient).pipe(
   HttpClient.mapRequest(HttpClientRequest.prependUrl(baseUrl))
@@ -262,7 +278,6 @@ const baseHttpClient = (yield * HttpClient.HttpClient).pipe(
 const client =
   yield *
   HttpApiClient.makeWith(AppApi, {
-    baseUrl,
     httpClient: baseHttpClient,
   })
 ```
@@ -275,7 +290,7 @@ Worked example, silent token refresh on 401, with a semaphore so concurrent 401s
 
 ```typescript
 import { Effect, Semaphore } from 'effect'
-import { HttpBody, HttpClient } from 'effect/unstable/http'
+import { HttpBody, HttpClient } from 'effect/http'
 
 const semaphore = yield * Semaphore.make(1)
 
@@ -299,7 +314,7 @@ const authClient = baseHttpClient.pipe(
 
 const client =
   yield *
-  HttpApiClient.makeWith(AppApi, { baseUrl, httpClient: authClient })
+  HttpApiClient.makeWith(AppApi, { httpClient: authClient })
 ```
 
 A retried response that is still 401 flows back through `HttpApiClient`, which maps it to the contract's typed `Unauthorized` error. Callers see a tagged error, not a raw status code.
@@ -309,13 +324,13 @@ A retried response that is still 401 flows back through `HttpApiClient`, which m
 For non Effect callers (for example TanStack Query `useMutation` or `useQuery`), pull the error union off a client method so `onError` can `switch (error._tag)` exhaustively:
 
 ```typescript
-export type ApiClientType = ApiClient['client']
+export type ApiClientType = HttpApiClient.ForApi<typeof AppApi>
 
 export type ClientError<T> = Effect.Error<T>
 
 // Usage
 type LoginError = ClientError<ReturnType<ApiClientType['auth']['login']>>
-// LoginError = InvalidCredentials | ValidationError | HttpClientError
+// LoginError = InvalidCredentials | ValidationError | HttpClientError | SchemaError
 ```
 
 `Effect.Success<T>`, `Effect.Error<T>`, and `Effect.Services<T>` extract the success, error, and service types from any effect:
@@ -364,7 +379,7 @@ client.users.getUser({ params }).pipe(Effect.catch(() => Effect.fail("oops")))
 ### Logging Middleware
 
 ```typescript
-import { HttpMiddleware, HttpServerRequest } from 'effect/unstable/http'
+import { HttpMiddleware, HttpServerRequest } from 'effect/http'
 import { Clock, Effect } from 'effect'
 
 const withLogging = HttpMiddleware.make((handler) =>
@@ -389,7 +404,7 @@ Use `Clock.currentTimeMillis` rather than `Date.now()`. It stays testable under 
 ### Request ID Middleware
 
 ```typescript
-import { HttpServerResponse } from 'effect/unstable/http'
+import { HttpServerResponse } from 'effect/http'
 
 const withRequestId = HttpMiddleware.make((handler) =>
   Effect.gen(function* () {
@@ -420,27 +435,35 @@ const withTimeout = (duration: Duration.Input) =>
   )
 ```
 
-### Middleware Composition Order
+### Applying Middleware
 
-Middleware composes inside out, so the last applied middleware runs first:
+`HttpMiddleware.make` only types the function. Turn it into a layer with `HttpRouter.middleware`
+and merge that layer into the app layer you pass to `HttpRouter.serve`. By default it affects only
+the routes it is provided to. Pass `{ global: true }` for every route:
 
 ```typescript
-const ServerLive = HttpRouter.serve(MyApiLive).pipe(
-  Layer.provide(HttpRouter.cors({ allowedOrigins: ['http://localhost:3000'] })),
-  Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 }))
-)
+const ServerLive = HttpRouter.serve(
+  Layer.mergeAll(
+    MyApiLive,
+    HttpRouter.middleware(withLogging, { global: true }),
+    HttpRouter.middleware(withRequestId, { global: true })
+  )
+).pipe(Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 })))
 ```
 
-Serving and CORS both live on `HttpRouter` (`HttpRouter.serve`, `HttpRouter.cors`).
+Route scoped middleware is `HttpRouter.middleware(fn).layer`, provided to the routes it should
+wrap with `Layer.provide`. `HttpRouter.serve` already logs requests. Pass
+`{ disableLogger: true }` when you replace it with your own.
 
 ## Authentication
 
 ### HttpApiMiddleware for Security
 
-`HttpApiMiddleware.Service` is configured with `requires`, `provides`, `error`, and `security`:
+`HttpApiMiddleware.Service` takes `requires`, `provides`, and `clientError` as type parameters,
+and `error`, `security`, and `requiredForClient` as options:
 
 ```typescript
-import { HttpApiMiddleware, HttpApiSchema, HttpApiSecurity } from 'effect/unstable/httpapi'
+import { HttpApiMiddleware, HttpApiSecurity } from 'effect/http-api'
 import { Context, Effect, Layer, Redacted, Schema } from 'effect'
 
 interface User {
@@ -464,14 +487,8 @@ class Authentication extends HttpApiMiddleware.Service<
   security: { bearer: HttpApiSecurity.bearer },
 }) {}
 
-// Middleware that also requires a service from the environment
-class RateLimitedAuth extends HttpApiMiddleware.Service<
-  RateLimitedAuth,
-  { requires: RateLimiter; provides: CurrentUser }
->()('RateLimitedAuth', {
-  error: Unauthorized,
-  security: { bearer: HttpApiSecurity.bearer },
-}) {}
+// Add `requiredForClient: true` when generated clients must supply their own
+// implementation too (see `HttpApiMiddleware.layerClient`)
 ```
 
 Attach it to a group or an individual endpoint with `.middleware(...)`:
@@ -490,20 +507,30 @@ const adminOnly = HttpApiEndpoint.delete('deleteUser', '/users/:id', {
 ### Implementing the Middleware
 
 Provide an implementation keyed by security scheme name. Each handler receives the wrapped
-effect plus the parsed credential, and returns the effect to run:
+effect plus the parsed credential, and returns the effect to run. Acquire the services it needs
+in the layer constructor, not inside the handler body:
 
 ```typescript
-const AuthenticationLive = Layer.succeed(Authentication)({
-  bearer: (effect, { credential }) =>
-    Effect.gen(function* () {
-      const jwt = yield* JwtService
-      const user = yield* jwt.verify(Redacted.value(credential)).pipe(
-        Effect.mapError(() => new Unauthorized({ message: 'Invalid token' }))
-      )
-      return yield* Effect.provideService(effect, CurrentUser, user)
-    }),
-})
+const AuthenticationLive = Layer.effect(
+  Authentication,
+  Effect.gen(function* () {
+    const jwt = yield* JwtService
+
+    return Authentication.of({
+      bearer: (effect, { credential }) =>
+        Effect.gen(function* () {
+          const user = yield* jwt.verify(Redacted.value(credential)).pipe(
+            Effect.mapError(() => new Unauthorized({ message: 'Invalid token' }))
+          )
+          return yield* Effect.provideService(effect, CurrentUser, user)
+        }),
+    })
+  })
+)
 ```
+
+A service yielded inside the `bearer` body is a type error unless it is declared in the
+`requires` type parameter.
 
 Because the middleware declares `provides: CurrentUser`, handlers under it can yield
 `CurrentUser` without it appearing in their own requirements.
@@ -511,10 +538,10 @@ Because the middleware declares `provides: CurrentUser`, handlers under it can y
 ### Handler Accessing Current User
 
 ```typescript
+// `profileService` was acquired in the group build effect
 handlers.handle('getProfile', () =>
   Effect.gen(function* () {
     const user = yield* CurrentUser
-    const profileService = yield* ProfileService
     return yield* profileService.getByUserId(user.id)
   })
 )
@@ -539,7 +566,6 @@ const requireRole = (role: string) =>
 handlers.handle('deleteUser', ({ params }) =>
   Effect.gen(function* () {
     yield* requireRole('admin')
-    const users = yield* UserService
     yield* users.delete(params.id)
   })
 )
@@ -547,16 +573,16 @@ handlers.handle('deleteUser', ({ params }) =>
 
 ## CORS
 
-`HttpRouter.cors` returns a `Layer`:
+`HttpRouter.cors` returns a `Layer` that needs `HttpRouter`, so it goes **inside** the app layer
+you hand to `HttpRouter.serve`, not provided to the result of `serve`:
 
 ```typescript
 import { createServer } from 'node:http'
-import { HttpRouter } from 'effect/unstable/http'
+import { HttpRouter } from 'effect/http'
 
-const ServerLive = HttpRouter.serve(MyApiLive).pipe(
-  Layer.provide(HttpRouter.cors({ allowedOrigins: ['http://localhost:3000'] })),
-  Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 }))
-)
+const ServerLive = HttpRouter.serve(
+  Layer.mergeAll(MyApiLive, HttpRouter.cors({ allowedOrigins: ['http://localhost:3000'] }))
+).pipe(Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 })))
 ```
 
 ### CORS Configuration Options
@@ -583,8 +609,8 @@ HttpRouter.cors({
 })
 ```
 
-For route scoped CORS rather than global, pass `HttpMiddleware.cors(options)` through
-`HttpRouter.middleware`.
+For route scoped CORS rather than global, use `HttpRouter.middleware(HttpMiddleware.cors(options)).layer`
+and provide it to the routes that need it. `allowedMethods` accepts `"QUERY"` for QUERY endpoints.
 
 ### CORS Security Rules
 
@@ -723,6 +749,24 @@ const listUsers = HttpApiEndpoint.get('listUsers', '/users', {
 
 `Schema.Literals` takes one array argument. `Schema.Literal` takes exactly one value.
 
+### Parse Options
+
+Server and client codecs use Schema defaults, so excess properties are dropped. Set parse options
+on an API, group, or endpoint with annotations. A per-slot annotation (`ParamsParseOptions`,
+`QueryParseOptions`, `HeadersParseOptions`, `PayloadParseOptions`, `SuccessParseOptions`,
+`ErrorParseOptions`) beats `HttpApi.ParseOptions` at any level. Endpoint overrides group, which
+overrides API, and options are replaced, not merged:
+
+```typescript
+const MyApi = HttpApi.make('MyApi')
+  .add(UsersApi)
+  .annotate(HttpApi.ParseOptions, { onExcessProperty: 'error' })
+  // Real requests carry transport headers (host, user-agent, ...), so keep headers lenient
+  .annotate(HttpApi.HeadersParseOptions, {})
+```
+
+Annotate the API before passing it to `HttpApiBuilder.group`.
+
 ## OpenAPI / Swagger
 
 ### Annotating the API
@@ -730,7 +774,7 @@ const listUsers = HttpApiEndpoint.get('listUsers', '/users', {
 Use annotation keys with `.annotate(key, value)`:
 
 ```typescript
-import { HttpApi, OpenApi } from 'effect/unstable/httpapi'
+import { HttpApi, OpenApi } from 'effect/http-api'
 
 const MyApi = HttpApi.make('MyApi')
   .add(UsersApi)
@@ -743,26 +787,27 @@ Groups and endpoints take the same `.annotate` method.
 
 ### Serving Swagger UI
 
-`HttpApiSwagger.layer` takes the API as its first argument:
+`HttpApiSwagger.layer` takes the API as its first argument and, like CORS, needs `HttpRouter`, so
+merge it into the app layer:
 
 ```typescript
-import { HttpApiSwagger } from 'effect/unstable/httpapi'
+import { HttpApiSwagger } from 'effect/http-api'
 
-const ServerLive = HttpRouter.serve(MyApiLive).pipe(
-  Layer.provide(HttpApiSwagger.layer(MyApi, { path: '/docs' })),
-  Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 }))
-)
+const ServerLive = HttpRouter.serve(
+  Layer.mergeAll(MyApiLive, HttpApiSwagger.layer(MyApi, { path: '/docs' }))
+).pipe(Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 })))
 // Swagger UI available at http://localhost:3000/docs
 ```
 
-`HttpApiScalar` is available as an alternative docs UI.
+`HttpApiScalar.layer(api, { path })` is an alternative docs UI. To serve the raw spec, pass
+`HttpApiBuilder.layer(MyApi, { openapiPath: '/openapi.json' })`.
 
 ### Full Server Setup
 
 ```typescript
 import { createServer } from 'node:http'
-import { HttpRouter } from 'effect/unstable/http'
-import { HttpApiBuilder, HttpApiSwagger } from 'effect/unstable/httpapi'
+import { HttpRouter } from 'effect/http'
+import { HttpApiBuilder, HttpApiSwagger } from 'effect/http-api'
 import { NodeHttpServer, NodeRuntime } from '@effect/platform-node'
 import { Layer } from 'effect'
 
@@ -771,11 +816,13 @@ const MyApiLive = HttpApiBuilder.layer(MyApi).pipe(
   Layer.provide(UserService.layer)
 )
 
-const ServerLive = HttpRouter.serve(MyApiLive).pipe(
-  Layer.provide(HttpRouter.cors({ allowedOrigins: ['http://localhost:3000'] })),
-  Layer.provide(HttpApiSwagger.layer(MyApi, { path: '/docs' })),
-  Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 }))
-)
+const ServerLive = HttpRouter.serve(
+  Layer.mergeAll(
+    MyApiLive,
+    HttpRouter.cors({ allowedOrigins: ['http://localhost:3000'] }),
+    HttpApiSwagger.layer(MyApi, { path: '/docs' })
+  )
+).pipe(Layer.provide(NodeHttpServer.layer(() => createServer(), { port: 3000 })))
 
 // Run with graceful shutdown
 NodeRuntime.runMain(Layer.launch(ServerLive))
@@ -790,7 +837,8 @@ error reporting. See `resource-patterns.md`.
 
 ```typescript
 import { assert, it } from '@effect/vitest'
-import { HttpApiTest } from 'effect/unstable/httpapi'
+import { HttpApiTest } from 'effect/http-api'
+import { HttpServer } from 'effect/http'
 import { Effect } from 'effect'
 
 it.effect('returns the user', () =>
@@ -798,40 +846,54 @@ it.effect('returns the user', () =>
     const client = yield* HttpApiTest.groups(MyApi, ['users'])
     const user = yield* client.users.getUser({ params: { id: userId } })
     assert.strictEqual(user.name, 'Alice')
-  }).pipe(Effect.provide(UsersApiLive))
+  }).pipe(
+    Effect.provide(UsersApiLive),
+    // File system, path, and platform services the HTTP pipeline needs
+    Effect.provide(HttpServer.layerServices)
+  )
 )
 ```
 
+Swap in a test layer for the services behind the handlers, for example
+`UsersApiLive.pipe(Layer.provide(UserService.layerMemory))`. If the group uses middleware,
+provide its server implementation as well, and its client half (`HttpApiMiddleware.layerClient`)
+when it is `requiredForClient`.
+
 ## Quick Reference Table
 
-| API                                      | Import                    | Purpose                             |
-| ---------------------------------------- | ------------------------- | ----------------------------------- |
-| `HttpApi.make(name)`                     | `effect/unstable/httpapi` | Create API definition               |
-| `api.add(group)`                         | n/a                       | Add endpoint group                  |
-| `HttpApiGroup.make(name)`                | `effect/unstable/httpapi` | Group related endpoints             |
-| `group.add(...endpoints)`                | n/a                       | Add endpoints, variadic             |
-| `group.prefix(path)`                     | n/a                       | Shared path prefix                  |
-| `group.middleware(M)`                    | n/a                       | Attach middleware to a group        |
-| `HttpApiEndpoint.get(id, path, options)` | `effect/unstable/httpapi` | Define GET endpoint                 |
-| `HttpApiEndpoint.post(id, path, options)`| `effect/unstable/httpapi` | Define POST endpoint                |
-| `HttpApiEndpoint.put(id, path, options)` | `effect/unstable/httpapi` | Define PUT endpoint                 |
-| `HttpApiEndpoint.delete(id, path, opts)` | `effect/unstable/httpapi` | Define DELETE endpoint              |
-| `HttpApiBuilder.group(api, name, fn)`    | `effect/unstable/httpapi` | Implement group handlers            |
-| `handlers.handle(name, fn)`              | n/a                       | Implement endpoint handler          |
-| `HttpApiBuilder.endpoint(...)`           | `effect/unstable/httpapi` | Standalone endpoint implementation  |
-| `HttpApiBuilder.layer(api)`              | `effect/unstable/httpapi` | Register API with the router        |
-| `HttpRouter.serve(appLayer)`             | `effect/unstable/http`    | Serve the application               |
-| `HttpRouter.cors(config)`                | `effect/unstable/http`    | CORS layer                          |
-| `NodeHttpServer.layer(factory, opts)`    | `@effect/platform-node`   | Node server, factory builds the server |
-| `HttpApiMiddleware.Service<Self, Cfg>()` | `effect/unstable/httpapi` | Define middleware                   |
-| `HttpApiSecurity.bearer`                 | `effect/unstable/httpapi` | Bearer token security scheme        |
-| `HttpApiSwagger.layer(api, { path })`    | `effect/unstable/httpapi` | Serve Swagger UI                    |
-| `OpenApi.Title` / `.Version`             | `effect/unstable/httpapi` | OpenAPI annotation keys             |
-| `HttpApiSchema.status(code)`             | `effect/unstable/httpapi` | HTTP status on a plain schema value |
-| `HttpApiClient.make(api, options)`       | `effect/unstable/httpapi` | Derive a fully typed client         |
-| `HttpApiClient.makeWith(api, options)`   | `effect/unstable/httpapi` | Derive a client with custom client  |
-| `HttpApiTest.groups(api, names)`         | `effect/unstable/httpapi` | In process test client              |
-| `HttpClient.transformResponse(fn)`       | `effect/unstable/http`    | Interceptor wrapping every response |
-| `HttpClient.mapRequest(fn)`              | `effect/unstable/http`    | Interceptor shaping outbound calls  |
-| `HttpClientRequest.prependUrl(url)`      | `effect/unstable/http`    | Prepend a base URL to a request     |
-| `HttpBody.jsonUnsafe(value)`             | `effect/unstable/http`    | JSON request body                   |
+| API                                       | Import                  | Purpose                                |
+| ----------------------------------------- | ----------------------- | -------------------------------------- |
+| `HttpApi.make(name)`                      | `effect/http-api`       | Create API definition                  |
+| `api.add(group)`                          | n/a                     | Add endpoint group                     |
+| `HttpApiGroup.make(name)`                 | `effect/http-api`       | Group related endpoints                |
+| `group.add(...endpoints)`                 | n/a                     | Add endpoints, variadic                |
+| `group.prefix(path)`                      | n/a                     | Shared path prefix                     |
+| `group.middleware(M)`                     | n/a                     | Attach middleware to a group           |
+| `HttpApiEndpoint.get(id, path, options)`  | `effect/http-api`       | Define GET endpoint                    |
+| `HttpApiEndpoint.post(id, path, options)` | `effect/http-api`       | Define POST endpoint                   |
+| `HttpApiEndpoint.put(id, path, options)`  | `effect/http-api`       | Define PUT endpoint                    |
+| `HttpApiEndpoint.delete(id, path, opts)`  | `effect/http-api`       | Define DELETE endpoint                 |
+| `HttpApiEndpoint.query(id, path, opts)`   | `effect/http-api`       | Define QUERY endpoint                  |
+| `HttpApiBuilder.group(api, name, fn)`     | `effect/http-api`       | Implement group handlers               |
+| `handlers.handle(name, fn)`               | n/a                     | Implement endpoint handler             |
+| `handlers.handleAll({ ... })`             | n/a                     | Implement every endpoint at once       |
+| `HttpApiBuilder.endpoint(...)`            | `effect/http-api`       | Standalone endpoint implementation     |
+| `HttpApiBuilder.layer(api)`               | `effect/http-api`       | Register API with the router           |
+| `HttpRouter.serve(appLayer)`              | `effect/http`           | Serve the application                  |
+| `HttpRouter.cors(config)`                 | `effect/http`           | CORS layer                             |
+| `HttpRouter.middleware(fn, opts)`         | `effect/http`           | Turn a middleware into a layer         |
+| `NodeHttpServer.layer(factory, opts)`     | `@effect/platform-node` | Node server, factory builds the server |
+| `HttpApiMiddleware.Service<Self, Cfg>()`  | `effect/http-api`       | Define middleware                      |
+| `HttpApiSecurity.bearer`                  | `effect/http-api`       | Bearer token security scheme           |
+| `HttpApiSwagger.layer(api, { path })`     | `effect/http-api`       | Serve Swagger UI                       |
+| `HttpApiScalar.layer(api, { path })`      | `effect/http-api`       | Serve Scalar docs UI                   |
+| `OpenApi.Title` / `.Version`              | `effect/http-api`       | OpenAPI annotation keys                |
+| `HttpApiSchema.status(code)`              | `effect/http-api`       | HTTP status on a plain schema value    |
+| `HttpApiClient.make(api, options)`        | `effect/http-api`       | Derive a fully typed client            |
+| `HttpApiClient.makeWith(api, options)`    | `effect/http-api`       | Derive a client with custom client     |
+| `HttpApiMiddleware.layerClient(M, fn)`    | `effect/http-api`       | Client half of a middleware            |
+| `HttpApiTest.groups(api, names)`          | `effect/http-api`       | In process test client                 |
+| `HttpClient.transformResponse(fn)`        | `effect/http`           | Interceptor wrapping every response    |
+| `HttpClient.mapRequest(fn)`               | `effect/http`           | Interceptor shaping outbound calls     |
+| `HttpClientRequest.prependUrl(url)`       | `effect/http`           | Prepend a base URL to a request        |
+| `HttpBody.jsonUnsafe(value)`              | `effect/http`           | JSON request body                      |

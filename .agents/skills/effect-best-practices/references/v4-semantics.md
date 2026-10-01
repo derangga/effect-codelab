@@ -52,7 +52,8 @@ const n = yield* Effect.fromOption(Option.some(42))  // fails with NoSuchElement
 
 `Option`, `Result`, and `AsyncResult` all fall in this group. `Effect.fromOption(option)` fails
 with `NoSuchElementError` by default, or with your own error via
-`Effect.fromOption(option, () => new MyError())`.
+`Effect.fromOption(option, () => new MyError())`. Generator style over `Option` or `Result`
+values alone uses `Option.gen` and `Result.gen`, where `yield*` is valid.
 
 **Why it matters:** `Effect.all([refA, refB])` with an array of `Ref`s is a compile error. Read each ref explicitly with `Ref.get`.
 
@@ -84,6 +85,8 @@ Equal.equals(obj, { a: 1 }) // false
 
 Use `Equal.asEquivalence()` to derive an `Equivalence` from structural equality.
 
+Object-pair results are cached in a `WeakMap`, so do not mutate an object after you first compare it.
+
 **Watch for this** in caches, `Set`/`Map` keys, and dedup logic where two identical-looking objects collapse into one entry.
 
 ## Fiber Keep-Alive Is Built In
@@ -109,20 +112,39 @@ Use `runMain` for any real application entry point. Scripts and tests stay alive
 
 ## Unstable Modules
 
-`effect/unstable/*` holds modules under active development. Modules outside `unstable/` follow **strict semver**; modules inside it **may receive breaking changes in minor releases**.
+Stability is a per-API tag, not an import path. In Effect 4.0.0 the `effect/unstable/*` namespace
+no longer exists, and there are no compatibility exports for it. Unstable modules sit at plain
+`effect/<area>` paths and say so in their JSDoc with `@stability unstable`.
 
-Currently unstable: `ai`, `arbitrary`, `cli`, `cluster`, `devtools`, `encoding`, `eventlog`, `http`, `httpapi`, `net`, `observability`, `persistence`, `process`, `reactivity`, `rpc`, `schema`, `socket`, `sql`, `workflow`, `workers`.
+- **No tag**: strict semver. Breaking changes wait for a major release.
+- **`@stability unstable`**: may receive breaking changes in minor releases.
+- **`@stability experimental`**: may receive breaking changes in patch releases.
 
-`effect/unstable/schema` is the small one: it holds only `Model` and `VariantSchema`. The `Schema`
-module itself is stable, at `effect/Schema`. `JsonSchema` is stable too, at `effect/JsonSchema`.
+Modules tagged unstable in `effect` 4.0.0: `ai`, `cli`, `cluster`, `devtools`, `encoding`,
+`eventlog`, `http`, `http-api`, `net`, `observability`, `persistence`, `process`, `reactivity`,
+`rpc`, `schema`, `socket`, `sql`, `testing/TestSchema`, `workers`, `workflow`, and the top-level
+`Arbitrary` module. `Schema`, `JsonSchema`, `Config`, `Stream`, `Layer`, `Cause`,
+`testing/TestClock` and the rest of the core are stable. `effect/schema` is the small unstable one:
+it holds `Model`, `VariantSchema` and the JIT and AOT schema compilers. The `Schema` module itself
+is stable at `effect/Schema`, with a few unstable exports such as the `NetAddress` schemas.
 
-These are standard import paths. Modules graduate to the top-level `effect/*` namespace as they stabilize.
+APIs that wrap a third-party dependency are tagged unstable too, because that dependency can
+change underneath them. That covers the Redis clients, the `@effect/platform-node/Undici` and `ws`
+re-exports, driver-specific options in the `@effect/sql-*` packages, the provider clients and
+generated schemas in `@effect/ai-*`, `@effect/opentelemetry`, and the `vitest` re-export in
+`@effect/vitest`.
 
 Practical consequences:
 
-- Pin your Effect version if you depend heavily on `unstable/` modules. HTTP, RPC, cluster, and atom code is the most exposed.
-- Expect import paths to change on graduation. A module moving from `effect/unstable/http` to `effect/http` keeps the same API under the top level path.
-- All Effect ecosystem packages share **one version number**. `effect`, `@effect/sql-pg`, `@effect/atom-react`, `@effect/vitest` must all be on the same version.
+- Import from the top-level path: `effect/http`, `effect/http-api`, `effect/rpc`, `effect/cluster`,
+  `effect/workflow`, `effect/sql`, `effect/reactivity`, `effect/ai`, `effect/cli`. An old
+  `effect/unstable/http` import is a build error.
+- Use a caret range on `effect` only if you can absorb minor-release breakage in the modules
+  above. Pin an exact version when HTTP, RPC, cluster, or atom code is on the critical path.
+- All Effect ecosystem packages share **one version number**. `effect`, `@effect/sql-pg`,
+  `@effect/atom-react`, `@effect/vitest` must all be on the same version.
+- Moving a module out of `unstable/` did not stabilize it. Check the `@stability` tag before
+  treating an API as frozen.
 
 ## Other Core Behaviors
 

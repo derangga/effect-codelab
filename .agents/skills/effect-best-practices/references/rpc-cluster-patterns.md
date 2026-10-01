@@ -1,14 +1,15 @@
 # RPC and Cluster Patterns
 
-> **Effect v4.** RPC modules live in `effect/unstable/rpc`. Cluster modules live in
-> `effect/unstable/cluster`. Workflow modules live in `effect/unstable/workflow`.
+> **Effect v4.** RPC modules live in `effect/rpc`. Cluster modules live in `effect/cluster`.
+> Workflow modules live in `effect/workflow`. All three ship inside the `effect` package and are
+> marked `@stability unstable`.
 
 ## RpcGroup for API Organization
 
 **Use `Rpc.make` for each endpoint and `RpcGroup.make` to collect them:**
 
 ```typescript
-import { Rpc, RpcGroup } from "effect/unstable/rpc"
+import { Rpc, RpcGroup } from "effect/rpc"
 import { Effect, Schema } from "effect"
 
 export const UserRpcs = RpcGroup.make(
@@ -60,9 +61,13 @@ export const UserRpcs = RpcGroup.make(
 `success` and `error` are optional. Omit `error` rather than writing `Schema.Never`, and omit
 `success` for a void response.
 
-Model read and write differences with annotations (for example `Persisted` or
-`Uninterruptible`) where the distinction matters operationally. Declare each contract
-explicitly with `Rpc.make`.
+Model read and write differences with annotations where the distinction matters operationally,
+for example `Rpc.make(...).annotate(ClusterSchema.Persisted, true)` for a persisted cluster
+message or `ClusterSchema.Uninterruptible` for one that must not be interrupted. Declare each
+contract explicitly with `Rpc.make`.
+
+`primaryKey` only works with a bare fields `payload`. `Rpc.make` then builds a `Schema.Class`
+payload whose `PrimaryKey` comes from your function.
 
 ## Error Unions in RPC
 
@@ -95,7 +100,7 @@ Rpc.make("create", {
 plus an options object:
 
 ```typescript
-import { Rpc, RpcMiddleware } from "effect/unstable/rpc"
+import { Rpc, RpcMiddleware } from "effect/rpc"
 import { Context, Effect, Layer } from "effect"
 
 // The authenticated user is a service key the middleware provides
@@ -151,7 +156,8 @@ handler and `headers` is a `Headers` record read by key (`headers["authorization
 `Headers` object with `.get()`. It must **return** the wrapped effect, which is how
 `Effect.provideService` hands `CurrentUser` down to the handler.
 
-Set `requiredForClient: true` in the options when the client must supply the middleware too.
+Set `requiredForClient: true` in the options when the client must supply the middleware too, and
+provide the client half with `RpcMiddleware.layerClient(AuthMiddleware, ({ rpc, request, next }) => next(request))`.
 The middleware `provides` metadata removes that service from each handler requirements, so
 handlers can yield `CurrentUser` without declaring it.
 
@@ -164,7 +170,7 @@ handlers can yield `CurrentUser` without declaring it.
 **Use `Workflow.make(tag, options)`.** The name is the first argument:
 
 ```typescript
-import { Workflow } from "effect/unstable/workflow"
+import { Workflow } from "effect/workflow"
 import { Schema } from "effect"
 
 export const OrderFulfillmentWorkflow = Workflow.make("OrderFulfillmentWorkflow", {
@@ -177,7 +183,17 @@ export const OrderFulfillmentWorkflow = Workflow.make("OrderFulfillmentWorkflow"
     // Idempotency key prevents duplicate processing
     idempotencyKey: ({ orderId }) => orderId,
     success: FulfillmentResult,
-    error: Schema.Union([FulfillmentFailedError, PaymentFailedError]),
+    // Every activity error must be a member of the workflow error schema
+    error: Schema.Union([
+        FulfillmentFailedError,
+        InsufficientInventoryError,
+        DatabaseError,
+        PaymentFailedError,
+        PaymentTimeoutError,
+        ShippingError,
+        AddressInvalidError,
+        NotificationError,
+    ]),
 })
 
 export const NotificationWorkflow = Workflow.make("NotificationWorkflow", {
@@ -190,17 +206,23 @@ export const NotificationWorkflow = Workflow.make("NotificationWorkflow", {
 })
 ```
 
-`idempotencyKey` is **required**. Workflow definitions expose `_tag` and work as constructors.
-Use the idempotency key for identity.
+`idempotencyKey` is **required**. Use it for identity. `Workflow.make` values expose `_tag`,
+`execute`, `poll`, `interrupt`, `resume`, `toLayer`, and `executionId(payload)`, which derives the
+deterministic execution ID from the tag and the key.
+
+Stable `4.0.0` length-prefixes the tag when it derives the execution ID, so executions persisted
+by a release candidate are not found by the same payload after upgrading. Drain in-flight
+workflows before you upgrade.
 
 ### Workflow Implementation
 
 ```typescript
-import { Activity } from "effect/unstable/workflow"
+import { Activity } from "effect/workflow"
 import { Effect, Schema } from "effect"
 
 export const OrderFulfillmentWorkflowLayer = OrderFulfillmentWorkflow.toLayer(
-    Effect.fn("OrderFulfillmentWorkflow")(function* (payload) {
+    // The second argument is the execution ID
+    Effect.fn("OrderFulfillmentWorkflow")(function* (payload, executionId) {
         // Step 1: Reserve inventory
         const reservation = yield* Activity.make({
             name: "ReserveInventory",
@@ -300,11 +322,11 @@ export class ExternalApiError extends Schema.TaggedError<ExternalApiError>()(
         retryable: Schema.Boolean,
     },
 ) {
-    static fromResponse(response: Response): ExternalApiError {
+    static fromStatus(status: number): ExternalApiError {
         return new ExternalApiError({
-            message: `API error: ${response.statusText}`,
-            statusCode: response.status,
-            retryable: response.status >= 500, // 5xx errors are retryable
+            message: `API error: ${status}`,
+            statusCode: status,
+            retryable: status >= 500, // 5xx errors are retryable
         })
     }
 }
@@ -315,11 +337,12 @@ yield* Activity.make({
     error: ExternalApiError,
     execute: Effect.gen(function* () {
         const client = yield* HttpClient.HttpClient
-        const response = yield* client.get(url)
+        // Transport and decode failures are not part of the declared error here, so make them defects
+        const response = yield* client.get(url).pipe(Effect.orDie)
         if (response.status >= 400) {
-            return yield* Effect.fail(ExternalApiError.fromResponse(response))
+            return yield* Effect.fail(ExternalApiError.fromStatus(response.status))
         }
-        return yield* response.json
+        return yield* HttpIncomingMessage.schemaBodyJson(ApiResponse)(response).pipe(Effect.orDie)
     }),
 })
 ```
@@ -331,12 +354,12 @@ schedule is a parsed `Cron`:
 
 ```typescript
 import { Cron, Effect } from "effect"
-import { ClusterCron } from "effect/unstable/cluster"
+import { ClusterCron } from "effect/cluster"
 
 export const DailyReportCronLayer = ClusterCron.make({
     name: "DailyReportCron",
-    // Cron expression: every day at 6 AM UTC
-    cron: Cron.parseUnsafe("0 6 * * *"),
+    // Every day at 6 AM UTC. Without the zone argument the schedule uses the host time zone
+    cron: Cron.parseUnsafe("0 6 * * *", "UTC"),
     execute: Effect.gen(function* () {
         yield* Effect.log("Starting daily report generation")
 
@@ -348,7 +371,7 @@ export const DailyReportCronLayer = ClusterCron.make({
 })
 ```
 
-Use `Cron.parse(expr)` when you want the `Result` form. Other options include `shardGroup` to
+Use `Cron.parse(expr, tz)` when you want the `Result` form. Other options include `shardGroup` to
 pin the job to a shard group, `calculateNextRunFromPrevious`, and `skipIfOlderThan` (defaults
 to `"1 day"`) to skip badly delayed runs.
 
@@ -359,7 +382,7 @@ The layer requires `Sharding`, so provide your cluster layer beneath it.
 ### From an HTTP Handler
 
 ```typescript
-import { HttpApiBuilder, HttpApiEndpoint } from "effect/unstable/httpapi"
+import { HttpApiBuilder, HttpApiEndpoint } from "effect/http-api"
 
 const createOrder = HttpApiEndpoint.post("createOrder", "/orders", {
     payload: CreateOrderInput,
@@ -367,30 +390,36 @@ const createOrder = HttpApiEndpoint.post("createOrder", "/orders", {
     error: ValidationError,
 })
 
-const OrdersApiLive = HttpApiBuilder.group(Api, "orders", (handlers) =>
-    handlers.handle("createOrder", ({ payload }) =>
-        Effect.gen(function* () {
-            const orders = yield* OrderService
+const OrdersApiLive = HttpApiBuilder.group(Api, "orders", Effect.fn(function* (handlers) {
+    const orders = yield* OrderService
 
+    return handlers.handle("createOrder", ({ payload }) =>
+        Effect.gen(function* () {
             // Create order in database
             const order = yield* orders.create(payload)
 
-            // Trigger async fulfillment workflow
+            // Start fulfillment without waiting for it to finish
             yield* OrderFulfillmentWorkflow.execute({
                 orderId: order.id,
                 userId: payload.userId,
                 items: payload.items,
                 shippingAddress: payload.shippingAddress,
-            })
+            }, { discard: true })
 
             return order
         })
     )
-)
+}))
 ```
 
-`execute` requires the `WorkflowEngine` service, provided by the cluster workflow
-engine layer at the application root.
+`execute` **waits for the workflow to finish** and returns its success value, failing with its
+error. Pass `{ discard: true }` to start it and get the execution ID back immediately, which is
+what a request handler that returns early wants. Use `OrderFulfillmentWorkflow.poll(executionId)`
+later to read the result.
+
+`execute` requires the `WorkflowEngine` service. A service yielded inside a handler body surfaces
+as a requirement on `HttpRouter.serve`, so provide the engine at the application root, outside
+`serve`. See `http-api-patterns.md` for why `OrderService` is acquired in the build effect.
 
 ### From a Backend Service
 
@@ -407,7 +436,7 @@ export class MessageService extends Context.Service<MessageService>()("MessageSe
                 messageId: message.id,
                 channelId: message.channelId,
                 authorId: message.authorId,
-            })
+            }, { discard: true })
 
             return message
         })
@@ -422,15 +451,17 @@ export class MessageService extends Context.Service<MessageService>()("MessageSe
 ```
 
 Both call sites require `WorkflowEngine` in the effect's requirements. Provide it once at the
-root with the cluster workflow engine layer, the same layer that runs registered workflows.
+root with `ClusterWorkflowEngine.layer` from `effect/cluster`. That layer needs `Sharding` and
+`MessageStorage`, and registers the durable clock entity. Workflows registered with `toLayer` run
+on it.
 
 ## Import Reference
 
-| Module                          | Path                      | Exports                                                            |
-| ------------------------------- | ------------------------- | ------------------------------------------------------------------ |
-| RPC                             | `effect/unstable/rpc`     | `Rpc`, `RpcGroup`, `RpcClient`, `RpcServer`, `RpcMiddleware`        |
-| Cluster                         | `effect/unstable/cluster` | `Sharding`, `Entity`, `Singleton`, `ClusterCron`, `ClusterSchema`   |
-| Workflow                        | `effect/unstable/workflow`| `Workflow`, `Activity`                                             |
+| Module   | Path               | Exports                                                                                                |
+| -------- | ------------------ | ------------------------------------------------------------------------------------------------------ |
+| RPC      | `effect/rpc`       | `Rpc`, `RpcGroup`, `RpcClient`, `RpcServer`, `RpcMiddleware`, `RpcSerialization`, `RpcTest`            |
+| Cluster  | `effect/cluster`   | `Sharding`, `Entity`, `Singleton`, `ClusterCron`, `ClusterSchema`, `ClusterWorkflowEngine`, `Runners`  |
+| Workflow | `effect/workflow`  | `Workflow`, `Activity`, `WorkflowEngine`, `DurableClock`, `DurableDeferred`, `DurableQueue`            |
 
-All three are **unstable modules**. Pin your Effect version if you depend on them heavily. See
-`v4-semantics.md`.
+All three are `@stability unstable` modules inside the `effect` package. Pin your Effect version if
+you depend on them heavily. See `v4-semantics.md`.

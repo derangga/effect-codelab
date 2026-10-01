@@ -349,6 +349,11 @@ Details in that example: the wrapper type is `Config.Wrap<T>`,
 the error is `Config.ConfigError`, integer config uses
 `Config.Int`, and effect lifting uses `Layer.unwrap`.
 
+Put `Config.withDefault` on each child, as above. Applied to the whole group (`Config.all` or the
+wrapped struct), it replaces the entire group when any child is missing, so values that were set
+are discarded. Validation and source errors still propagate. `Config.flatMap` is available when
+one config decides which config to read next.
+
 This pattern:
 
 - Separates configuration from implementation
@@ -440,7 +445,7 @@ const ApiClientLive = Layer.unwrap(
 // Layer that validates config. Put the rule on the schema and let
 // Config.schema turn a failed check into a ConfigError for you
 const DbUrl = Config.schema(
-    Schema.String.check(Schema.isStartsWith("postgresql://")),
+    Schema.String.check(Schema.isStartingWith("postgresql://")),
     "DATABASE_URL",
 )
 

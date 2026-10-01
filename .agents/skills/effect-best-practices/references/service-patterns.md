@@ -349,12 +349,13 @@ export class AppService extends Context.Service<AppService>()("AppService", {
 
 > See also: [Using Impure Functions Directly in Business Logic] in `anti-patterns.md` for why raw `fetch()`, `Math.random()`, and similar need modeling as services
 
-Services return `Effect` types, never `Promise`:
+Services return `Effect` types, never `Promise`. Annotate a generator body with
+`Effect.fn.Return<A, E, R>`, since a generator function cannot be typed `Effect.Effect<...>`:
 
 ```typescript
 // CORRECT
 const findById = Effect.fn("UserService.findById")(
-    function* (id: UserId): Effect.Effect<User, UserNotFoundError> {
+    function* (id: UserId): Effect.fn.Return<User, UserNotFoundError> {
         // ...
     }
 )
@@ -370,7 +371,7 @@ const findById = async (id: UserId): Promise<User> => {
 ```typescript
 // CORRECT, findById can fail, findByIdOption returns Option
 const findById = Effect.fn("UserService.findById")(
-    function* (id: UserId): Effect.Effect<User, UserNotFoundError> {
+    function* (id: UserId): Effect.fn.Return<User, UserNotFoundError> {
         const maybeUser = yield* repo.findById(id)
         return yield* Option.match(maybeUser, {
             onNone: () => Effect.fail(new UserNotFoundError({ userId: id, message: "Not found" })),
@@ -380,7 +381,7 @@ const findById = Effect.fn("UserService.findById")(
 )
 
 const findByIdOption = Effect.fn("UserService.findByIdOption")(
-    function* (id: UserId): Effect.Effect<Option.Option<User>> {
+    function* (id: UserId): Effect.fn.Return<Option.Option<User>> {
         return yield* repo.findById(id)
     }
 )

@@ -124,7 +124,7 @@ export class UserService extends Context.Service<UserService>()("UserService", {
 
 ```typescript
 const findById = Effect.fn("UserService.findById")(
-    function* (id: UserId): Effect.Effect<User, UserNotFoundError> {
+    function* (id: UserId): Effect.fn.Return<User, UserNotFoundError> {
         // ...
     }
 )
@@ -219,10 +219,13 @@ type User = {
 ```typescript
 const User = Schema.Struct({
     name: Schema.String,
-    bio: Schema.Option(Schema.String),
-    avatar: Schema.Option(Schema.String),
+    bio: Schema.OptionFromNullOr(Schema.String),         // null on the wire, Option in code
+    avatar: Schema.OptionFromOptionalKey(Schema.String), // missing key on the wire, Option in code
 })
 ```
+
+`Schema.Option(s)` also works, but its encoded side is an `Option` too, so it does not decode JSON.
+Use the `OptionFrom*` variants at a wire boundary.
 
 ## FORBIDDEN: Option.getOrThrow
 
@@ -593,21 +596,23 @@ const userRoute = HttpApiEndpoint.get("getUser", "/users/:id", {
 })
 
 // Manually catching and mapping errors in each handler implementation
-const handleGetUser = HttpApiBuilder.endpoint(Api, "users", "getUser", ({ params }) =>
-    findUser(params.id).pipe(
-        Effect.catchTag("UserNotFoundError", (e) =>
-            Effect.fail(new ServiceError({ status: 404, message: e.message }))
-        ),
-    )
-)
-
-// Same error handling duplicated in every route...
-const handleDeleteUser = HttpApiBuilder.endpoint(Api, "users", "deleteUser", ({ params }) =>
-    deleteUser(params.id).pipe(
-        Effect.catchTag("UserNotFoundError", (e) =>
-            Effect.fail(new ServiceError({ status: 404, message: e.message }))
-        ),
-    )
+const UsersLive = HttpApiBuilder.group(Api, "users", (handlers) =>
+    handlers
+        .handle("getUser", ({ params }) =>
+            findUser(params.id).pipe(
+                Effect.catchTag("UserNotFoundError", (e) =>
+                    Effect.fail(new ServiceError({ status: 404, message: e.message }))
+                ),
+            )
+        )
+        // Same error handling duplicated in every route...
+        .handle("deleteUser", ({ params }) =>
+            deleteUser(params.id).pipe(
+                Effect.catchTag("UserNotFoundError", (e) =>
+                    Effect.fail(new ServiceError({ status: 404, message: e.message }))
+                ),
+            )
+        )
 )
 ```
 
@@ -631,8 +636,10 @@ const endpoint = HttpApiEndpoint.get("getUser", "/users/:id", {
 })
 
 // Handlers just fail normally, no manual mapping needed
-const handleGetUser = HttpApiBuilder.endpoint(Api, "users", "getUser", ({ params }) =>
-    findUser(params.id) // UserNotFoundError automatically becomes 404
+const UsersLive = HttpApiBuilder.group(Api, "users", (handlers) =>
+    handlers.handle("getUser", ({ params }) =>
+        findUser(params.id) // UserNotFoundError automatically becomes 404
+    )
 )
 ```
 
@@ -707,7 +714,7 @@ const createUser = Effect.gen(function* () {
 ```typescript
 export class IdGenerator extends Context.Service<IdGenerator>()("IdGenerator", {
     make: Effect.sync(() => ({
-        generate: Effect.sync(() => crypto.randomUUID()),
+        generate: Effect.sync((): string => crypto.randomUUID()),
     })),
 }) {
     static readonly layer = Layer.effect(this, this.make)
@@ -715,7 +722,7 @@ export class IdGenerator extends Context.Service<IdGenerator>()("IdGenerator", {
 
 const createUser = Effect.gen(function* () {
     const idGen = yield* IdGenerator
-    const clock = yield* Clock
+    const clock = yield* Clock.Clock
     const id = yield* idGen.generate
     const timestamp = yield* clock.currentTimeMillis
     return { id, timestamp }
@@ -757,3 +764,23 @@ const withBackground = Effect.gen(function* () {
     return mainResult
 })
 ```
+
+## FORBIDDEN: Importing From `effect/unstable/*`
+
+```typescript
+// FORBIDDEN, the unstable/ paths were removed in 4.0.0 with no compatibility exports
+import { HttpApi } from "effect/unstable/httpapi"
+import { SqlClient } from "effect/unstable/sql"
+```
+
+**Why:** Unstable modules moved to top-level paths and `httpapi` became `http-api`. Old imports fail
+to resolve.
+
+**Correct:**
+
+```typescript
+import { HttpApi } from "effect/http-api"
+import { SqlClient } from "effect/sql"
+```
+
+The `@stability unstable` tag still applies to these modules. See `v4-semantics.md`.

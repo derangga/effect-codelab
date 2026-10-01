@@ -4,21 +4,46 @@ The Effect Language Service is a TypeScript language plugin that provides Effect
 
 ## Installation
 
-For Effect v4 the package is **`@effect/tsgo`**, the language service built for TypeScript-Go.
-It is what the Effect repo itself installs and what the v4 docs document.
+Pick the package by TypeScript version. Effect v4 itself needs TypeScript 5.9 or newer and
+recommends TypeScript 7.
+
+| TypeScript | Package | CLI binary |
+|------------|---------|------------|
+| 7.0 or newer | `@effect/tsgo`, a wrapper around TypeScript-Go that embeds the Effect language service | `effect-tsgo` |
+| 5.9 and 6.x | `@effect/language-service`, a `tsserver` plugin | `effect-language-service` |
+
+Both support Effect v4. The `@effect/language-service` README tells TypeScript 7 users to
+switch to `@effect/tsgo`.
+
+### TypeScript 7 with @effect/tsgo
 
 ```bash
 npm install @effect/tsgo --save-dev
-```
-
-Or let the CLI wire it up:
-
-```bash
+# Interactive setup. Add --help to see the non-interactive flags
 npx @effect/tsgo setup
 ```
 
-Add to `tsconfig.json`. Note the plugin **name** is still `@effect/language-service`, even though
-the package you installed is `@effect/tsgo`:
+`setup` adds the dependency, edits `tsconfig.json`, and can configure VS Code, Neovim, or
+Emacs (`--vscode`, `--nvim`, `--emacs`). You still need a native TypeScript install next to
+it (`typescript` >= 7, or an alias such as `@typescript/native`). Use `effect-tsgo` instead of
+the official `tsgo` binary, not alongside it. `npx effect-tsgo get-exe-path` prints the
+executable path for editors that need one.
+
+### TypeScript 5.9 and 6 with @effect/language-service
+
+```bash
+npm install @effect/language-service --save-dev
+```
+
+Then use your workspace TypeScript in the editor:
+
+- VS Code: F1, "TypeScript: Select TypeScript Version", "Use Workspace Version".
+- JetBrains: Settings, Languages & Frameworks, TypeScript, pick the workspace
+  `node_modules/typescript`.
+
+### tsconfig.json
+
+The plugin **name** is `@effect/language-service` for both packages:
 
 ```json
 {
@@ -28,200 +53,133 @@ the package you installed is `@effect/tsgo`:
 }
 ```
 
-The older `@effect/language-service` package is still published for classic `tsc` setups, with an
-`effect-language-service` binary in place of `effect-tsgo`. New v4 projects should install
-`@effect/tsgo`.
-
-## Editor Setup
-
-### VSCode
-
-1. Install TypeScript workspace version (ensure `typescript` is in devDependencies)
-2. Press F1 → "TypeScript: Select TypeScript Version" → "Use Workspace Version"
-
-### JetBrains (WebStorm, IntelliJ)
-
-Settings → Languages & Frameworks → TypeScript → Select workspace `node_modules/typescript`
-
-### Neovim (nvim-lspconfig)
-
-Configure `tsserver` with the plugin:
-
-```lua
-require('lspconfig').tsserver.setup({
-  init_options = {
-    plugins = {
-      {
-        name = "@effect/language-service",
-        location = vim.fn.getcwd() .. "/node_modules/@effect/tsgo"
-      }
-    }
-  }
-})
-```
-
-### Emacs (lsp-mode)
-
-```elisp
-(setq lsp-clients-typescript-plugins
-      (vector (list :name "@effect/language-service"
-                    :location (expand-file-name "node_modules/@effect/tsgo"
-                                                (projectile-project-root)))))
-```
-
-The tables below list the plugin's own option names. They come from the language service, not
-from `effect`, so check the package README for the set shipped with your version.
-
 ## Configuration Options
 
-Configure in `tsconfig.json` under the plugin entry:
+Options go on the plugin entry. In the `@effect/tsgo` schema, `refactors`, `diagnostics`,
+`quickinfo`, `completions`, `goto`, and `renames` are plain booleans (all default to `true`). Per-rule severity lives in
+`diagnosticSeverity`:
 
 ```json
 {
   "compilerOptions": {
     "plugins": [{
       "name": "@effect/language-service",
-      "refactors": { "allEnabled": true },
-      "diagnostics": { "allEnabled": true },
-      "quickinfo": { "allEnabled": true },
-      "completions": { "allEnabled": true }
+      "diagnostics": true,
+      "diagnosticSeverity": {
+        "floatingEffect": "error",
+        "strictEffectProvide": "warning",
+        "deterministicKeys": "error"
+      }
     }]
   }
 }
 ```
 
-### Refactors
+Severity values are `off`, `error`, `warning`, `message`, and `suggestion`.
+`"diagnosticSeverity": {}` keeps every rule at its default. Other options in the
+`@effect/tsgo` schema:
 
-| Refactor | Default | Description |
-|----------|---------|-------------|
-| `asyncAwaitToGenTryPromise` | ✓ | Convert async/await to Effect.gen with Effect.tryPromise |
-| `toggleTypeAnnotation` | ✓ | Add/remove return type annotations |
-| `wrapWithEffectGen` | ✓ | Wrap selection in Effect.gen |
-| `addPipeToEffectUse` | ✓ | Add pipe to effectful expression |
-| `arrowToEffectGenFunction` | ✓ | Convert arrow function to Effect.gen |
-| `functionToEffectGenFunction` | ✓ | Convert function to Effect.gen |
+| Option | Purpose |
+|--------|---------|
+| `overrides` | Ordered per-file option overrides, each with `include` globs and `options` |
+| `includeSuggestionsInTsc` | Show suggestion-level diagnostics in `tsc` output (default `true`) |
+| `ignoreEffectSuggestionsInTscExitCode` | Suggestions do not affect the `tsc` exit code (default `true`) |
+| `ignoreEffectWarningsInTscExitCode` | Warnings do not affect the exit code (default `false`) |
+| `ignoreEffectErrorsInTscExitCode` | Errors do not affect the exit code (default `false`) |
+| `keyPatterns` | Array of `{ target, pattern, skipLeadingPath }` for the `deterministicKeys` rule |
+| `namespaceImportPackages`, `barrelImportPackages`, `importAliases` | Import style preferences |
+| `allowedDuplicatedPackages` | Packages allowed to appear in several versions |
+| `pipeableMinArgCount` | Threshold for `missedPipeableOpportunity` (default `2`) |
+| `effectFn` | Which `effectFnOpportunity` quick fix variants are offered (default `["span"]`) |
+| `mermaidProvider`, `noExternal`, `layerGraphFollowDepth` | Layer graph hover links |
+
+`@effect/language-service` has the same core options plus a few of its own, such as
+`quickinfoEffectParameters` and `quickinfoMaximumLength`. Its README is the reference for the
+version you installed. A rule's severity can also be set in code:
+
+```ts
+// @effect-diagnostics effect/floatingEffect:off
+Effect.succeed(1) // not reported
+
+// @effect-diagnostics *:off
+```
 
 ### Diagnostics
 
+Rule names below come from the `@effect/tsgo` 0.47 plugin schema. Defaults are from the
+README tables of both packages. Run `npx effect-tsgo config` (or `effect-language-service
+config`) to pick severities interactively.
+
 | Diagnostic | Default | Description |
 |------------|---------|-------------|
-| `floatingEffect` | ✓ | Detects unhandled Effect values |
-| `missingProvide` | ✓ | Detects missing service requirements |
-| `effectYieldNonEffect` | ✓ | Detects yielding non-Effect in generator |
-| `noExplicitResourceManagement` | ✓ | Detects missing using/await using |
-| `noFloatingPromises` | ✓ | Detects unhandled Promises |
-| `forbiddenTags` | ✓ | Detects using forbidden error tags |
-| `unnecessaryEffectYield` | ✓ | Detects unnecessary Effect.succeed yield |
-| `unnecessaryFlatMap` | ✓ | Detects flatMap that could be map |
-| `unnecessaryMap` | ✓ | Detects map with identity function |
+| `floatingEffect` | error | Effect value that is neither yielded nor assigned |
+| `missingEffectContext` | error | Effect with service requirements that are not provided |
+| `missingEffectError` | error | Effect with error types that are not handled |
+| `missingLayerContext` | error | Layer with unprovided requirements |
+| `missingStarInYieldEffectGen` | error | Bare `yield` instead of `yield*` in a generator |
+| `missingReturnYieldStar` | error | Suggests `return yield*` for effects that never succeed |
+| `classSelfMismatch` | error | `Self` type parameter does not match the class name |
+| `outdatedApi` | warning | API removed or renamed in Effect v4 |
+| `multipleEffectProvide` | warning | Chained `Effect.provide` calls |
+| `leakingRequirements` | suggestion | Implementation services leaked through service methods |
+| `effectFnOpportunity` | suggestion | Function returning an Effect that could use `Effect.fn` |
+| `unnecessaryEffectGen` | suggestion | `Effect.gen` with a single return |
+| `unnecessaryPipe` | suggestion | `pipe` call with no arguments |
+| `strictEffectProvide` | off | `Effect.provide` outside application entry points |
+| `serviceNotAsClass` | off | `Context.Service` declared as a variable instead of a class |
+| `deterministicKeys` | off | Service, tag, and error identifiers that do not follow the key pattern |
+| `globalConsole`, `globalDate`, `globalRandom`, `globalFetch`, `globalTimers`, `processEnv` | off | Native globals used where an Effect service exists (each has an `...InEffect` variant) |
 
-### Quick Info
+`outdatedApi` is the useful one when migrating code from earlier Effect releases.
 
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `showEffectTypeParamsOnHover` | ✓ | Shows Success/Error/Requirements on hover |
+### Refactors and Completions
 
-### Completions
-
-| Completion | Default | Description |
-|------------|---------|-------------|
-| `self` | ✓ | Auto-complete `Self` type parameter |
-| `durationStrings` | ✓ | Auto-complete `Duration.Input` strings such as `"5 seconds"` |
-| `brands` | ✓ | Auto-complete Schema brand strings |
-
-### Key Patterns
-
-Configure recognized Effect-like patterns:
-
-```json
-{
-  "compilerOptions": {
-    "plugins": [{
-      "name": "@effect/language-service",
-      "keyPatterns": {
-        "Effect": "Effect\\.Effect",
-        "Layer": "Layer\\.Layer",
-        "Stream": "Stream\\.Stream"
-      }
-    }]
-  }
-}
-```
+Refactors include `asyncAwaitToGen`, `asyncAwaitToFn` (and `...TryPromise` variants),
+`effectGenToFn`, `wrapWithEffectGen`, `removeUnnecessaryEffectGen`, `layerMagic`,
+`togglePipeStyle`, `pipeableToDatafirst`, `toggleReturnTypeAnnotation`,
+`toggleTypeAnnotation`, and `typeToEffectSchema`.
+Completions cover `Effect.gen(function*(){})`, class `Self` snippets for Schema and service
+map classes, and `@effect-diagnostics` directive comments.
 
 ## CLI Tools
 
-The language service includes CLI commands for CI/CD integration and development workflows.
-
-### Setup Check
-
-Verify installation:
-
-```bash
-npx @effect/tsgo setup
-```
+`@effect/tsgo` ships `setup`, `config`, `patch`, `unpatch`, `get-exe-path`, and
+`diagnostics`. The `effect-language-service` CLI has those plus `check`, `codegen`,
+`quickfixes`, `overview`, and `layerinfo`. Run it with `npx`, and prefer a local install so
+it loads the same TypeScript as your project.
 
 ### Build-Time Diagnostics
 
-Patch TypeScript to run language service diagnostics during `tsc`:
+Patch the installed TypeScript so `tsc` reports Effect diagnostics:
 
 ```bash
-npx effect-tsgo patch
+npx effect-tsgo patch      # or: npx effect-language-service patch
+npx effect-tsgo unpatch    # restore
 ```
 
-This enables CI enforcement of Effect-specific rules. Errors like floating Effects will now fail the build.
-
-To unpatch:
-
-```bash
-npx effect-tsgo unpatch
-```
+Errors such as a floating Effect then fail the build, unless an `ignoreEffect*InTscExitCode`
+option says otherwise. `effect-tsgo patch` looks for `typescript`, then `@typescript/native`.
+Pass `--typescript-package <name>` to try another package name first.
 
 ### Project-Wide Diagnostics
 
-Run all diagnostics without patching:
+Run the diagnostics without patching:
 
 ```bash
-npx effect-tsgo diagnostics
-npx effect-tsgo diagnostics --fix  # Auto-fix where possible
+npx effect-tsgo diagnostics --project tsconfig.json
+npx effect-tsgo diagnostics --project tsconfig.json --format github-actions --strict
 ```
 
-### Quick Fixes
+`--format` accepts `json`, `pretty`, `text`, and `github-actions`. `--strict` treats warnings
+as errors, and `--severity error,warning` filters the output.
 
-Apply quick fixes interactively:
-
-```bash
-npx effect-tsgo quickfixes
-```
-
-### Code Generation
-
-Generate boilerplate from Effect patterns:
+### Classic CLI Extras
 
 ```bash
-npx effect-tsgo codegen
-```
-
-### Project Overview
-
-Get a summary of Effect usage in your project:
-
-```bash
-npx effect-tsgo overview
-```
-
-Shows:
-- Service definitions
-- Error types
-- Layer composition graph
-- Schema definitions
-
-### Layer Information
-
-Analyze Layer dependencies:
-
-```bash
-npx effect-tsgo layerinfo
-npx effect-tsgo layerinfo --graph  # Output as graph
+npx effect-language-service quickfixes --project tsconfig.json  # preview available fixes
+npx effect-language-service codegen --project tsconfig.json     # apply @effect-codegens directives
+npx effect-language-service overview --project tsconfig.json    # Effect exports in the project
+npx effect-language-service layerinfo --file src/layers.ts --name AppLive  # layer composition help
 ```
 
 ## Common Diagnostics
@@ -250,58 +208,51 @@ const program = Effect.gen(function* () {
 const main = program.pipe(Effect.provide(UserService.layer))
 ```
 
-### Yield Non-Effect
+### Missing yield star
 
 ```typescript
-// ERROR: Yielding a non-Effect value
-yield* Promise.resolve(42)
+// ERROR: bare yield does not run the Effect
+const a = yield Effect.succeed(42)
 
-// FIX: Wrap in Effect.promise
-yield* Effect.promise(() => Promise.resolve(42))
+// FIX
+const b = yield* Effect.succeed(42)
 ```
 
-This diagnostic catches `yield* ref`, `yield* deferred`, and `yield* fiber`. Those
-types are not `Effect` subtypes. Use `Ref.get`, `Deferred.await`, and `Fiber.join`.
+### Outdated API
 
-### Forbidden Tags
-
-```typescript
-// ERROR: "Error" is a forbidden error tag (too generic)
-class MyError extends Schema.TaggedError<MyError>()("Error", {}) {}
-
-// FIX: Use descriptive tag
-class UserNotFoundError extends Schema.TaggedError<UserNotFoundError>()(
-  "UserNotFoundError",
-  { userId: UserId, message: Schema.String }
-) {}
-```
+`outdatedApi` flags APIs that were removed or renamed in Effect v4. Follow its message to the
+replacement, and see `v4-semantics.md` for the semantics that changed.
 
 ## Troubleshooting
 
 ### Language Service Not Loading
 
-1. Ensure `typescript` is in devDependencies (not just dependencies)
-2. Restart the TypeScript server (VSCode: Cmd+Shift+P → "TypeScript: Restart TS Server")
-3. Verify workspace TypeScript is selected
+1. Ensure the package is in devDependencies. For `@effect/language-service`, also ensure
+   `typescript` is installed locally and the editor uses the workspace version.
+2. Restart the TypeScript server (VSCode: Cmd+Shift+P, "TypeScript: Restart TS Server").
+3. For `@effect/tsgo`, run `npx @effect/tsgo setup` again and check that the editor runs
+   `effect-tsgo` and not the stock `tsgo`.
 
 ### Diagnostics Not Appearing
 
-1. Check `tsconfig.json` plugin configuration
-2. Ensure the file is included in the TypeScript project
-3. Check for `"diagnostics": { "allEnabled": false }` in config
+1. Check the `tsconfig.json` plugin entry, and that its `name` is `@effect/language-service`.
+2. Ensure the file is included in the TypeScript project.
+3. Check for `"diagnostics": false` or a `diagnosticSeverity` entry set to `"off"`.
+4. In `tsc` runs, diagnostics only appear after `patch`. Delete `tsbuildinfo` files or do a
+   full rebuild so previously checked files are re-checked.
 
 ### Performance Issues
 
-For large codebases, disable expensive diagnostics:
+Set rules you do not need to `"off"` in `diagnosticSeverity`, or set `"diagnostics": false`:
 
 ```json
 {
   "compilerOptions": {
     "plugins": [{
       "name": "@effect/language-service",
-      "diagnostics": {
-        "allEnabled": true,
-        "missingProvide": false  // Expensive on large projects
+      "diagnosticSeverity": {
+        "multipleEffectProvide": "off",
+        "missedPipeableOpportunity": "off"
       }
     }]
   }

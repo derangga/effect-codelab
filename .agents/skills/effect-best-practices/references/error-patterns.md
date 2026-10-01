@@ -149,7 +149,7 @@ export class SessionExpiredError extends Schema.TaggedError<SessionExpiredError>
 
 ```typescript
 import { Schema } from "effect"
-import { HttpApiSchema } from "effect/unstable/httpapi"
+import { HttpApiSchema } from "effect/http-api"
 
 export class UserNotFoundError extends Schema.TaggedError<UserNotFoundError>()(
     "UserNotFoundError",
@@ -480,7 +480,7 @@ yield* Activity.make({
 })
 ```
 
-See `rpc-cluster-patterns.md`. `Activity` lives in `effect/unstable/workflow`.
+See `rpc-cluster-patterns.md`. `Activity` lives in `effect/workflow`.
 
 ## HTTP Status Codes (Without Generic Errors)
 
