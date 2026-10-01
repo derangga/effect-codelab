@@ -264,8 +264,10 @@ a pool, a cache one cache, and an in-memory repository one repository. It is als
 the reason the answer to "how many times will this run" is a property of the
 build rather than of how many services asked for it.
 
-The sharing extends across separate `Effect.provide` calls on the same fiber
-too, so this opens one connection and not two:
+Sharing has a boundary, and it is the `Effect.provide` call. Memoization covers
+one layer graph built by one provide. Two separate provides each build their
+own, even of the same layer value. Here are two lookups, each provided on its
+own, run one after the other:
 
 ```ts twoslash
 // @filename: src/config.ts
@@ -341,22 +343,44 @@ export class ArticleRepo extends Context.Service<ArticleRepo>()('ArticleRepo', {
   static readonly layer = Layer.effect(this, this.make)
 }
 // @filename: src/main.ts
-import { Effect } from 'effect'
-import { Database } from './database'
-import { UserRepo } from './repos'
-declare const program: Effect.Effect<void, never, UserRepo>
 // ---cut---
-// src/main.ts
-const runnable = program.pipe(
-  Effect.provide(UserRepo.layer),
-  Effect.provide(Database.layer),
-)
+// src/main.ts, two provides
+import { Effect, Layer } from 'effect'
+import { Database } from './database'
+import { ArticleRepo, UserRepo } from './repos'
+
+const lookupUser = Effect.gen(function* () {
+  const users = yield* UserRepo
+  return yield* users.findById('u1')
+}).pipe(Effect.provide(UserRepo.layer.pipe(Layer.provide(Database.layer))))
+
+const lookupArticles = Effect.gen(function* () {
+  const articles = yield* ArticleRepo
+  return yield* articles.listByAuthor('u1')
+}).pipe(Effect.provide(ArticleRepo.layer.pipe(Layer.provide(Database.layer))))
+
+Effect.runPromise(Effect.andThen(lookupUser, lookupArticles)).then(console.log)
 ```
 
-Treat that as a safety net rather than a style. Composing the graph into one
-layer and providing it once, the way `FeedService.layer` does, keeps the whole
-structure readable in one place, and the type of that one layer is a description
-of your application.
+```
+[11:43:22.899] INFO (#1): opening sqlite://feed.db
+[11:43:22.901] INFO (#1): sqlite://feed.db: select * from users where id = 'u1'
+[11:43:22.901] INFO (#1): closing the connection
+[11:43:22.901] INFO (#1): opening sqlite://feed.db
+[11:43:22.901] INFO (#1): sqlite://feed.db: select * from articles where author = 'u1'
+[11:43:22.901] INFO (#1): closing the connection
+[]
+```
+
+Two opens and two closes, for the same `Database.layer`. Running the lookups
+together with `Effect.all` and a `concurrency` option builds them separately
+too. A provide nested inside another one does share what the outer one built,
+which is what the `{ local: true }` option further down turns off.
+
+So compose the graph into one layer and provide it once, the way
+`FeedService.layer` does. That is what makes the answer one connection, and the
+type of that one layer is a description of your application. Every extra
+`Effect.provide` is a chance to build a second one.
 
 ## Asking for a second one
 

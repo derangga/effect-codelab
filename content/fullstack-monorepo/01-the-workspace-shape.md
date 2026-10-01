@@ -50,7 +50,10 @@ are, and to hold the commands you run from the top.
   "name": "effect-todo-monorepo",
   "private": true,
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "postinstall": "effect-tsgo patch --typescript",
     "dev": "bun --filter './apps/*' dev",
@@ -202,8 +205,8 @@ API](/learn/fullstack-monorepo/07-testing-the-api) explains why.
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0",
-    "@types/bun": "latest",
-    "vitest": "^5.0.1"
+    "@types/bun": "1.4.2",
+    "vitest": "5.0.3"
   }
 }
 ```
@@ -224,17 +227,17 @@ API](/learn/fullstack-monorepo/07-testing-the-api) explains why.
     "@effect/atom-react": "4.0.0",
     "@todo/domain": "workspace:*",
     "effect": "4.0.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "scheduler": "^0.27.0"
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "scheduler": "0.27.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^6.1.1",
-    "tailwindcss": "^4",
-    "vite": "^8.3.0"
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.0"
   }
 }
 ```
@@ -319,8 +322,14 @@ type the throwaway export above into `packages/domain/src/index.ts` and run:
 bun --filter @todo/domain typecheck
 ```
 
-It exits with no output, which is what success looks like for `tsc`. Delete the
-`greeting` line again before moving on. The next chapter replaces it.
+```
+@todo/domain typecheck: Exited with code 0
+```
+
+`tsc` itself prints nothing when the code is clean. The line above comes from
+`bun --filter`, which reports each package when its script finishes. Code 0 is
+success. Delete the `greeting` line again before moving on. The next chapter
+replaces it.
 
 ## What people get wrong
 

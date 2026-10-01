@@ -51,7 +51,8 @@ agreement every time you build.
   gets a plain explanation the first time it shows up, with a link to the
   [Basic Effect](/learn/basic-effect) track if you want the longer story.
 
-The versions are pinned exactly:
+Every dependency in the `package.json` files is pinned to an exact version, with
+no `^` and no `latest`. These are the ones that must not drift:
 
 ```sh
 effect@4.0.0
@@ -68,7 +69,8 @@ identical.
 
 Several modules come from paths like `effect/http-api` and `effect/sql`. They
 live inside the `effect` package itself. Effect v4 is stable, but those modules
-are tagged `@stability unstable` in their documentation, which the release notes
+are tagged `@stability unstable` in their documentation, which the
+[release notes](https://github.com/Effect-TS/effect/releases/tag/effect%404.0.0)
 define as "may have breaking changes in minor releases". That is why the
 versions above are pinned exactly.
 

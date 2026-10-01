@@ -379,7 +379,8 @@ cd apps/web
 bun run typecheck
 ```
 
-It exits with no output. Now try a mistake on purpose: change `"list"` to
+It prints `$ tsc -p tsconfig.json` and nothing else, which means it compiles. Now
+try a mistake on purpose: change `"list"` to
 `"lsit"` and run it again. The typecheck fails because `"lsit"` is not an
 endpoint of the `todos` group. Change it back.
 

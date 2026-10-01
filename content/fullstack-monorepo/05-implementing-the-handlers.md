@@ -363,7 +363,12 @@ cd apps/server
 bun run typecheck
 ```
 
-No output means it compiles. Then prove the checklist to yourself: delete the
+```
+$ tsc -p tsconfig.json
+```
+
+That line is just `bun` echoing the script. `tsc` printed nothing after it, which
+means the package compiles. Then prove the checklist to yourself: delete the
 `.handle("create", ...)` part, run the typecheck again, and look for
 `Endpoint not handled: create` in the error. Put it back before moving on.
 

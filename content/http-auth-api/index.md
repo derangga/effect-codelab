@@ -32,8 +32,9 @@ Effect promises not to change them.
 Effect v4 is stable, and its core follows semver, so a minor release will not
 break code that uses `Effect` or `Layer`. The HTTP, schema and SQL modules are
 the exception. Their exports carry a `@stability unstable` tag in the type
-documentation, and the `4.0.0` release notes say what it means: an API with that
-tag "may have breaking changes in minor releases".
+documentation, and the [`4.0.0` release notes](https://github.com/Effect-TS/effect/releases/tag/effect%404.0.0)
+say what it means: an API with that tag "may have breaking changes in minor
+releases".
 
 The tag describes how the API may change, not whether the code works. Michael
 Arnaldi, who maintains Effect, put it plainly:
@@ -80,11 +81,14 @@ bun add --exact effect@4.0.0
 bun add --exact @effect/platform-bun@4.0.0
 bun add --exact @effect/sql-sqlite-bun@4.0.0
 bun add --exact jose@6.2.12
-bun add -d --exact @effect/tsgo@0.45.0 typescript@6.0.3
+bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 
 `--exact` matters. A version range can move the types out from under code that
 compiled yesterday, and the HTTP and SQL modules may change in a minor release.
+
+`typescript@7.0.2` is the rewritten compiler. It still installs a command called
+`tsc`, and `bunx tsc --version` should print `Version 7.0.2`.
 
 `jose` is the only dependency here that is not Effect or Bun. It signs and
 verifies the token in

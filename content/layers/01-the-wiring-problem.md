@@ -209,6 +209,11 @@ Read the error rather than skipping it. TypeScript is saying that an
 Effect is a description of work that will one day produce something with a
 `query`, and it is not that thing.
 
+The message above is the one TypeScript 6 prints. The 7.0.2 you installed
+words it as `TS2741: Property 'query' is missing in type 'Effect<...>' but
+required in type '{ readonly query: ... }'`. It points at the same call and says
+the same thing.
+
 ## What is actually missing
 
 Line up what the construction needs to be able to do, because the list is short

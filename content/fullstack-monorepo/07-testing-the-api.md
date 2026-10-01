@@ -482,11 +482,15 @@ bun run test
 ```
 
 ```
- RUN  v5.0.1 /.../apps/server
+$ bun --bun vitest run
+
+ RUN  v5.0.3 /.../apps/server
+
 
  Test Files  1 passed (1)
       Tests  3 passed (3)
-   Duration  163ms
+   Start at  11:46:59
+   Duration  166ms (import 67%, transform 17%, tests 15%, worker 1%)
 ```
 
 Three tests, a real HTTP server, a fresh database, well under a second. From

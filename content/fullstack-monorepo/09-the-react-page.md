@@ -356,9 +356,16 @@ bun run typecheck
 
 ```
 @todo/domain typecheck: Exited with code 0
-@todo/server typecheck: src/TodosApi.test.ts(26,20): error TS2339: Property 'title' does not exist on type 'Todo'.
-@todo/web typecheck: src/App.tsx(66,91): error TS2339: Property 'title' does not exist on type 'Todo'.
+@todo/server typecheck: src/TodosApi.test.ts(27,20): error TS2339: Property 'title' does not exist on type 'Todo'.
+@todo/server typecheck: Exited with code 1
+@todo/web typecheck: src/App.tsx(67,91): error TS2339: Property 'title' does not exist on type 'Todo'.
+@todo/web typecheck: Exited with code 1
+error: script "typecheck" exited with code 1
 ```
+
+The packages check in parallel, so the server and web lines can swap places.
+Your line numbers match only if your files start with the same path comment as
+the blocks in this track.
 
 One change in the shared package, and both apps fail to build, each pointing at
 the exact line that still says `title`. In two separate repositories, the same
