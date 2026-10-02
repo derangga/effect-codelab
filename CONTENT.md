@@ -221,6 +221,46 @@ Mermaid is around half a megabyte and loads only on chapters that contain a
 diagram, so do not add one out of habit. Add one when a picture explains
 something that a paragraph does not.
 
+## Simulators
+
+A fence tagged `demo`, with a name after it, puts an interactive simulator in
+the chapter:
+
+````
+```demo semaphore
+```
+````
+
+The name picks a component from the map in `src/components/demo.tsx`. A name
+that is not in the map fails the build with the chapter's path. Each simulator
+is a lazy import, so its code loads only on a chapter that uses it. To add one,
+write the component and add one line to that map. The run hook, the dial, the
+buttons and the token board that the simulators share are in
+`src/components/demo-kit.tsx`.
+
+Simulators run real Effect code, with `Effect.sleep` standing in for work and
+no network. Keep the Effect program in its own function under
+`src/effect-demo/`, so a test can call it without rendering React. In the raw
+markdown that `llms.txt` serves, the fence reads as the component tag.
+
+## Callouts
+
+A blockquote that opens with `[!NOTE]` renders as a callout box. It is the
+syntax GitHub uses, so the raw markdown still reads as a note.
+
+```
+> [!NOTE]
+> The number in `withPermits` must not be bigger than the number in
+> `Semaphore.make`.
+```
+
+`[!NOTE]` is the blue information box, `[!TIP]` the idea box and `[!WARNING]`
+the warning box. Any other name fails the build with the chapter's path. A
+plain blockquote with no marker stays a blockquote.
+
+Use one for a rule the reader must not miss and would skim past in a paragraph
+(judgement call). A chapter with a callout in every section has none.
+
 ## Tabs
 
 Chapters are plain `.md`, and the compiler leaves JSX in a `.md` file as text,

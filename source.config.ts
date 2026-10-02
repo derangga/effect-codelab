@@ -2,6 +2,7 @@ import { rehypeCodeDefaultOptions } from "fumadocs-core/mdx-plugins";
 import { defineConfig } from "fumadocs-mdx/config";
 import { transformerTwoslash } from "@shikijs/twoslash";
 import ts from "typescript";
+import { demoNames } from "./src/components/demo";
 
 // Twoslash compiles snippets against the app's own tsconfig-ish settings.
 // Effect needs `strict`. Without it the E/R channels infer wrong and the
@@ -136,6 +137,68 @@ function remarkMermaid() {
   return (tree: any) => walk(tree);
 }
 
+// A ```demo name fence becomes <Demo name="name" />. The names live in
+// src/components/demo.tsx next to the components, so an unknown one fails the
+// build here, with the chapter's path, instead of rendering nothing.
+function remarkDemo() {
+  return (tree: any, file: any) => {
+    const walk = (node: any) => {
+      if (!Array.isArray(node.children)) return;
+      node.children.forEach((child: any, i: number) => {
+        if (child.type === "code" && child.lang === "demo") {
+          const name = (child.meta ?? "").trim();
+          if (!demoNames.includes(name)) {
+            throw new Error(
+              `${file.path}: unknown demo "${name}", known demos: ${demoNames.join(", ")}`,
+            );
+          }
+          node.children[i] = jsxElement("Demo", [jsxAttr("name", name)], []);
+        } else walk(child);
+      });
+    };
+    walk(tree);
+  };
+}
+
+// A blockquote that opens with [!NOTE] becomes a <Callout>. It is the syntax
+// GitHub renders, so the raw markdown that llms.txt serves still reads as a
+// note. An unknown name fails the build with the chapter's path.
+const alertTypes: Record<string, string> = {
+  NOTE: "info",
+  TIP: "idea",
+  WARNING: "warn",
+};
+
+function remarkAlert() {
+  return (tree: any, file: any) => {
+    const walk = (node: any) => {
+      if (!Array.isArray(node.children)) return;
+      node.children.forEach((child: any, i: number) => {
+        const first =
+          child.type === "blockquote"
+            ? child.children[0]?.children?.[0]
+            : undefined;
+        const match =
+          first?.type === "text" ? /^\[!([A-Z]+)\]\s*/.exec(first.value) : null;
+        if (!match) return walk(child);
+        const type = alertTypes[match[1]];
+        if (!type) {
+          throw new Error(
+            `${file.path}: unknown alert "[!${match[1]}]", known alerts: ${Object.keys(alertTypes).join(", ")}`,
+          );
+        }
+        first.value = first.value.slice(match[0].length);
+        node.children[i] = jsxElement(
+          "Callout",
+          [jsxAttr("type", type)],
+          child.children,
+        );
+      });
+    };
+    walk(tree);
+  };
+}
+
 // Twoslash renders a type reveal as its own <pre> inside the popup. Fumadocs
 // maps every <pre> to a CodeBlock, which would put a bordered figure and a
 // copy button inside the reveal. Mark those so the MDX `pre` component can
@@ -157,7 +220,13 @@ function rehypeMarkTwoslashPopups() {
 
 export default defineConfig({
   mdxOptions: {
-    remarkPlugins: (v) => [remarkTabs, ...v, remarkMermaid],
+    remarkPlugins: (v) => [
+      remarkTabs,
+      ...v,
+      remarkMermaid,
+      remarkDemo,
+      remarkAlert,
+    ],
     rehypePlugins: (v) => [...v, rehypeMarkTwoslashPopups],
     rehypeCodeOptions: {
       // Catppuccin, matching the site's Latte/Macchiato UI theme.
