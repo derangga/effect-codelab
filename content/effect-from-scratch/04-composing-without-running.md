@@ -185,14 +185,44 @@ A generator function, written `function*`, is a function that can pause. Each
 answer. `yield*` is the form that delegates to something else that can be
 yielded from.
 
-Make an effect something `yield*` can walk by giving it one method.
+Make an effect something `yield*` can walk by giving it one method. That
+changes the type, so start there.
 
 ```ts twoslash
 export interface Effect<A> {
   (): Promise<A>
   [Symbol.iterator](): Generator<Effect<A>, A, any>
 }
+```
 
+The first two lines are the effect as before, a function that returns a
+Promise. The new line says an effect can also be walked by `yield*`, and its
+return type is `Generator`.
+
+`Generator` is a type that TypeScript already has, and you do not declare it. It
+describes the object a `function*` gives back, and it takes three type
+arguments:
+
+```
+Generator<Effect<A>, A, any>
+          │          │  └─ what the runner can send back in with it.next(value)
+          │          └──── what the generator returns at the end
+          └─────────────── what the generator yields out to the runner
+```
+
+Here the effect yields itself to the runner, which is the `Effect<A>`. It
+returns an `A` at the end. The last slot is `any` because the runner sends back
+whatever result the effect produced, and that type differs from one effect to
+the next.
+
+Now `make`, the one place that builds an effect and attaches that method.
+
+```ts twoslash
+interface Effect<A> {
+  (): Promise<A>
+  [Symbol.iterator](): Generator<Effect<A>, A, any>
+}
+// ---cut---
 export const make = <A>(run: () => Promise<A>): Effect<A> => {
   const self: Effect<A> = Object.assign(run, {
     *[Symbol.iterator]() {
