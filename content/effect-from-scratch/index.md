@@ -1,6 +1,6 @@
 ---
 title: Effect from scratch
-order: 5
+order: 6
 theme: foundations
 level: intermediate
 icon: Hammer

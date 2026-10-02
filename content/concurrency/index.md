@@ -1,6 +1,6 @@
 ---
 title: Concurrency
-order: 6
+order: 5
 theme: foundations
 level: intermediate
 icon: Workflow
