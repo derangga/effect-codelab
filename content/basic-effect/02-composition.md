@@ -2,17 +2,16 @@
 title: Constructing and composing Effects
 order: 2
 slug: 02-composition
-summary: Chain the JSON parse onto the fetch with pipe and with gen, then wrap a timeout and a retry around the same value, which is the thing a Promise cannot be given after the fact.
+summary: Join the JSON parse to the fetch with pipe and with gen, then add a timeout and a retry to the same Effect, which a Promise cannot accept after it starts.
 ---
 
-Chapter one left you holding a `Response`. The products are in its body, and
-getting them out is a second piece of work that can fail on its own. So the
-question is how two Effects become one.
+The previous chapter ended with a `Response`. The products are in its body, and
+reading them is a second step that can fail on its own. This chapter joins the two steps into one Effect.
 
-## Two failures, one value
+## Two steps that can each fail
 
-Give the parse its own error and its own function. Both of these go in
-`index.ts`, replacing the `ApiError` block from chapter one.
+Give the parse its own error class and its own function. Put both in
+`index.ts`, and replace the `ApiError` block from the previous chapter.
 
 ```ts twoslash
 // index.ts, replacing the ApiError class from chapter one
@@ -47,10 +46,10 @@ const readJson = (response: Response) =>
   })
 ```
 
-`request` is an Effect. `readJson` is a function that returns one. That
+`request` is an Effect. `readJson` is a function that returns an Effect. This
 difference decides which operator joins them.
 
-## flatMap, because the second step is itself an Effect
+## flatMap for a step that returns an Effect
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -78,17 +77,16 @@ const listProducts = request.pipe(
 )
 ```
 
-`Effect.map` transforms the value inside. `Effect.flatMap` takes a function
-that returns another Effect and joins the two into one. `pipe` is how you stack
-them, reading top to bottom.
+`Effect.map` changes the value inside an Effect. `Effect.flatMap` takes a
+function that returns another Effect and joins the two into one. `pipe` stacks
+the steps and reads from top to bottom.
 
-Look at the error channel. It says `ApiError | JsonError`. Nobody wrote that
-union. It is the sum of what the two steps can do, and it grew by itself when
-the second step joined.
+Look at the error channel of `listProducts`. It shows `ApiError | JsonError`. Nobody wrote that union. The
+compiler built it from the failures of both steps.
 
 ### The mistake
 
-Reach for `map` where the function returns an Effect and you get this:
+Use `map` where the function returns an Effect and you get this:
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -112,20 +110,19 @@ const wrong = request.pipe(Effect.map(readJson))
 //    ^?
 ```
 
-An Effect that succeeds with another Effect. The inner one never runs, so the
-request happens and the parse does not. Worse, `JsonError` is now in the inner
-error channel, where no handler on the outside can reach it. The outer type
-claims the only thing that can go wrong is `ApiError`, and it is wrong.
+This is an Effect that succeeds with another Effect. The inner Effect never
+runs, so the request happens and the parse does not. Also, `JsonError` now sits
+in the inner error channel, where no handler outside can reach it. The outer
+type says the only possible failure is `ApiError`, and that is wrong.
 
-This is the most common mistake in the whole course, and the tell is always the
-same. An `Effect<Effect<...>>` in a hover means a `map` that should have been a
-`flatMap`.
+This is the most common mistake in the course. You can spot it by the type
+`Effect<Effect<...>>`. It means a `map` should have been a `flatMap`.
 
-## The same thing, written as a generator
+## The same steps with Effect.gen
 
-`pipe` is fine for two steps. At four it starts reading backwards from how you
-think about it, and every intermediate value needs a name inside a callback.
-`Effect.gen` is the other syntax for the same composition.
+`pipe` works well for two steps. At four steps it is harder to follow, and
+every intermediate value needs a name inside a callback. `Effect.gen` is a
+second syntax for the same composition.
 
 ```ts twoslash
 // index.ts
@@ -155,17 +152,16 @@ const listProducts = Effect.gen(function* () {
 })
 ```
 
-Identical type. `yield*` is what `await` would have been, and it is where the
-error channel gets collected. The rule for choosing is short. Sequences of
-steps that name their intermediate values read better as `gen`. Wrapping one
-finished Effect in one operator reads better as `pipe`. This course uses both,
-and the next section is a `pipe`.
+The type is identical. `yield*` takes the place of `await`, and it is where the
+error channel collects the failures of each step. Use `gen` for a sequence of
+steps that name their intermediate values. Use `pipe` to wrap one finished
+Effect in one operator. This course uses both, and the next section uses
+`pipe`.
 
-## What the description buys you
+## Add a timeout and a retry
 
-Here is the part that is hard to get any other way. `listProducts` has not run.
-It is a value. So you can wrap policy around it after the fact, without
-touching the code that describes the work.
+`listProducts` has not run. It is a value that describes work, so you can add
+rules to it later without changing the code inside it.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -186,21 +182,22 @@ const program = listProducts.pipe(
 )
 ```
 
-Two lines. A request that gives up after two seconds and is tried up to three
-more times if it fails.
+These two lines make a request that gives up after two seconds and is tried up
+to three more times if it fails.
 
-Notice what happened to the type. `TimeoutError` joined the union, because
-giving up after two seconds is a new way for this to fail and the type says so
-without being asked. `Effect.retry` takes options, and `{ times: 3 }` is the
-simplest of them. A `schedule` option takes a `Schedule` when you want backoff
-rather than three immediate attempts.
+Check the type. `TimeoutError` joined the error union, because giving up after
+two seconds is a new way to fail, and the type shows it without being asked.
 
-Now write the same thing with the function from chapter one. You cannot. A
-Promise is already running, so there is nothing left to wrap. Adding a timeout
-means rewriting `fetchProduct` with an `AbortController`, and adding a retry
-means rewriting it again with a loop, and both of those live inside the
-function rather than at the call site that actually knows what the policy
-should be.
+`Effect.retry` takes options, and `{ times: 3 }` is the simplest one. The
+`schedule` option takes a `Schedule`, which is a rule for when and how often to
+retry. Use it when you want backoff, with growing waits between attempts,
+instead of three immediate attempts.
+
+Now try the same with the function from the previous chapter. You cannot. A
+Promise is already running, so there is nothing left to wrap. To add a timeout,
+you rewrite `fetchProduct` with an `AbortController`. To add a retry, you
+rewrite it again with a loop. Both changes live inside the function, but the
+call site is the code that knows which timeout and retry rules it needs.
 
 ## Where the file stands
 
@@ -261,11 +258,14 @@ Effect.runPromise(program).then(console.log)
 20
 ```
 
-Twenty products, with a timeout and a retry, and the error channel listing
-every way it can go wrong.
+The program prints the number of products, 20. It has a timeout and a retry,
+and its error channel lists every way it can fail.
 
-Two things are still wrong with it. `as ReadonlyArray<Product>` is the same
-unchecked assertion chapter one complained about, still there, still lying if
-the shape changes. And `ApiError` covers a dead network, a 500, and a missing
-product with one tag and no detail, which means a caller cannot tell them
-apart. Chapter three fixes the second. Chapter four fixes the first.
+Two problems remain. First, `as ReadonlyArray<Product>` is the same unchecked
+assertion the previous chapter criticised. It is still there, and it gives a
+wrong type if the shape changes. Second, `ApiError` covers a dead network, a
+500, and a missing product with one tag and no detail. With one tag and no detail, a caller cannot tell the three cases apart.
+
+[Typed errors and recovery](/learn/basic-effect/03-typed-errors) fixes the
+second problem. [Schemas and domain modeling](/learn/basic-effect/04-schemas)
+fixes the first.

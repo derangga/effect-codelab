@@ -2,14 +2,14 @@
 title: Effect-native testing and review
 order: 9
 slug: 09-testing
-summary: Test the catalog with it.effect, assert on failures through Exit and Cause so the tag and its fields survive, and override config without touching the environment.
+summary: Test the catalog with it.effect, check failures through Exit and Cause so the tag and its fields are asserted, and override config without touching the environment.
 ---
 
-The module compiles. That is not the same as working, and the gap between them
-is where the interesting failures live.
+The module compiles, but that does not prove it works. This chapter tests the
+catalog and checks the exact error each failure carries.
 
-Most Effect codebases start by testing like this, and it throws away most of
-what the previous eight chapters bought:
+Most Effect code starts with a test like the one below. It gives up much of
+what the earlier chapters added:
 
 ```ts twoslash
 // @filename: product.ts
@@ -180,19 +180,18 @@ it('fails for a missing product', async () => {
 })
 ```
 
-That assertion passes if anything at all went wrong. A typo in the test, a
-missing layer, the wrong error entirely. `rejects.toThrow()` never looks at the
-`_tag` or at the `productId` the error carries, so what is left is the same
-confidence a bare `Promise<Product>` gave you in chapter one.
+This assertion passes if anything goes wrong, such as a typo in the test, a
+missing layer, or the wrong error. `rejects.toThrow()` never checks the `_tag` or the `productId` the error
+carries. The test tells you only that
+something failed, which is all a bare `Promise<Product>` told you in [The Effect model](/learn/basic-effect/01-effect-model).
 
 ## Setup
 
-This chapter needs a test runner and the Effect adapter for it. Pin both.
-`@effect/vitest@4.0.0` requires vitest 5, which is why the version is not an
-older one. Vitest needs no config here. It runs every `*.test.ts` file, so the
-tests in this chapter go in `product.test.ts`, next to `product.ts`. Nothing
-touches the network or a server. The catalog is in memory, so there is nothing
-to mock.
+This chapter needs a test runner and the Effect adapter for it. Pin both to
+exact versions. `@effect/vitest@4.0.0` requires vitest 5, so an older vitest
+does not work. Vitest needs no config here. It runs every `*.test.ts` file, so
+the tests go in `product.test.ts`, next to `product.ts`. Nothing touches the
+network or a server. The catalog is in memory, so there is nothing to mock.
 
 Each block below shows the imports it uses. When you add a block to
 `product.test.ts`, merge its import lines into the ones already there. The
@@ -414,19 +413,19 @@ describe('ProductService', () => {
 
 Three habits come with this runner.
 
-Return the Effect from `it.effect` rather than running it. No `Effect.runPromise`
-appears in a test, for the same reason none appears in a service. The runner is
-the edge here.
+Return the Effect from `it.effect` instead of running it. A test never calls
+`Effect.runPromise`, for the same reason a service never does. The runner is
+the edge of the program here, the one place that runs Effects.
 
-Use `assert`, not `expect`. `@effect/vitest` re-exports both, and `assert` is
-the convention.
+Use `assert` instead of `expect`. `@effect/vitest` re-exports both, but
+`assert` is the convention.
 
-Provide the layer inside the test. That is what makes the next section work.
+Provide the layer inside the test. The next section depends on this habit.
 
 ## Fresh state per test
 
-`Effect.provide(ProductService.layer)` builds the service, which builds the
-repository, which allocates a new `Ref`. Each test gets its own catalog.
+`Effect.provide(ProductService.layer)` builds the service. That builds the
+repository, which allocates a new `Ref`. So each test gets its own catalog.
 
 ```ts twoslash
 // @filename: product.ts
@@ -610,19 +609,19 @@ describe('isolation', () => {
 ```
 
 The second test looks like it checks nothing, since it only counts the seeded
-products. It is the test that fails the day somebody moves the state out of
-`make` and into a module-level variable. The first test's product would still be
-there, the count would be three, and without this test that change looks
-harmless.
+products. But it fails the day someone moves the state out of `make` and into a
+module-level variable. The first test's product would still be there, and the
+count would be three. Without this test, that change looks harmless.
 
-When a whole suite should share one build of a layer, `it.layer(SomeLayer)`
-wraps the suite and builds it once. Use it for expensive setup, not for
-stateful services you want isolated.
+To share one build of a layer across a whole suite, wrap the suite in
+`it.layer(SomeLayer)`. The layer is built once. Use this for expensive setup,
+not for stateful services that each test needs fresh.
 
-## Asserting on a failure properly
+## Asserting on a failure
 
-`Effect.exit` turns a failing Effect into one that succeeds with an `Exit`, so
-the failure becomes a value you can inspect instead of an exception you catch.
+`Effect.exit` turns a failing Effect into one that succeeds with an `Exit`. An
+`Exit` records how an Effect ended. The failure becomes a value you can inspect,
+not an exception you must catch.
 
 ```ts twoslash
 // @filename: product.ts
@@ -803,28 +802,32 @@ it.effect('fails with the id it was asked for', () =>
 )
 ```
 
-The two `if (!...) return` lines are narrowing, not defensiveness. The assert
-above each one has already failed the test if the condition does not hold. The
-`return` is what convinces TypeScript that `exit.cause` and `error.value` exist
-on the lines below.
+The two `if (!...) return` lines narrow the types. They are not defensive
+checks. The `assert` above each one already fails the test when the condition
+does not hold. The `return` tells TypeScript that `exit.cause` and `error.value`
+exist on the lines below.
+
+A failed `Exit` carries a `Cause`. A defect is an unexpected failure that is
+not in the error type, such as a thrown exception. The error type does not list
+defects, so it cannot warn you about them.
 
 `Cause.findErrorOption` returns `Some` for a typed failure and `None` for a
-defect, which is itself a useful distinction to assert. A test that expected
-`ProductNotFoundError` and got `None` has found a bug that crashed rather than
-failed.
+defect. You can assert on that difference. If a test expects
+`ProductNotFoundError` and gets `None`, the code hit a defect instead of failing
+with its typed error.
 
-Assert on the tag and the fields. Never on the message. The message is prose
-for humans and somebody will improve it, and a test that breaks when prose
-changes trains everyone to stop reading test failures.
+Assert on the tag and the fields, never on the message. The message is text for
+people, and someone will reword it. A test that breaks when the wording changes
+teaches people to ignore test failures.
 
 ## Overriding config
 
-The catalog limit came from `Config.Int('CATALOG_MAX_PRODUCTS')`. A test that
-wants to hit the limit supplies its own provider rather than setting an
+The catalog limit comes from `Config.Int('CATALOG_MAX_PRODUCTS')`. A test that
+needs to hit the limit supplies its own config provider instead of setting an
 environment variable. The repository starts with two seeded products, so a
 limit of one is already exceeded and the first `create` must fail.
 
-Like the others, this test runs against the real `ProductService` from
+Like the other tests, this one runs against the real `ProductService` from
 `product.ts`.
 
 ```ts twoslash
@@ -1014,17 +1017,18 @@ it.effect('rejects creation once the catalog is full', () =>
 ```
 
 `ProductService.make` reads the config while the layer is being built, so the
-provider has to reach the build. `Layer.provide(TestConfig)` does that.
-`Layer.mergeAll(ProductService.layer, TestConfig)` looks equivalent and is not.
-It builds the two layers side by side, the service reads the default, the limit
-stays at 100, and `create` succeeds. The test then fails on its first assertion.
+provider must reach the build. `Layer.provide(TestConfig)` does that.
+`Layer.mergeAll(ProductService.layer, TestConfig)` looks equivalent but is not.
+It builds the two layers side by side, so the service reads the default and the
+limit stays at 100. Then `create` succeeds and the test fails on its first
+assertion.
 
-The assertion on `maximum` pins the source of the limit. It is 1 only if the
-provider reached `make`.
+The assertion on `maximum` shows where the limit came from. It equals 1 only if
+the provider reached `make`.
 
-Nothing is set globally and nothing has to be unset afterwards. Each test builds
-its own `TestProductService`, so two tests can use different limits at the same
-time.
+The test sets nothing globally, so there is nothing to undo afterwards. Each
+test builds its own `TestProductService`, so two tests can use different limits
+at the same time.
 
 ## Where product.test.ts stands
 
@@ -1269,7 +1273,7 @@ it.effect('rejects creation once the catalog is full', () =>
 )
 ```
 
-The output of `vitest run`:
+Running `vitest run` prints:
 
 ```
  RUN  v5.0.3 /.../learning-effect
@@ -1280,12 +1284,11 @@ The output of `vitest run`:
    Duration  161ms (import 77%, transform 14%, tests 7%, worker 1%)
 ```
 
-Five tests, no network, and a fresh catalog behind each one.
+The suite has five tests. None uses the network, and each gets a fresh catalog.
 
 ## A checklist for the catalog
 
-The module is worth covering with these, and they are the same list whatever
-the domain turns out to be.
+Cover the catalog with these tests. The list is the same for any domain:
 
 - `list` returns the seeded products
 - `findById` returns an existing product
@@ -1295,42 +1298,54 @@ the domain turns out to be.
 - `create` fails with `CatalogCapacityError` at the configured limit
 - one test does not see another test's products
 
-The last one is the only one that tests the wiring rather than the behaviour,
-and it is the one most likely to be left out.
+The last test checks the wiring, not the behaviour. People most often leave it
+out.
 
 ## Reading your own types back
 
-Before calling this finished, read the signature of every public method and ask
-three questions.
+Before you call the module finished, read the signature of every public method.
+Each signature has three channels, `A`, `E` and `R`. Ask one question about
+each.
 
-Does `A` contain only domain values? An `Option` that should have been resolved
-into a failure, or a raw row shape, means a translation is missing.
+First, does `A` contain only domain values? An `Option` that should have become
+a failure, or a raw row shape, means a translation is missing.
 
-Does `E` contain only failures this layer owns? A `SchemaError` in a service
-method means decoding moved inward. A storage failure means the repository
-leaked.
+Second, does `E` contain only failures this layer owns? A `SchemaError` in a
+service method means decoding moved inward. A storage failure means the
+repository leaked.
 
-Is `R` only what callers should know about? If `ProductRepository` appears in
-the requirement channel of anything a caller touches, a layer is not providing
-what it should.
+Third, does `R` list only what callers should know about? If `ProductRepository`
+appears in the requirement channel of anything a caller uses, a layer is not
+providing what it should.
 
-Then find every `Effect.runPromise` and `Effect.runSync` in the project. There
-should be one per entry point and none anywhere else.
+Last, search the project for `Effect.runPromise` and `Effect.runSync`. You
+should find one per entry point and none anywhere else.
 
 ## Where this course stops
 
-You have a portable module: branded schemas, typed failures, two services with
-a real seam between them, layers that own their wiring, config, and tests that
-assert on the exact error. It has no idea whether it is behind an HTTP server,
-a CLI, or a test, which is the property that makes the rest of it possible.
+You now have a portable catalog module. It has branded schemas, typed failures,
+two services with a clear boundary between them, layers that build their own
+dependencies, config, and tests that assert on the exact error. The module does
+not know whether an HTTP server, a CLI, or a test calls it. That is what lets
+the next tracks build on it.
 
-What comes next lives in other tracks. Serving it over HTTP, backing the
-repository with SQL, streams for work that does not fit in memory, scopes for
-resources that must be released, and frontend state. Each of them takes this
-module as the starting point rather than replacing it.
+The next tracks cover these topics:
 
-The habits are worth taking with you before the APIs are. Read the three
-channels after every change. Give each failure one type and one owner. Decode
-at the edge. Run at the edge. If you want to see what these look like when they
-go wrong, the [anti-patterns track](/learn/anti-patterns) is the same material
-read from the other side.
+- serving the catalog over HTTP
+- backing the repository with SQL
+- streams, for work that does not fit in memory
+- scopes, for resources that must be released
+- frontend state
+
+Each track starts from this module and does not replace it.
+
+Take these four habits with you:
+
+- read the three channels after every change.
+- give each failure one type and one owner.
+- decode at the edge, where data enters the program.
+- run at the edge, where the program starts.
+
+To see what breaking these habits looks like, read the
+[anti-patterns track](/learn/anti-patterns). It covers the same material from
+the other side.

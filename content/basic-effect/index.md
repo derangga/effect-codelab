@@ -4,35 +4,40 @@ order: 2
 theme: foundations
 level: beginner
 icon: BookOpen
-summary: Nine chapters that rebuild one fetch against a public product API until every way it can fail is written in its type, then build an in-memory product catalog as a service with a layer and a test suite.
+summary: Nine chapters that rebuild one fetch against a public product API until its type lists every way it can fail, then build an in-memory product catalog as a service with a layer and a test suite.
 prereq: TypeScript generics, tagged unions, modules, async/await, and Promises
 ---
 
-This course takes one ordinary function, a `fetch` against a public product
-API, and rebuilds it until every way it can fail is written in its type. From
-chapter four the course leaves the network behind and builds the same kind of
-module over an in-memory catalog. By the last chapter it is a service, its
-dependencies arrive through a layer, its one setting comes from the
-environment, and its tests run in memory.
+This course starts with one ordinary function, a `fetch` call to a public
+product API. You rebuild it as an Effect, a value that describes work to do.
+Nothing runs until you run it. An Effect has three channels, which are its
+type slots for success, failure and requirement. You rebuild the function until
+its error channel lists every way it can fail.
 
-The API is [fakestoreapi.com](https://fakestoreapi.com). It is free, it needs
-no key, and it holds twenty products. It also has one habit that makes it
-better teaching material than a well behaved API would be. Ask it for a product
-that does not exist and it answers `200 OK` with an empty body. Chapter one
-walks into that on purpose, and chapter three makes sure it can never surprise
-you again.
+After the typed errors chapter, the course leaves the network and builds the
+same kind of module over an in-memory catalog. By the end, the module is a service, which is an object of related functions
+that other code asks for by name. Its dependencies arrive through a layer, which
+is a recipe that builds a service. Its one setting comes from the environment,
+and its tests run in memory.
+
+The API is [fakestoreapi.com](https://fakestoreapi.com). It is free, needs no
+key, and holds 20 products. It also has a habit that makes it better teaching
+material than a well-behaved API. If you ask for a product that does not exist,
+it answers `200 OK` with an empty body. [The Effect model](/learn/basic-effect/01-effect-model) runs into this on
+purpose. [Typed errors and recovery](/learn/basic-effect/03-typed-errors) makes
+sure it can never surprise you again.
 
 ## What you need
 
-Pick the package manager you already use. The commands below pin `effect` and
-the compiler to exact versions. A version range moves the types out from under
+Use the package manager you already have. The commands below pin `effect` and
+the compiler to exact versions, because a version range can change types under
 code that compiled yesterday. Every `effect` and `@effect/*` package shares one
 version number, and they must match exactly.
 
-Start in an empty folder, then run the commands for your package manager.
-Whatever you pick, `strict` has to be on in `tsconfig.json`. Effect reads the
-failure and requirement channels off your code, and without `strict` those
-readings are wrong in ways that are hard to notice. Bun writes a suitable
+Start in an empty folder and use the tab for your package manager.
+Whichever you pick, turn on `strict` in `tsconfig.json`. Effect reads the error
+channel and the requirement channel from your code. Without `strict`, it reads
+them wrongly, in ways that are hard to notice. Bun writes a suitable
 `tsconfig.json` for you. For the other package managers, use this one:
 
 ```json
@@ -62,9 +67,8 @@ bun add -d --exact typescript@7.0.2
 #### Tab: npm
 
 `npm init -y` creates only a `package.json`. Create an empty `index.ts` and the
-`tsconfig.json` shown above. `tsx` runs TypeScript
-files directly, including the extensionless imports like `./product` that later
-chapters use.
+`tsconfig.json` shown above. `tsx` runs TypeScript files directly, including
+extensionless imports such as `./product`, which later chapters use.
 
 ```sh
 npm init -y
@@ -75,9 +79,8 @@ npm install --save-dev --save-exact typescript@7.0.2 tsx@4.23.15
 #### Tab: pnpm
 
 `pnpm init` creates only a `package.json`. Create an empty `index.ts` and the
-`tsconfig.json` shown above. `tsx` runs TypeScript
-files directly, including the extensionless imports like `./product` that later
-chapters use.
+`tsconfig.json` shown above. `tsx` runs TypeScript files directly, including
+extensionless imports such as `./product`, which later chapters use.
 
 ```sh
 pnpm init
@@ -88,9 +91,8 @@ pnpm add --save-dev --save-exact typescript@7.0.2 tsx@4.23.15
 #### Tab: yarn
 
 `yarn init -y` creates only a `package.json`. Create an empty `index.ts` and the
-`tsconfig.json` shown above. `tsx` runs TypeScript
-files directly, including the extensionless imports like `./product` that later
-chapters use.
+`tsconfig.json` shown above. `tsx` runs TypeScript files directly, including
+extensionless imports such as `./product`, which later chapters use.
 
 ```sh
 yarn init -y
@@ -100,10 +102,9 @@ yarn add --dev --exact typescript@7.0.2 tsx@4.23.15
 
 #### Tab: deno
 
-`deno init` creates `main.ts` and a `deno.json`. Create `index.ts` next to it and
-use that file for the chapters. Deno type checks with its own compiler and
-runs in `strict` mode by default, so there is no `typescript` package or
-`tsconfig.json` to add.
+`deno init` creates `main.ts` and a `deno.json`. Create `index.ts` next to them
+and use it for the chapters. Deno type checks with its own compiler and runs in
+`strict` mode by default, so you add no `typescript` package or `tsconfig.json`.
 
 ```sh
 deno init
@@ -112,9 +113,8 @@ deno add --save-exact npm:effect@4.0.0
 
 ### Run a file
 
-Deno blocks network and environment access unless you allow it, and chapters
-one and seven need both. The Deno flag `--unstable-sloppy-imports` lets it
-resolve imports like `./product` that have no file extension.
+Deno blocks network and environment access unless you allow it. The Effect model chapter and the layers chapter need both. The Deno flag `--unstable-sloppy-imports` lets Deno resolve
+imports without a file extension, such as `./product`.
 
 #### Tab: bun
 
@@ -148,45 +148,44 @@ deno run --unstable-sloppy-imports --allow-net --allow-env index.ts
 
 ### Packages and runtimes
 
-Chapter one is the one place where the runtimes disagree, and it says so.
+The runtimes differ in only one place, and the Effect model chapter says where.
 
-Packages arrive when a chapter needs them. Chapter nine installs a test runner.
-Chapter seven reads an environment variable, but it has a default, so there is
-no env file to write.
+You install packages when a chapter needs them. The testing chapter installs a
+test runner. The layers chapter reads an environment variable with a default,
+so you write no env file.
 
 ## Which file you are editing
 
-A code block that belongs in a file opens with the file's name:
+A code block that belongs in a file starts with a comment that names the file:
 
 ```ts
 // index.ts
 ```
 
-For the first three chapters there is only `index.ts`, and each chapter
-rewrites part of it. When a block replaces something you wrote earlier, the comment with the file
-name says so. Chapter four starts a new file, `product.ts`, and leaves
-`index.ts` behind. Chapter eight adds `main.ts` and chapter nine adds
+The chapters before the schemas chapter use only `index.ts`, and each one
+rewrites part of it. When a block replaces code you wrote earlier, the file name comment says so.
+The schemas chapter starts a new file, `product.ts`, and leaves `index.ts`
+behind. The capstone chapter adds `main.ts`, and the testing chapter adds
 `product.test.ts`. A block without a file name is an illustration to read, not
 something to save.
 
-Chapters two, three, four, six, seven and nine each print the whole file as it
-should look, so a missed edit shows up as a difference rather than a mystery.
-Chapter eight prints `product.ts` in one piece.
+Six chapters print the whole file as it should look: composition, typed errors,
+schemas, services, layers and testing. Compare it with yours to find a missed
+edit. The capstone chapter prints `product.ts` in one piece.
 
-The snippets compile as the real set of files you are building, not as isolated
-examples, so an import that does not resolve or a type that does not line up
-across two files fails this site's build rather than reaching you.
+The snippets compile as the real set of files you build, not as separate
+examples. If an import fails to resolve or a type does not match across two
+files, this site's build fails, so you never meet the error.
 
 ## How the chapters work
 
-Each chapter opens with something the previous chapter left broken, fixes it
-with one idea, and shows the mistake people make with that idea. Read them in
-order. Chapters one through three grow a single file, chapters four through
-eight turn it into a module, and chapter eight prints the finished thing in one
-piece.
+Each chapter starts with a problem the previous chapter left open. It fixes the
+problem with one idea, then shows the mistake people make with that idea. Read
+the chapters in order. The chapters before the schemas chapter grow a single file. The chapters from
+schemas to the capstone turn it into a module.
 
-You can read the whole course without writing any code. If you would rather
-build it, the file names are there for exactly that.
+You can read the course without writing code. To build along, use the file
+names to place each block.
 
 ## Roadmap
 
@@ -202,27 +201,27 @@ build it, the file names are there for exactly that.
 
 ## About the terminal output
 
-The terminal blocks in chapters one to three are copied from real runs against
-the live API on 16 September 2026. The data is theirs and it moves, so a price
-or a title on this page may not be the one you get. The shapes will be. The
-blocks in chapters eight and nine are real runs of the finished module, and
-those do not change.
+The terminal output in the Effect model, composition and typed errors chapters
+comes from real runs against the
+live API on 16 September 2026. That data changes, so your prices and titles may
+differ from the page. The shapes stay the same. The output in the capstone and
+testing chapters comes from real runs of the finished module and does not
+change.
 
-If the API is down when you read this, chapters four to nine keep working,
-because from chapter four nothing you run touches the network.
+If the API is down, you can still run everything from the schemas chapter on.
+None of that code uses the network.
 
 ## What this course leaves out
 
-The track stops where the service boundary is. HTTP clients, servers and
-routing, SQL, streams, scopes and resource cleanup, frontend state, metrics,
-and deployment are all out of scope, and each belongs to a track that starts
-from the module you finish here.
+The course ends at the service boundary and does not cover HTTP clients,
+servers and routing, SQL, streams, scopes and resource cleanup, frontend state,
+metrics, or deployment. Each belongs to a track that starts from the module you
+finish here.
 
-The requests here go through the global `fetch`, wrapped. That is the smallest
-thing that works, and it keeps the lessons about the three channels rather than
-about a client library. The
-[HTTP Auth API](/learn/http-auth-api) track is where a real Effect HTTP stack
-shows up.
+Requests in this course use the global `fetch`, wrapped in an Effect. This is
+the smallest approach that works, and it keeps the lessons on the three
+channels, not on a client library. The [HTTP Auth API](/learn/http-auth-api)
+track shows a real Effect HTTP stack.
 
-If you want the same material read from the other side, the
-[anti-patterns track](/learn/anti-patterns) collects the habits that undo it.
+The [anti-patterns track](/learn/anti-patterns) covers the same material from
+the other side. It collects the habits that undo what this course teaches.

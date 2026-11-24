@@ -2,24 +2,25 @@
 title: The ProductService capstone
 order: 8
 slug: 08-capstone
-summary: The whole catalog module in one file, from branded schemas through the layer that wires it, with every decision from the earlier chapters visible in one place.
+summary: The whole catalog module in one file, from branded schemas to the layer that wires it, with each decision from the earlier chapters visible in one place.
 ---
 
-Chapters four to seven each added one piece to the same catalog. Read
-separately they look like four techniques. Read together they are one module
-with a single shape, and the shape is the point.
+The last four chapters each added one piece to the same catalog. Read apart,
+they look like four separate techniques. Read together, they form one module
+with a single shape.
 
-This chapter prints that module top to bottom. Almost nothing here is new. Two
-small things are: the repository starts with two seeded products so the tests
-in chapter nine have something to list, and `create` logs the product it made.
-What else is new is seeing where each earlier decision ended up, and which of
-them are load bearing.
+This chapter prints that module from top to bottom. Almost nothing in it is
+new. Two small things are. The repository starts with two seeded products, so
+the tests in the next chapter have something to list. And `create` logs the
+product it made.
+
+The rest of the chapter shows where each earlier decision ended up, and which
+ones the module depends on.
 
 ## The domain
 
-The module opens with the values it traffics in. `ProductId` is a branded
-string, so a function that wants an id cannot be handed any string that
-happens to be lying around.
+The module opens with the values it works with. `ProductId` is a branded
+string, so a function that needs an id will not accept an arbitrary string.
 
 ```ts twoslash
 // product.ts, from chapter four
@@ -46,17 +47,17 @@ export type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
 
 `Product` and `CreateProduct` are separate schemas because they describe
 different moments. A product that exists has an id. A request to create one
-does not, and cannot, because the repository allocates it.
+has no id yet, because the repository allocates it.
 
-The checks are on the field schemas rather than on `Product` itself. That is
-what lets `CreateProduct` reuse them without restating the rule that a price
-is positive.
+The checks sit on the field schemas, not on `Product` itself. This lets
+`CreateProduct` reuse them without repeating the rule that a price is
+positive.
 
 ## The failures
 
 Two things can go wrong that are not bugs. A caller can ask for a product that
-is not there, and a caller can create one when the catalog is full. Each gets
-its own tag and carries the fields a handler would need.
+does not exist. A caller can also create a product when the catalog is full.
+Each case gets its own tag. Each error also carries the fields a handler needs.
 
 ```ts twoslash
 export const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
@@ -81,14 +82,13 @@ export class CatalogCapacityError extends Schema.TaggedError<CatalogCapacityErro
 ) {}
 ```
 
-`ProductNotFoundError` carries the id that was missing, rather than a sentence
-describing it. A handler that wants to log the id, or retry with a different one,
-has it without parsing prose.
+`ProductNotFoundError` carries the missing id as a field, not as a sentence.
+A handler can log the id, or retry with a different one, without parsing text.
 
 ## The repository
 
-The repository owns storage and nothing else. It holds its products in a
-`Ref`, which is how Effect represents state that several fibers may touch.
+The repository owns storage and nothing else. It keeps its products in a `Ref`, which is how Effect represents state that
+several fibers may touch.
 
 ```ts twoslash
 import { Schema } from 'effect'
@@ -170,25 +170,24 @@ export class ProductRepository extends Context.Service<ProductRepository>()(
 }
 ```
 
-Three things here are worth naming.
+Three details matter here.
 
-The state lives inside `make`, so every construction of the repository gets a
-fresh `Ref`. A module level `let` would be shared by every test in the file,
-and the fourth test would fail because of what the second one wrote.
+The state is created inside `make`, so each new repository gets its own `Ref`.
+A module-level `let` would be shared by every test in the file. Then what the
+second test writes could make the fourth test fail.
 
-`findById` returns `Option<Product>`, not a failure. For an in memory lookup,
-absence is an ordinary answer. Deciding that absence is an error is a business
-judgement, and the repository is not the layer that makes it.
+`findById` returns `Option<Product>`, not a failure. In an in-memory lookup, a
+missing product is an ordinary answer. Whether a missing product is an error is
+a business judgement, and the repository does not make it.
 
-`insert` allocates the id and appends in one `Ref.modify`. A `Ref.get`
-followed by a `Ref.update` would be two separate steps, and two callers
-running between them would both read the same `nextId`.
+`insert` allocates the id and adds the product in one `Ref.modify`. A
+`Ref.get` followed by a `Ref.update` would be two separate steps. Two callers
+could both read the same `nextId` before either one updates it.
 
 ## The service
 
-The service is where catalog rules live. It takes the repository as a
-dependency, reads one setting from config, and turns storage answers into
-domain answers.
+The service holds the catalog rules. It takes the repository as a dependency,
+reads one setting from config, and turns storage answers into domain answers.
 
 ```ts twoslash
 import { Option, Ref, Schema } from 'effect'
@@ -314,24 +313,24 @@ export class ProductService extends Context.Service<ProductService>()(
 }
 ```
 
-The repository and the config are read once, during construction, not on every
-call. `make` runs when the layer is built. What it returns is the three
-methods, and those close over the values `make` already has.
+The service reads the repository and the config once, when its layer builds it. `make` runs at that moment and
+returns the three methods. Those methods keep using the values `make` already
+has.
 
-`Effect.fromOption` is the seam between the two services. It takes the
-`Option` the repository returned and, when it is empty, fails with the error
-the domain cares about. On one side of that line absence is a value. On the
-other it is a typed failure with an id attached.
+`Effect.fromOption` connects the repository's answer to the service's answer.
+It takes the `Option` that the repository returned. When the `Option` is empty,
+it fails with the error the domain uses. In the repository, a missing product
+is a value. In the service, it is a typed failure with an id attached.
 
 The capacity check sits in the service for the same reason. The repository can
-store any number of products. It is the catalog that has a limit, so the
-catalog owns the rule and the error.
+store any number of products. Only the catalog has a limit, so the catalog owns
+the rule and the error.
 
 ## The whole file
 
-Everything above, in the order a file needs it. Save this as `product.ts`. It
-is the module that chapter nine tests, and it holds the imports the fragments
-leave out.
+Here is everything above, in the order a file needs it. Save it as
+`product.ts`. It adds the imports that the earlier fragments left out. The next
+chapter tests this module.
 
 ```ts twoslash
 // product.ts
@@ -489,10 +488,11 @@ export class ProductService extends Context.Service<ProductService>()(
 ## Wiring it up
 
 `ProductService.layer` provides `ProductRepository.layer` to itself. A caller
-asks for the service and gets the whole tree.
+that asks for the service gets the repository with it.
 
-Decoding happens at the edge, before the service is called, and only the edge
-runs the Effect. Save this as `main.ts` next to `product.ts`:
+The edge of the program has two jobs. It decodes the input before it calls the
+service, and it is the only place that runs an Effect. Save this as
+`main.ts` next to `product.ts`:
 
 ```ts twoslash
 // @filename: product.ts
@@ -669,7 +669,7 @@ const main = program.pipe(
 main.then(console.log)
 ```
 
-Running `main.ts` the way the setup page showed (`bun run main.ts` under bun) prints the log line from `create`, then the product:
+Run `main.ts` the way the setup page showed (`bun run main.ts` under bun). It prints the log line from `create`, then the product:
 
 ```
 [11:54:56.750] INFO (#1): Product created {
@@ -682,17 +682,19 @@ Running `main.ts` the way the setup page showed (`bun run main.ts` under bun) pr
 }
 ```
 
-The service takes a `CreateProduct` that has already been proven to be one,
-which is why none of its methods carry a parse failure in `E`.
+The service receives a `CreateProduct` that decoding has already checked. This
+is why none of its methods has a parse failure in `E`, the error channel.
 
-`Effect.runPromise` appears once, at the outermost edge. Every layer beneath
-it returns descriptions. That is what makes the module portable: put it behind
-an HTTP handler, a CLI, or a test, and only this last line changes.
+`Effect.runPromise` appears once, at the outermost edge. All the code below it
+returns Effects and runs nothing. This keeps the module portable. To put it
+behind an HTTP handler, a CLI, or a test, you change only the code that calls
+`Effect.runPromise`.
 
 ## What people get wrong
 
-The brand is not decoration. `findById` takes a `ProductId`, and a string from
-a route parameter is not one until something says so.
+The brand is a real check. `findById` takes a `ProductId`. A string from a
+route parameter is not a `ProductId` until your code turns it into one. The
+compiler rejects this call:
 
 ```ts twoslash
 // @errors: 2345
@@ -859,20 +861,25 @@ const lookup = Effect.gen(function* () {
 })
 ```
 
-The fix is to decode the string at the edge, the same place the creation input
-gets decoded. `ProductId.make` is the escape hatch for values you already
-know are ids, such as the seeds inside the repository. Reaching for it on
-untrusted input gives back exactly what the brand was for.
+The fix is to decode the string at the edge, where the creation input is also
+decoded. `ProductId.make` is for values you already know are ids, such as the
+seeded products inside the repository. If you use it on untrusted input, the
+brand no longer protects you.
 
-The other habit worth naming is catching the service's failures inside the
-service. `ProductNotFoundError` exists so a caller can decide whether it is a
-404, a retry, or an empty state. Handling it in `findById` throws that
-decision away before anyone can make it. The
-[anti-patterns track](/learn/anti-patterns/03-errors) has the longer version.
+A second common mistake is to catch the service's failures inside the service.
+`ProductNotFoundError` exists so that a caller can decide whether the case is a
+404, a retry, or an empty state. If `findById` handles the error itself, the
+caller loses that choice. The
+[errors page in the anti-patterns track](/learn/anti-patterns/03-errors)
+covers this in more detail.
 
 ## Next
 
-The module is complete and it typechecks, which is not the same as working.
-[Effect-native testing](/learn/basic-effect/09-testing) runs it: seeded lists,
-a lookup that fails with the exact error and id, a capacity limit supplied by
-a test config, and proof that no test leaks state into the next one.
+The module is complete and it typechecks, but that does not show it works. The
+next chapter, [Effect-native testing](/learn/basic-effect/09-testing), runs it.
+The tests cover these cases:
+
+- the seeded list
+- a lookup that fails with the exact error and id
+- a capacity limit set by a test config
+- a check that no test leaks state into the next one

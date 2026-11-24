@@ -2,11 +2,12 @@
 title: Services with Context.Service
 order: 6
 slug: 06-services
-summary: Build the service pattern from the problem it solves, starting with dependencies as arguments, then as a requirement in the type, then as a Context.Service with make and Effect.fn.
+summary: See why passing dependencies as arguments breaks down, then declare a service with Context.Service, make, and Effect.fn so each Effect states what it needs in its type.
 ---
 
-Start with the version that needs no new concepts. The repository is an object
-of functions, and whoever needs it gets passed it.
+The previous chapter planned the catalog on paper. This chapter builds it,
+starting with a version that needs no new ideas. The repository is an object of
+related functions, and the caller passes it in as an argument.
 
 ```ts twoslash
 interface Product { readonly id: string; readonly name: string }
@@ -23,10 +24,11 @@ const countProducts = (repository: ProductRepository) =>
   })
 ```
 
-This is fine. It is testable, it is explicit, and for one function at one level
-of depth it is better than anything below.
+This works. It is explicit and easy to test, and it is the best choice for one
+function at one level.
 
-It stops being fine at the third level.
+It gets awkward as the call tree grows. Here is a function with three
+dependencies.
 
 ```ts twoslash
 interface Product { readonly id: string; readonly name: string }
@@ -49,23 +51,24 @@ const buildReport = (
   })
 ```
 
-Every caller of `buildReport` now needs all three, whether or not it uses them.
-Its callers need them too. Adding one dependency deep in the tree edits every
-function between there and the top, and the signatures stop describing what a
-function does and start describing what its children need.
+Every caller of `buildReport` must now pass all three, whether or not it uses
+them. Their callers must pass them too. Adding one dependency deep in the tree
+changes every function above it. Signatures stop describing what a function does
+and list what its children need.
 
-Effect's answer is the third type parameter you have been ignoring.
+Effect solves this with its third type parameter, `R`.
 
-## A requirement is a value in the type
+## The requirement channel holds what an Effect needs
 
-`R` lets an Effect say what it needs without being handed it. The need is
-recorded in the type and satisfied later, once, at the place that knows how to
-build it.
+`R` is the requirement channel, the third type slot of an Effect. It lets an
+Effect say what it needs without being handed it. The type records the need.
+Later, one place that knows how to build the dependency supplies it, once.
 
-That is the whole idea. Everything else in this chapter is the mechanics of
-putting a thing into `R` and getting it back out.
+## A service is a key and a shape
 
-## A service is a key with a shape attached
+A service is an object of related functions that other code asks for by name,
+instead of receiving it as an argument. In Effect, you declare a service as a
+class that extends `Context.Service`.
 
 ```ts twoslash
 interface Product { readonly id: string; readonly name: string }
@@ -79,21 +82,19 @@ class ProductRepository extends Context.Service<
 >()('ProductRepository') {}
 ```
 
-Two things came out of that declaration, and keeping them apart makes the rest
-obvious.
+That declaration gives you two things. Keep them apart.
 
-`ProductRepository` the **type** is the shape: an object with a `list` method.
+As a type, `ProductRepository` is the shape: an object with a `list` method.
 
-`ProductRepository` the **value** is a key. It is how an Effect asks for the
+As a value, `ProductRepository` is the key. An Effect uses it to ask for the
 shape at runtime, and it is what appears in `R`.
 
 The string `'ProductRepository'` is the identity. Two classes with the same
-string refer to the same slot, which is occasionally useful and mostly a reason
-to keep the strings unique.
+string refer to the same slot, so keep each string unique.
 
-## Asking for it
+## Asking for a service
 
-You ask by yielding the class.
+You ask for a service by yielding its class.
 
 ```ts twoslash
 import { Context } from 'effect'
@@ -111,26 +112,23 @@ const countProducts = Effect.gen(function* () {
 })
 ```
 
-`countProducts` is `Effect<number, never, ProductRepository>`. It takes no
-parameter, and the requirement is in the type where anyone can see it. Add a
-second dependency inside that generator and `R` becomes a union of both, on the
-line you wrote, without touching a single caller.
+`countProducts` has the type `Effect<number, never, ProductRepository>`. It takes
+no parameter, and anyone can see its requirement in the type. If you add a
+second dependency inside that generator, `R` becomes a union of both. You change
+one line, and no caller changes.
 
-`R` is also a promise the compiler keeps. Try to run this without supplying a
-repository and it will not compile. A requirement cannot be forgotten, only
-satisfied.
+The compiler enforces `R`. If you try to run this Effect without supplying a
+repository, it will not compile.
 
-## When construction does work, use make
+## Use make when construction does work
 
 A bare key works when something else builds the implementation. Most services
-build themselves, and building involves work: reading config, allocating state,
-acquiring a connection.
+build themselves, and building takes work, such as reading config, allocating
+state, or acquiring a connection.
 
-The repository has to hold products somewhere. A module-level array would be
-shared by every test in the file, so state goes in a `Ref` created during
-construction.
-
-That construction is an Effect, which is what `make` is for.
+The repository must hold products somewhere. A module-level array would be
+shared by every test in the file, so the state goes in a `Ref` created during
+construction. Construction is an Effect, and `make` is where you write it.
 
 ```ts twoslash
 import { Schema } from 'effect'
@@ -189,29 +187,31 @@ export class ProductRepository extends Context.Service<ProductRepository>()(
 ) {}
 ```
 
-`RepositoryState` is the `Ref`'s payload: the next id to hand out, and the
-products collected so far. Nothing outside `make` ever touches it directly.
+`RepositoryState` is the content of the `Ref`: the next id to hand out and the
+products collected so far. Nothing outside `make` touches it directly.
 
-Read `make` as a constructor that is allowed to do work. It runs once, when the
-service is built. What it returns is the shape, and the shape is inferred, so
-there is no separate interface to keep in sync.
+Think of `make` as a constructor that is allowed to do work. It runs once, when
+the service is built. It returns the shape, and the compiler infers that shape,
+so there is no separate interface to keep in sync.
 
-The `Ref` is created inside `make`, so every construction gets a fresh one.
-That single fact is what makes tests independent later.
+The `Ref` is created inside `make`, so every construction gets a fresh one. That
+keeps tests independent later.
 
 Each method is wrapped in `Effect.fn`, which is new. `Effect.fn('Name')` takes a
-generator function and returns a function, so it is `Effect.gen` with a name and
-parameters. Every call to it runs inside a span with that name, and a trace
+generator function and returns a function, so it works like `Effect.gen` with a
+name and parameters. Every call runs inside a span, a named and timed step in a trace, with that
+name, so a trace
 shows `ProductRepository.findById` instead of an anonymous generator. Name each
-one `Service.method` and a trace reads like the call graph from chapter five.
+one `Service.method`, and a trace reads like the call graph from
+[the design chapter](/learn/basic-effect/05-design).
 
-Note what `findById` returns. `Option<Product>`, not a failure. The design
-chapter decided that, and the repository is where the decision is honoured.
+`findById` returns `Option<Product>`, not a failure. The design chapter chose
+this, and the repository carries it out.
 
-## The service on top
+## ProductService depends on the repository
 
-`ProductService` needs the repository. It asks for it the same way any Effect
-does, inside its own `make`.
+`ProductService` needs the repository. It asks for the repository the same way
+any Effect does, inside its own `make`.
 
 ```ts twoslash
 import { Option, Ref } from 'effect'
@@ -305,18 +305,18 @@ export class ProductService extends Context.Service<ProductService>()(
 ) {}
 ```
 
-`repository` is acquired once, in `make`. The methods close over it. They do
-not re-acquire it per call, and they do not take it as a parameter, which is
-the problem this chapter opened with, now solved one level down.
+`make` acquires `repository` once. The methods use that same `repository`. They
+do not acquire it on each call, and they do not take it as a parameter. This
+solves the problem the chapter opened with, one level down.
 
-`findById` is the entire reason the two services are separate. The repository
-said `Option.none()`. The service says that, for someone who asked for this
-specific product, that absence is `ProductNotFoundError`, and here is the id it
-was looking for. One line, and it is the line where storage becomes a domain.
+`findById` is the reason there are two services. When a product is missing, the
+repository returns `Option.none()`. The service decides that, for a caller who
+asked for one specific product, a missing product is a `ProductNotFoundError`
+that carries the id. This is where a storage detail becomes a domain rule.
 
-## Methods are functions, not stored Effects
+## Write methods as functions, not stored Effects
 
-A tempting shortcut is to put an Effect on the shape instead of a function:
+It is tempting to put an Effect on the shape instead of a function:
 
 ```ts twoslash
 interface Product { readonly id: string }
@@ -331,12 +331,12 @@ interface Right {
 }
 ```
 
-`Wrong` cannot take arguments, so the moment `list` needs a filter the shape
-changes. Write methods as functions even when they take nothing today.
+`Wrong` cannot take arguments. When `list` later needs a filter, the shape has to
+change. Write methods as functions, even if they take no arguments today.
 
 ## What people get wrong
 
-Reaching for `Service.use` out of habit.
+A common habit is to reach for `Service.use`.
 
 ```ts twoslash
 import { Context } from 'effect'
@@ -355,15 +355,14 @@ const viaYield = Effect.gen(function* () {
 })
 ```
 
-Both work. The second is the house style, because the dependency is visible on
-its own line and a second `yield*` reads the same as the first. `use` is a
-convenience for one-liners, not the default.
+Both work. The second is the style this course uses. The dependency sits on its
+own line, and a second `yield*` looks the same as the first. Use `use` for
+one-liners, not as the default.
 
-The larger mistake is the one this chapter has been building toward and has not
-fixed yet. Everything above defines services. Nothing has said how
-`ProductRepository` actually gets built when `ProductService` asks for it. Right
-now `ProductService.make` has `ProductRepository` sitting in its requirement
-channel with nobody to satisfy it, and no program using it can run.
+The bigger gap is still open. Everything above defines services, but nothing
+builds `ProductRepository` when `ProductService` asks for it. `ProductService.make`
+has `ProductRepository` in its requirement channel, and nothing satisfies it. No
+program that uses it can run.
 
 ## Where product.ts stands
 
@@ -459,12 +458,10 @@ export class ProductService extends Context.Service<ProductService>()(
 ) {}
 ```
 
-That is everything so far. Nothing in it can run yet, and the next chapter
-fixes that.
+Nothing in this file can run yet. The next chapter fixes that.
 
 ## Next
 
 [Repository state, layers, and config](/learn/basic-effect/07-layers) closes
-that gap. A layer is a recipe for constructing a service, and a service that
-owns its own layer can wire its dependencies once so that callers, and tests,
-ask for one thing and get the whole tree.
+that gap. A service that owns its own layer connects its dependencies once. Callers and tests then ask for one
+service and get all of its dependencies too.

@@ -2,17 +2,16 @@
 title: Repository state, layers, and config
 order: 7
 slug: 07-layers
-summary: Turn service definitions into something that can actually run, with a layer that owns its wiring, state that is fresh per build, and one setting read from config.
+summary: Build a layer for each service so the program can run. Each layer creates fresh state, and one setting comes from config.
 ---
 
-Chapter six ended with a service that cannot run. `ProductService.make` yields
-`ProductRepository`, so it requires one, and nothing so far has said how a
-`ProductRepository` gets built. A layer is that missing piece.
+The previous chapter ended with a service that cannot run. `ProductService.make` asks for
+`ProductRepository`, so it needs one. Nothing has yet said how to build a
+`ProductRepository`. A layer fills that gap.
 
 ## A layer is a recipe
 
-`Layer.effect` takes a service key and the Effect that constructs it, and
-produces a recipe for putting that service into the context.
+A layer is a recipe that builds a service. `Layer.effect` takes a service key and an Effect that builds the service.
 
 ```ts twoslash
 import { Context, Effect, Ref } from 'effect'
@@ -35,20 +34,20 @@ const repositoryLayer = Layer.effect(ProductRepository, ProductRepository.make)
 //    ^?
 ```
 
-Read the three parameters the same way you read them on an Effect. It provides
-`ProductRepository`, it cannot fail, and it needs nothing to be built.
+A layer has three type parameters, like an Effect. This layer provides
+`ProductRepository`, cannot fail, and needs nothing to be built.
 
-A layer is a description, like everything else here. Writing it constructs no
-repository. The construction happens when something provides the layer, and it
-happens once per provision.
+A layer is a description, like everything else so far. Writing one builds no
+repository. The build happens when you provide the layer to a program, and it
+happens once each time you provide it.
 
-## The service owns its wiring
+## Layer on the service class
 
-Put the layer on the class as a static, so that the service and the knowledge
-of how to build it stay together.
+Put the layer on the class as a static member. Then the service and the
+instructions for building it stay together.
 
-For a service with dependencies, the naive version has a problem the type will
-tell you about:
+Now write the layer the same way for a service that has a dependency. The type
+shows a problem:
 
 ```ts twoslash
 import { Context, Effect } from 'effect'
@@ -75,11 +74,11 @@ const leaky = Layer.effect(ProductService, ProductService.make)
 //    ^?
 ```
 
-`ProductRepository` is in the layer's requirement channel. The requirement did
-not disappear, it moved. Every caller of this layer now has to know about the
-repository, which is the prop-drilling problem again, one level up.
+`ProductRepository` is in the layer's requirement channel. The requirement did not go away. It moved to the layer's type. Every caller of this
+layer must now know about the repository. That is the prop-drilling problem
+again, one level up.
 
-`Layer.provide` satisfies it inside the layer:
+`Layer.provide` supplies the repository inside the layer:
 
 ```ts twoslash
 import { Option, Ref, Schema } from 'effect'
@@ -199,17 +198,17 @@ export class ProductService extends Context.Service<ProductService>()(
 ```
 
 `ProductService.layer` is now `Layer<ProductService, never, never>`. Callers ask
-for one thing and get the whole tree. Add a second dependency to `make` later
-and you add it to this one `Layer.provide` list, and nothing outside the class
-changes.
+for `ProductService` and get everything it needs. If `make` gains a second
+dependency later, add it to this one `Layer.provide` call. Nothing outside the
+class changes.
 
-`Layer.provide` also takes an array when there are several:
+For several dependencies, pass an array to `Layer.provide`, for example
 `Layer.provide([ProductRepository.layer, ClockService.layer])`.
 
 ## Providing at the edge
 
-`Effect.provide` supplies a layer to a program. Like the runners, it belongs at
-the outermost edge.
+`Effect.provide` gives a layer to a program. Like the functions that run an
+Effect, it belongs at the outermost edge of the program.
 
 ```ts twoslash
 import { Context, Layer } from 'effect'
@@ -232,14 +231,13 @@ const program = Effect.gen(function* () {
 const runnable = program.pipe(Effect.provide(ProductService.layer))
 ```
 
-`runnable` has an empty `R`, which is the precondition for running it at all.
-Providing in the middle of a program instead works, and throws away the reason
-`R` exists. Once a function has provided its own dependencies, no caller can
-substitute a different implementation, and that is the entire mechanism behind
-testing without mocks.
+`runnable` has an empty `R`, and an Effect can only run when `R` is empty.
+You can also provide a layer in the middle of a program. That works, but it removes the benefit of `R`. Once a function provides its own dependencies, no
+caller can substitute a different implementation. Substituting implementations
+is how you test without mocks.
 
-For several independent services at the root, `Layer.mergeAll` composes them
-flat:
+To combine several independent services at the root, use `Layer.mergeAll`. It
+joins them side by side:
 
 ```ts twoslash
 import { Context, Effect } from 'effect'
@@ -264,15 +262,15 @@ import { Layer } from 'effect'
 const AppLive = Layer.mergeAll(ProductService.layer, ReportService.layer)
 ```
 
-Prefer `Layer.mergeAll` for services at the same level and `Layer.provideMerge`
-when you are chaining incrementally. Both produce flatter types than nesting
-`Layer.provide` calls, which matters for editor responsiveness once the graph
+Use `Layer.mergeAll` for services at the same level. Use `Layer.provideMerge`
+when you build the graph step by step. Both give flatter types than nested
+`Layer.provide` calls. Flatter types keep the editor responsive as the graph
 grows.
 
 ## State that is fresh per build
 
-The repository holds its products in a `Ref` created inside `make`. That is the
-detail that makes the whole thing testable.
+The repository keeps its products in a `Ref` created inside `make`. That is
+what makes it testable.
 
 ```ts twoslash
 import { Schema } from 'effect'
@@ -352,26 +350,27 @@ export class ProductRepository extends Context.Service<ProductRepository>()(
 }
 ```
 
-Every provision of `ProductRepository.layer` runs `make` again and allocates a
-new `Ref`, so two tests that each provide the layer cannot see each other's
-products. A `let products = []` at module scope would give the opposite
-behaviour and the failures would look like flakiness.
+Each time you provide `ProductRepository.layer`, `make` runs again and
+allocates a new `Ref`. So two tests that each provide the layer cannot see each
+other's products. A `let products = []` at module scope behaves the opposite
+way. Tests would share state and fail at random.
 
-`Ref.modify` reads and writes in one step, returning a value and the next
-state. `Ref.get` followed by `Ref.update` is two steps, and two fibers running
-between them would allocate the same id twice.
+`Ref.modify` reads and writes in one step. It returns a value and the next
+state. `Ref.get` followed by `Ref.update` takes two steps. A fiber is one
+running piece of an Effect program, similar to a lightweight thread. Two fibers
+could run between those two steps and give out the same id twice.
 
-One caveat on layer reuse. Providing the same layer in two places within one
-layer graph gives you one instance, not two, because layers are memoized while
-the graph is built. That is what you want for a database pool. Two separate
-`Effect.provide` calls are two builds, so a pool provided that way is two pools.
-Compose the graph and provide it once. When you deliberately need a separate
-instance inside a graph, `Layer.fresh` says so.
+Layer reuse has one caveat. Inside one layer graph, providing the same layer in
+two places gives you one instance, not two. Effect memoizes layers while it
+builds the graph, which means it builds each layer once and reuses it. That
+suits a database pool. Two separate `Effect.provide` calls are two builds, so a
+pool provided that way becomes two pools. Compose the graph and provide it
+once. When you need a separate instance inside a graph, use `Layer.fresh`.
 
 ## One setting from config
 
-Hardcoding the catalog limit would mean editing code to change it. `Config`
-reads it from the environment with a typed accessor.
+Hardcoding the catalog limit means editing code to change it. Instead, read the
+limit from the environment with `Config`, which gives you a typed value.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -382,9 +381,9 @@ const maximumProducts = Config.Int('CATALOG_MAX_PRODUCTS').pipe(
 )
 ```
 
-`Config.Int` fails if the variable is present but not an integer, rather than
-handing you `NaN`. Read it in `make`, so it is read once when the service is
-built:
+`Config.Int` fails if the variable is present but not an integer. It does not
+hand you `NaN`. Read the value in `make`, so it is read once, when the service
+is built:
 
 ```ts twoslash
 import { Option, Ref } from 'effect'
@@ -526,15 +525,15 @@ export class ProductService extends Context.Service<ProductService>()(
 }
 ```
 
-`CatalogCapacityError` carries the limit that was hit and a message, so a
-caller does not have to re-derive either from context.
+`CatalogCapacityError` carries the limit that was hit and a message. A caller
+does not need to work out either one from context.
 
-Config is checked when the layer is built, not when your project is compiled or
-bundled. A missing or malformed value fails at startup, which is early enough
-to be useful and late enough that you should not expect a build error.
+Effect checks config when the layer is built, not when you compile or bundle
+your project. A missing or malformed value fails at startup. That is early
+enough to be useful, but do not expect a build error.
 
-Overriding it is how tests exercise the limit without setting environment
-variables:
+Tests can override the setting to exercise the limit without setting
+environment variables:
 
 ```ts twoslash
 import { Config, Context, Layer, Option, Ref, Schema } from 'effect'
@@ -692,29 +691,30 @@ const withSmallCatalog = program.pipe(
 )
 ```
 
-Two products, and the third `create` fails with `CatalogCapacityError`. No
-environment, no globals, nothing left behind for the next test.
+The limit is two, so the third `create` fails with `CatalogCapacityError`. The
+test needs no environment variables and no globals. It leaves nothing behind
+for the next test.
 
-The provider goes outside the service layer, so it is already in place when the
+The `ConfigProvider` goes outside the service layer, so it is in place when the
 layer builds and `make` reads the limit. Putting it beside the layer in
-`Layer.mergeAll` does not reach `make`, and chapter nine shows what to do
-instead.
+`Layer.mergeAll` does not reach `make`. [The testing
+chapter](/learn/basic-effect/09-testing) shows what to do instead.
 
 ## What people get wrong
 
-Reading config inside a method instead of in `make`. It compiles, and it means
-the limit can change between two calls in one request. Read settings once at
-construction unless you specifically want them live.
+The first mistake is reading config inside a method instead of in `make`. It
+compiles, but the limit can then change between two calls in one request. Read
+settings once, at construction, unless you want them live.
 
-Using `Layer.succeed` for a service that holds state. `Layer.succeed` takes an
-already-built value, so whatever state it closes over was created once and is
-shared by everyone who provides it. For a static stub that remembers nothing it
-is the right tool. For anything with a `Ref`, use `Layer.effect` so each build
-gets its own.
+The second mistake is using `Layer.succeed` for a service that holds state.
+`Layer.succeed` takes a value that is already built. Any state that value
+closes over was created once, and everyone who provides the layer shares it.
+For a static stub that remembers nothing, `Layer.succeed` is the right tool.
+For anything with a `Ref`, use `Layer.effect` so each build gets its own state.
 
-Leaving requirements in a layer's third parameter and satisfying them at the
-call site. It works until two call sites disagree about how to build the same
-dependency.
+The third mistake is leaving requirements in a layer's third parameter and
+satisfying them at the call site. This works until two call sites disagree
+about how to build the same dependency.
 
 ## Where product.ts stands
 
@@ -858,13 +858,13 @@ export class ProductService extends Context.Service<ProductService>()(
 }
 ```
 
-`ProductService.layer` has `ConfigError` in its second slot now, because the
-limit is read while the layer builds and a malformed value fails there.
+The second type parameter of `ProductService.layer` now includes `ConfigError`.
+The layer reads the limit while it builds, and a malformed value fails at that
+point.
 
 ## Next
 
-Two services, a layer that wires them, state that is fresh per build, and a
-setting from config. [The ProductService
+This chapter covered two services, a layer that connects them, state that is
+fresh per build, and one setting from config. [The ProductService
 capstone](/learn/basic-effect/08-capstone) puts all of it in one file and reads
-it end to end, so you can see how the pieces sit together rather than meeting
-them one at a time.
+it from start to finish, so you see how the pieces fit together.

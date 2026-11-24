@@ -2,10 +2,10 @@
 title: Schemas and domain modeling
 order: 4
 slug: 04-schemas
-summary: Describe a value once and get its type, its validation, and its decoder from the same declaration, then brand ids so the compiler stops treating every string as interchangeable.
+summary: Describe a value once to get its type, its validation, and its decoder. Then brand ids so the compiler no longer treats every string as the same.
 ---
 
-This signature is a lie by omission.
+This signature does not say which values are valid.
 
 ```ts twoslash
 interface Product { readonly id: string }
@@ -13,22 +13,23 @@ interface Product { readonly id: string }
 declare function createProduct(name: string, price: number): Product
 ```
 
-It accepts an empty name, a price of `-5`, and a price of `NaN`, which is a
-`number` too. And when the input arrives from a request body rather than from
-your own code, you do not even have a `string` and a `number`. You have
-`unknown`, and most codebases turn that into a type with a cast and hope.
+It accepts an empty name, a price of `-5`, and a price of `NaN`. `NaN` is a
+`number` too. Input from a request body is worse. You do not have a `string`
+and a `number` there. You have `unknown`. Most codebases turn that into a type
+with a cast, and nothing checks the cast.
 
-A schema is one declaration that fixes all of it. It gives you the TypeScript
-type, the runtime validation, and a decoder for untrusted input, and they
-cannot drift apart because they are the same thing.
+A schema is one declaration that fixes all of this. It gives you the TypeScript
+type, the runtime validation, and a decoder that turns untrusted input into a
+typed value. The three cannot drift apart, because they come from the same
+declaration.
 
 From here the course leaves `fetch` and `index.ts` behind. The catalog lives in
-memory, and the module you build in this and the next four chapters goes in a
-new file, `product.ts`. A block that opens with a file name belongs in that
-file. A block without one is an illustration to read. Each block shows the
-imports it uses, so if your file already imports a name, add it to the existing
-line instead of pasting a second one. The end of this chapter prints the file
-as it should look.
+memory. The module you build in this chapter and the next four goes in a new
+file, `product.ts`. A code block that opens with a file name belongs in that
+file. A block without a file name is an illustration to read. Each block shows
+the imports it uses. If your file already imports a name, add it to the
+existing import line instead of pasting a second one. The end of this chapter
+shows the file as it should look.
 
 ## Describing a value
 
@@ -44,17 +45,18 @@ const Product = Schema.Struct({
 type Product = Schema.Schema.Type<typeof Product>
 ```
 
-`Product` is now two things with one name, which is deliberate. The value is
-the schema, usable at runtime. The type is what TypeScript sees. Declaring the
-type with `Schema.Schema.Type` rather than writing an interface is what keeps
-them in agreement when a field changes.
+`Product` now names two things on purpose. The value is the schema, which you
+can use at runtime. The type is what TypeScript sees. Declare the type with
+`Schema.Schema.Type` instead of writing an interface. Then the type changes
+whenever a field changes.
 
-`Schema.Finite` rather than `Schema.Number` because `Number` admits `NaN` and
-`Infinity`, and a price of `NaN` will ruin a quiet afternoon much later.
+Use `Schema.Finite` instead of `Schema.Number`. `Schema.Number` admits `NaN` and
+`Infinity`, so a price of `NaN` would pass and cause a bug later.
 
 ## Checks narrow what is allowed
 
-A check is a predicate attached to a schema.
+A check is a predicate attached to a schema. It is a function that returns true
+for the values the schema accepts.
 
 ```ts twoslash
 // product.ts, above Product
@@ -63,9 +65,8 @@ const ProductName = Schema.String.check(Schema.isMinLength(1))
 const ProductPrice = Schema.Finite.check(Schema.isGreaterThan(0))
 ```
 
-Put checks on the field schemas rather than on the struct. `ProductName` is now
-a thing you can name, reuse, and read. Every struct that uses it gets the rule,
-and the rule is written once.
+Put checks on the field schemas, not on the struct. Naming a field schema such as `ProductName` lets you reuse it and read it. Every struct that uses it gets the rule, and
+you write the rule once.
 
 ```ts twoslash
 const ProductName = Schema.String.check(Schema.isMinLength(1))
@@ -80,14 +81,15 @@ const Product = Schema.Struct({
 })
 ```
 
-The checks run when something decodes. They are not a compile-time guarantee
-that a hand-written object literal is valid, and they are not meant to be. Use
-them at the boundary, which is where values you did not construct arrive.
+Checks run when a value is decoded. They do not make the compiler reject an
+invalid object literal that you write by hand, and they are not meant to. Use
+them at the boundary. The boundary is where values you did not create enter
+your program.
 
 ## Branded ids
 
-`id: Schema.String` still leaves every string in the program interchangeable
-with every product id. A brand fixes that without changing the runtime value.
+With `id: Schema.String`, the compiler still accepts any string as a product
+id. A brand fixes that without changing the runtime value.
 
 ```ts twoslash
 // product.ts, above Product
@@ -96,23 +98,24 @@ const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
 type ProductId = Schema.Schema.Type<typeof ProductId>
 ```
 
-At runtime a `ProductId` is a string, with no wrapper and no cost. At compile
-time it is `string & Brand<'@Catalog/ProductId'>`, which no plain string
-satisfies. Pass a raw string where a `ProductId` is wanted and the call does not
-compile.
+At runtime, a `ProductId` is a string. It has no wrapper and no extra cost. At
+compile time, it is `string & Brand<'@Catalog/ProductId'>`, and no plain string
+matches that type. If you pass a raw string where a `ProductId` is expected, the
+call does not compile.
 
-The namespace prefix keeps brands from colliding. Two modules that both brand
-`'ProductId'` would produce the same type, which is exactly the accident
-branding exists to prevent.
+The namespace prefix stops two brands from clashing. If two modules both brand
+`'ProductId'`, they produce the same type. The compiler then accepts one
+module's id where the other's is expected, which is the mistake branding exists
+to prevent.
 
 `ProductId.make(value)` is the constructor. Use it for values you already know
-are ids, such as fixtures and seeds. For anything that arrived from outside,
-decode it instead, and the next section is how.
+are ids, such as fixtures and seeds. Decode anything that arrived from outside instead. The "Decoding unknown input"
+section shows how.
 
-## One schema per moment
+## Separate schemas for stored and new products
 
-A product that exists and a request to create one are different shapes, so they
-are different schemas.
+A product that exists and a request to create one have different shapes. Give
+each its own schema.
 
 ```ts twoslash
 const ProductId = Schema.String.pipe(Schema.brand('@Catalog/ProductId'))
@@ -135,18 +138,18 @@ const CreateProduct = Schema.Struct({
 type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
 ```
 
-`CreateProduct` has no id, because the caller does not have one. Whatever
-stores the product allocates it. Modelling both with one optional-id type would
-mean every read of `product.id` has to handle a missing case that cannot
-actually happen after creation.
+`CreateProduct` has no id, because the caller does not have one yet. Whatever
+stores the product assigns the id. Suppose you modelled both shapes with one
+type that has an optional id. Then every read of `product.id` would have to
+handle a missing id, and a stored product never lacks one.
 
-The two share `ProductName` and `ProductPrice`, so the rule that a price is
-positive is stated once and enforced on both paths.
+Both schemas use `ProductName` and `ProductPrice`. The rule that a price is
+positive is written once and applies to both.
 
 ## Decoding unknown input
 
-`Schema.decodeUnknownEffect` turns a schema into a function from `unknown` to
-an Effect.
+`Schema.decodeUnknownEffect` turns a schema into a function from `unknown` to an
+Effect.
 
 ```ts twoslash
 const ProductName = Schema.String.check(Schema.isMinLength(1))
@@ -163,21 +166,23 @@ const parsed = decodeCreateProduct({ name: 'Desk mat', price: 30 })
 //    ^?
 ```
 
-The failure channel is `SchemaError`, and it carries what failed and where
-rather than a boolean. Success gives you a `CreateProduct`, and by the time you
-hold one, the name is non-empty and the price is positive. Nothing downstream
-has to check again.
+Here the error channel is `SchemaError`.
+It says what failed and where, not just that something failed. Success gives
+you a `CreateProduct`. Once you hold one, the name is non-empty and the price
+is positive. Nothing later has to check again.
 
-This is the one place `unknown` should appear. Decode at the edge, where a
-request body or a file arrives, and pass typed values inward. A service that
-takes `CreateProduct` cannot be handed junk, which is why none of the service
-methods later in this course carry `SchemaError` in their signatures.
+The decoder is the one place `unknown` should appear. Decode at the edge, where
+a request body or a file arrives, and pass typed values inward.
 
-## Optional means Option
+Code that takes a `CreateProduct` cannot receive an invalid product. This is why
+none of the service methods later in the course have `SchemaError` in their
+signatures.
 
-For a field that genuinely may be absent, model the absence rather than leaving
-a `null` or an `undefined` in the type. `Schema.OptionFromOptionalKey` decodes a
-key that may be missing from the input into an `Option`.
+## Optional fields with Option
+
+Some fields may be absent. Model the absence instead of leaving a `null` or an
+`undefined` in the type. `Schema.OptionFromOptionalKey` decodes a key that may
+be missing from the input into an `Option`.
 
 ```ts twoslash
 const ProductName = Schema.String.check(Schema.isMinLength(1))
@@ -191,20 +196,20 @@ type ProductDetails = Schema.Schema.Type<typeof ProductDetails>
 ```
 
 `description` is an `Option<string>`. Input with no `description` key decodes to
-`Option.none()`, and input with a string decodes to `Option.some`. Reading it
-means saying what happens when it is absent, through `Option.match` or
-`Option.getOrElse`, rather than remembering a null check that is easy to skip
-and impossible to see in a signature.
+`Option.none()`. Input with a string decodes to `Option.some`. To read it, you
+must say what happens when it is absent, with `Option.match` or
+`Option.getOrElse`. A null check is easy to skip, and you cannot see it in a
+signature.
 
-Do not reach for `Schema.Option(Schema.String)` here. It describes a value that
-is already an `Option`, so decoding rejects a plain string, a `null` and a
-missing key alike. When the input spells absence as `null`, as many JSON APIs
-do, use `Schema.OptionFromNullOr(Schema.String)`.
+Do not use `Schema.Option(Schema.String)` here. It describes a value that is
+already an `Option`. Decoding therefore rejects a plain string, a `null`, and a
+missing key. If the input writes absence as `null`, as many JSON APIs do, use
+`Schema.OptionFromNullOr(Schema.String)`.
 
-## What people get wrong
+## Common mistake: casting at the boundary
 
-Casting at the boundary. It is the habit schemas replace, and it survives the
-introduction of schemas in most codebases because it still compiles.
+The most common mistake is to cast input at the boundary. Schemas replace this
+habit, but it often survives because the cast still compiles.
 
 ```ts twoslash
 import { Schema } from 'effect'
@@ -220,17 +225,18 @@ declare const body: unknown
 const input = body as CreateProduct
 ```
 
-Nothing ran. `as` is a note to the compiler, not a check, so `input.price` may
-well be `undefined` or `-5`. Everything downstream now believes a guarantee
-that was never established, and the failure surfaces somewhere far away from
-the cast.
+No check ran. `as` tells the compiler what to believe. It does not verify
+anything, so `input.price` can be `undefined` or `-5`. All the code after the
+cast trusts a guarantee that nobody established. The failure then appears far
+from the cast.
 
-The same mistake wearing a brand is `ProductId.make(someRequestParam)`. That
-constructor asserts the value is already an id. On untrusted input it hands you
-exactly the false confidence branding was supposed to remove. Decode it.
+`ProductId.make(someRequestParam)` is the same mistake with a brand. The
+constructor asserts that the value is already an id. On untrusted input, it
+gives you the false confidence that branding should remove. Decode the value
+instead.
 
-The [anti-patterns track](/learn/anti-patterns/01-at-the-boundary) has the
-longer version, alongside the other two ways a boundary leaks.
+The [boundary chapter in the anti-patterns track](/learn/anti-patterns/01-at-the-boundary)
+covers this in more depth. It also covers two other ways a boundary leaks.
 
 ## Where product.ts stands
 
@@ -259,12 +265,12 @@ export type CreateProduct = Schema.Schema.Type<typeof CreateProduct>
 ```
 
 The `export` keywords are new. The service chapters and the tests import from
-this module, so everything it defines is public.
+this module, so it exports everything it defines.
 
 ## Next
 
-You have typed values, typed failures, and a way to build programs out of both.
-The catalog is still a pile of loose functions. [Design the product
-service](/learn/basic-effect/05-design) works out the shape before any of it
-becomes a service: what calls what, which failures exist, and which layer is
-responsible for each one.
+You now have typed values, typed failures, and a way to build programs from
+both. The catalog is still a set of loose functions. The next chapter,
+[Design the product service](/learn/basic-effect/05-design), plans the shape
+before any of it becomes a service. It decides what calls what, which failures
+exist, and which part owns each failure.

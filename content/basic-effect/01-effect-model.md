@@ -2,11 +2,11 @@
 title: The Effect model
 order: 1
 slug: 01-effect-model
-summary: Why an Effect is a description of work rather than work already underway, shown against a public API that answers 200 OK when the product does not exist.
+summary: Why an Effect describes work instead of starting it, shown against a public API that answers 200 OK when a product does not exist.
 ---
 
-Here is an ordinary function that reads one product from
-[fakestoreapi.com](https://fakestoreapi.com). Put it in `index.ts`.
+This function reads one product from [fakestoreapi.com](https://fakestoreapi.com).
+Save it as `index.ts`.
 
 ```ts twoslash
 // index.ts
@@ -34,17 +34,17 @@ async function fetchProduct(id: number): Promise<Product> {
 fetchProduct(1).then((product) => console.log(product.title))
 ```
 
-Run it and it prints a backpack. Nothing about it is unusual, and nothing about
-it is wrong in the sense your editor can see.
+Run it and it prints the name of a backpack. The code looks ordinary, and
+TypeScript reports no errors.
 
 ```sh
 Fjallraven - Foldsack No. 1 Backpack, Fits 15 Laptops
 ```
 
-## The signature is a claim, not a guarantee
+## What the Promise type does not tell you
 
-`Promise<Product>` says you get a product. Ask for one that does not exist and
-watch what you get instead. Change the last two lines:
+`Promise<Product>` says the call returns a product. Ask for one that does not
+exist by replacing the last line of `index.ts`:
 
 ```ts twoslash
 interface Product { id: number; title: string }
@@ -54,46 +54,43 @@ declare function fetchProduct(id: number): Promise<Product>
 fetchProduct(999).then((product) => console.log(product.title.toUpperCase()))
 ```
 
-Under bun:
+With Bun, you get:
 
 ```sh
 TypeError: null is not an object (evaluating 'product.title')
 ```
 
-Under node:
+With Node, you get:
 
 ```sh
 SyntaxError: Unexpected end of JSON input
 ```
 
-Same code, same response, two different crashes. The response itself is the
-reason. fakestoreapi answers a missing product with `200 OK`, a
-`content-type: application/json` header, and a body of zero bytes. `response.ok`
-is `true`. Then `response.json()` has nothing to parse, and what it does about
-that is a decision each runtime makes on its own. Bun hands you `null`. Node
-throws.
+The code and the response are the same, but the two runtimes crash in different
+ways. For a missing product, fakestoreapi sends
+`200 OK`, a `content-type: application/json` header, and a body of zero bytes.
+So `response.ok` is `true`. Then `response.json()` has nothing to parse. Each
+runtime handles that in its own way. Bun returns `null`. Node throws.
 
-Read the signature again. `Promise<Product>` mentions none of this.
+The signature `Promise<Product>` says nothing about any of this. Four things
+happen in this code that the type does not show:
 
-Four things are happening in those five lines that the type does not say:
-
-- `fetch` rejects when the network is gone, and nothing in `Promise<Product>`
-  says so.
-- `response.json()` fails on a body that is not JSON, including the empty one
+- `fetch` rejects when the network is down.
+- `response.json()` fails when the body is not JSON, including the empty body
   above.
-- `as Product` is an assertion. Nobody checked. `null` passed through it
-  without complaint and only became a problem one line later.
-- By the time you hold the `Promise`, the request is already in flight. You
-  cannot inspect it, retry it, or decide not to send it. It went the moment you
-  called.
+- `as Product` is a type assertion. Nobody checked the data. `null` passed
+  through it without complaint and caused an error on the next line.
+- When you hold the `Promise`, the request is already in flight. You cannot
+  inspect it, retry it, or decide not to send it.
 
-The first three are about errors going missing. The fourth is the one Effect
-changes first, and the rest follow from it.
+The first three items are errors that the type hides. Effect, the library this
+course teaches, changes the fourth item first. The rest follow from that.
 
-## A value that describes work
+## An Effect is a description of work
 
-Calling a function gives you a description of the work. Running it is a
-separate step you take on purpose.
+An Effect is a value that describes work to do. Nothing runs until you run it.
+Calling a function that returns an Effect gives you that description. Running it
+is a separate step that you take on purpose.
 
 ```ts twoslash
 // index.ts
@@ -118,22 +115,23 @@ Effect.runPromise(program).then((response) => {
 })
 ```
 
-`Effect.tryPromise` takes a function that returns the Promise you would have
-awaited, and a function that turns a rejection into a value you chose. What
-comes back is not a request in flight. It is a description of one.
+`Effect.tryPromise` takes two functions. The first returns the Promise you would
+have awaited. The second turns a rejection into an error value that you choose.
+The result describes the request. It is not a request in flight.
 
 ```sh
 nothing has been requested yet
 status 200
 ```
 
-The log prints before the request happens, and it prints because
-`fetchProduct(999)` did nothing. `Effect.runPromise` is the line that sends it.
-Delete that line and no traffic leaves your machine.
+The log prints before the request happens, because `fetchProduct(999)` sent
+nothing. `Effect.runPromise` runs the Effect and sends the request. Delete it and
+no request leaves your machine.
 
-## Three channels
+## The three channels of an Effect
 
-Hover `program` and read what it says about itself.
+The code below shows the type of `program`. Your editor shows it when you hover
+over `program`.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -150,7 +148,7 @@ const program = fetchProduct(999)
 //    ^?
 ```
 
-Three parameters, read left to right:
+The type has three parameters. Read them from left to right:
 
 ```
         ┌─── the value it produces
@@ -160,26 +158,37 @@ Three parameters, read left to right:
 Effect<Response, ApiError, never>
 ```
 
-`Promise<Product>` had one slot and used it to make a claim. This has three,
-and the middle one is the one that was missing. `ApiError` is in the type
-because `tryPromise` was told what a rejection becomes. It will stay in the
-type until something handles it, and the compiler will keep bringing it up.
+Each parameter is a channel, which means one of the three type slots of an
+Effect:
 
-`never` in the third slot means this needs nothing from its surroundings to
-run. Chapter seven is where that stops being `never`.
+- `Response` is the success type, the value the Effect produces.
+- `ApiError` is the failure type. This slot is the error channel.
+- `never` is the requirement type, what the Effect needs before it can run.
+  This slot is the requirement channel.
+
+`Promise<Product>` had one slot, for the success value. The error channel is the
+slot that was missing. `ApiError` is in it because you told `tryPromise` what a
+rejection becomes. It stays in the type until some code handles it, and the
+compiler keeps showing it.
+
+`never` means this Effect needs nothing from its surroundings to run. In
+[Repository state, layers, and config](/learn/basic-effect/07-layers), that slot
+stops being `never`.
 
 ## What this version still gets wrong
 
-It is honest about the request and silent about everything after it. There is
-no JSON yet, no `Product`, and `999` still comes back `200`. The `ApiError`
-class is a placeholder with one tag and no detail.
+This version covers the request only. It does not parse the JSON, it has no
+`Product` type, and `999` still comes back `200`. The `ApiError` class is a
+placeholder. It has one tag, a fixed string that tells errors apart, and no
+other detail.
 
-Three things are missing, and they are the next three chapters. Chapter two
-composes the parse onto the fetch and adds the timeout and the retry that a
-network call should have had from the start. Chapter three replaces `ApiError`
-with errors that say which thing went wrong, including the empty body you saw
-above. Chapter four is where `as Product` finally goes away.
+The next three chapters fix these gaps. In
+[Constructing and composing Effects](/learn/basic-effect/02-composition), you
+combine the fetch with the parse and add a timeout and a retry. In
+[Typed errors and recovery](/learn/basic-effect/03-typed-errors), you replace
+`ApiError` with errors that say what went wrong, including the empty body. In
+[Schemas and domain modeling](/learn/basic-effect/04-schemas), `as Product` goes
+away.
 
-The order matters. Every one of them is a thing you can only add cheaply
-because the work is a value sitting still, rather than a Promise that already
-left.
+You can add each of these cheaply because an Effect has not started yet. A
+Promise has already started by the time you hold it.
