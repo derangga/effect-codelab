@@ -88,9 +88,9 @@ Effect does JSON Web Tokens, and this is not a thing to write yourself.
 mkdir effect-auth-api
 cd effect-auth-api
 bun init -y
-bun add --exact effect@4.0.0
-bun add --exact @effect/platform-bun@4.0.0
-bun add --exact @effect/sql-sqlite-bun@4.0.0
+bun add --exact effect@4.1.5
+bun add --exact @effect/platform-bun@4.1.5
+bun add --exact @effect/sql-sqlite-bun@4.1.5
 bun add --exact jose@6.2.12
 bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
@@ -101,7 +101,7 @@ bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 mkdir effect-auth-api
 cd effect-auth-api
 npm init -y
-npm install --save-exact effect@4.0.0 @effect/platform-bun@4.0.0 @effect/sql-sqlite-bun@4.0.0 jose@6.2.12
+npm install --save-exact effect@4.1.5 @effect/platform-bun@4.1.5 @effect/sql-sqlite-bun@4.1.5 jose@6.2.12
 npm install --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 
@@ -111,7 +111,7 @@ npm install --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/
 mkdir effect-auth-api
 cd effect-auth-api
 pnpm init
-pnpm add --save-exact effect@4.0.0 @effect/platform-bun@4.0.0 @effect/sql-sqlite-bun@4.0.0 jose@6.2.12
+pnpm add --save-exact effect@4.1.5 @effect/platform-bun@4.1.5 @effect/sql-sqlite-bun@4.1.5 jose@6.2.12
 pnpm add --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 
@@ -121,7 +121,7 @@ pnpm add --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun
 mkdir effect-auth-api
 cd effect-auth-api
 yarn init -y
-yarn add --exact effect@4.0.0 @effect/platform-bun@4.0.0 @effect/sql-sqlite-bun@4.0.0 jose@6.2.12
+yarn add --exact effect@4.1.5 @effect/platform-bun@4.1.5 @effect/sql-sqlite-bun@4.1.5 jose@6.2.12
 yarn add --dev --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 

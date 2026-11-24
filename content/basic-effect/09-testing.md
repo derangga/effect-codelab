@@ -188,7 +188,7 @@ something failed, which is all a bare `Promise<Product>` told you in [The Effect
 ## Setup
 
 This chapter needs a test runner and the Effect adapter for it. Pin both to
-exact versions. `@effect/vitest@4.0.0` requires vitest 5, so an older vitest
+exact versions. `@effect/vitest@4.1.5` requires vitest 5, so an older vitest
 does not work. Vitest needs no config here. It runs every `*.test.ts` file, so
 the tests go in `product.test.ts`, next to `product.ts`. Nothing touches the
 network or a server. The catalog is in memory, so there is nothing to mock.
@@ -201,35 +201,35 @@ the commands for your package manager.
 #### Tab: bun
 
 ```sh
-bun add --exact --dev vitest@5.0.3 @effect/vitest@4.0.0
+bun add --exact --dev vitest@5.0.3 @effect/vitest@4.1.5
 bunx vitest run
 ```
 
 #### Tab: npm
 
 ```sh
-npm install --save-dev --save-exact vitest@5.0.3 @effect/vitest@4.0.0
+npm install --save-dev --save-exact vitest@5.0.3 @effect/vitest@4.1.5
 npx vitest run
 ```
 
 #### Tab: pnpm
 
 ```sh
-pnpm add --save-dev --save-exact vitest@5.0.3 @effect/vitest@4.0.0
+pnpm add --save-dev --save-exact vitest@5.0.3 @effect/vitest@4.1.5
 pnpm exec vitest run
 ```
 
 #### Tab: yarn
 
 ```sh
-yarn add --dev --exact vitest@5.0.3 @effect/vitest@4.0.0
+yarn add --dev --exact vitest@5.0.3 @effect/vitest@4.1.5
 yarn vitest run
 ```
 
 #### Tab: deno
 
 ```sh
-deno add --save-exact npm:vitest@5.0.3 npm:@effect/vitest@4.0.0
+deno add --save-exact npm:vitest@5.0.3 npm:@effect/vitest@4.1.5
 deno run --allow-all npm:vitest run
 ```
 

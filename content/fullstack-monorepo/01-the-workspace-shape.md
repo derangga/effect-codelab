@@ -176,7 +176,7 @@ and Vite read `.ts` source directly.
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "effect": "4.0.0"
+    "effect": "4.1.5"
   }
 }
 ```
@@ -198,13 +198,13 @@ API](/learn/fullstack-monorepo/07-testing-the-api) explains why.
     "test": "bun --bun vitest run"
   },
   "dependencies": {
-    "@effect/platform-bun": "4.0.0",
-    "@effect/sql-sqlite-bun": "4.0.0",
+    "@effect/platform-bun": "4.1.5",
+    "@effect/sql-sqlite-bun": "4.1.5",
     "@todo/domain": "workspace:*",
-    "effect": "4.0.0"
+    "effect": "4.1.5"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0",
+    "@effect/vitest": "4.1.5",
     "@types/bun": "1.4.2",
     "vitest": "5.0.3"
   }
@@ -224,9 +224,9 @@ API](/learn/fullstack-monorepo/07-testing-the-api) explains why.
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@effect/atom-react": "4.0.0",
+    "@effect/atom-react": "4.1.5",
     "@todo/domain": "workspace:*",
-    "effect": "4.0.0",
+    "effect": "4.1.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "scheduler": "0.27.0"

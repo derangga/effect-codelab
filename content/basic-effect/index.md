@@ -60,7 +60,7 @@ on.
 
 ```sh
 bun init -y
-bun add --exact effect@4.0.0
+bun add --exact effect@4.1.5
 bun add -d --exact typescript@7.0.2
 ```
 
@@ -72,7 +72,7 @@ extensionless imports such as `./product`, which later chapters use.
 
 ```sh
 npm init -y
-npm install --save-exact effect@4.0.0
+npm install --save-exact effect@4.1.5
 npm install --save-dev --save-exact typescript@7.0.2 tsx@4.23.15
 ```
 
@@ -84,7 +84,7 @@ extensionless imports such as `./product`, which later chapters use.
 
 ```sh
 pnpm init
-pnpm add --save-exact effect@4.0.0
+pnpm add --save-exact effect@4.1.5
 pnpm add --save-dev --save-exact typescript@7.0.2 tsx@4.23.15
 ```
 
@@ -96,7 +96,7 @@ extensionless imports such as `./product`, which later chapters use.
 
 ```sh
 yarn init -y
-yarn add --exact effect@4.0.0
+yarn add --exact effect@4.1.5
 yarn add --dev --exact typescript@7.0.2 tsx@4.23.15
 ```
 
@@ -108,7 +108,7 @@ and use it for the chapters. Deno type checks with its own compiler and runs in
 
 ```sh
 deno init
-deno add --save-exact npm:effect@4.0.0
+deno add --save-exact npm:effect@4.1.5
 ```
 
 ### Run a file

@@ -82,7 +82,7 @@ out from under code that compiled yesterday.
 mkdir effect-feed
 cd effect-feed
 bun init -y
-bun add --exact effect@4.0.0
+bun add --exact effect@4.1.5
 bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 
@@ -95,7 +95,7 @@ bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 mkdir effect-feed
 cd effect-feed
 npm init -y
-npm install --save-exact effect@4.0.0
+npm install --save-exact effect@4.1.5
 npm install --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.23.15
 ```
 
@@ -108,7 +108,7 @@ npm install --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.2
 mkdir effect-feed
 cd effect-feed
 pnpm init
-pnpm add --save-exact effect@4.0.0
+pnpm add --save-exact effect@4.1.5
 pnpm add --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.23.15
 ```
 
@@ -121,7 +121,7 @@ pnpm add --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.23.1
 mkdir effect-feed
 cd effect-feed
 yarn init -y
-yarn add --exact effect@4.0.0
+yarn add --exact effect@4.1.5
 yarn add --dev --exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.23.15
 ```
 
@@ -135,7 +135,7 @@ type checks with its own compiler, so skip the `tsconfig.json` below. Create
 mkdir effect-feed
 cd effect-feed
 deno init
-deno add --save-exact npm:effect@4.0.0
+deno add --save-exact npm:effect@4.1.5
 ```
 
 ### The compiler options

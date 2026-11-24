@@ -55,11 +55,11 @@ Every dependency in the `package.json` files is pinned to an exact version, with
 no `^` and no `latest`. These are the ones that must not drift:
 
 ```sh
-effect@4.0.0
-@effect/platform-bun@4.0.0
-@effect/sql-sqlite-bun@4.0.0
-@effect/atom-react@4.0.0
-@effect/vitest@4.0.0
+effect@4.1.5
+@effect/platform-bun@4.1.5
+@effect/sql-sqlite-bun@4.1.5
+@effect/atom-react@4.1.5
+@effect/vitest@4.1.5
 typescript@7.0.2
 ```
 
