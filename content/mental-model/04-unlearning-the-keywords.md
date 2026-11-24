@@ -2,18 +2,19 @@
 title: Unlearning try, catch and await
 order: 4
 slug: 04-unlearning-the-keywords
-summary: A boundary map for ordinary asynchronous TypeScript and the three channels of an Effect program.
+summary: A map from ordinary async TypeScript to the three channels of an Effect program.
 ---
 
 Effect does not ask you to forget JavaScript. Promises still exist. Third-party
 code still throws. Resources still need cleanup.
 
-The change is where those behaviors are allowed to cross into the program.
-Ordinary TypeScript sits at the boundaries. Inside, Effect keeps success,
-expected failure, and requirements in one description.
+What changes is where these behaviors may enter the program. Ordinary TypeScript
+handles the places where outside code comes in. Inside the program, Effect keeps
+the success value, the expected failures, and the dependencies in one
+description.
 
-This page joins the first three mental shifts. It is a map, not a list of APIs
-to memorize.
+This page brings together the first three shifts. It is a map, not a list of
+APIs to memorize.
 
 ## Before reading on
 
@@ -27,20 +28,20 @@ async function loadPort(): Promise<number> {
 }
 ```
 
-There is more than one reasonable place to point.
+More than one answer is reasonable.
 
 `fetch` can reject, but `Promise<number>` names no failure. `response.json()`
-accepts data the program did not create. The cast claims that data has a shape
-without checking it. `Number` can produce `NaN`, even though the return type
-still says `number`.
+gives you data that the program did not create. The cast says the data has a
+certain shape, but nothing checks it. `Number` can produce `NaN`, even though
+the return type still says `number`.
 
-The first misleading line is not `await`. It is the function signature. The
-body has several outcomes and dependencies, while the contract records only a
+The first misleading line is the function signature, not `await`. The body has
+several possible outcomes and dependencies, but the return type records only a
 future success.
 
-## The three channels are one contract
+## The three channels in one signature
 
-An Effect signature keeps the missing parts together:
+An Effect signature puts the missing parts in one place:
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -65,8 +66,8 @@ declare const loadPort: Effect.Effect<
 Read it as one sentence. `loadPort` may produce a number, may fail because the
 request failed or the port was invalid, and needs an HTTP client.
 
-The signature does not tell you how the program performs those steps. It tells
-you what any implementation must preserve.
+The signature does not say how the program does its work. It says what any
+implementation must keep true.
 
 ```mermaid
 flowchart LR
@@ -76,27 +77,26 @@ flowchart LR
   S --> X["run once at the edge"]
 ```
 
-That shape explains where the familiar keywords go.
+This flow shows where each familiar keyword ends up.
 
-## Outside code gets adapted once
+## Adapt outside code once
 
-When a Promise API enters an Effect program, an Effect constructor describes
-how to call it and how to turn rejection into a named failure. Throwing
-synchronous code gets the same treatment. Untrusted input is decoded where it
-enters instead of cast and checked throughout the program.
+When a Promise API enters an Effect program, you wrap it with an Effect
+constructor. The constructor describes how to call the API and how to turn a
+rejection into a named failure. Synchronous code that throws gets the same
+treatment. You decode untrusted input where it enters the program, instead of
+casting and checking it all through the program.
 
-This is the place where knowledge of the outside library belongs. The rest of
-the program should see `RequestFailed`, not an unknown rejection from a fetch
-implementation.
+This is where you put what you know about the outside library. The rest of the
+program should see `RequestFailed`, not an unknown rejection from `fetch`.
 
-`try` has not vanished. Its responsibility has become precise: adapt code that
-can throw at the boundary where it enters the typed program.
+`try` has not gone away. Its job is now narrower: adapt code that can throw, at
+the point where it enters the typed program.
 
-## Inside code composes descriptions
+## Combine descriptions inside the program
 
-`Effect.gen` gives sequential Effect code a shape similar to `async` code.
-`yield*` obtains the success value of one description so the next step can use
-it.
+`Effect.gen` lets you write Effect steps one after another, like `async` code.
+`yield*` gets the success value of one description so the next step can use it.
 
 ```ts twoslash
 import { Effect } from 'effect'
@@ -115,48 +115,49 @@ program
 // ^?
 ```
 
-This resembles `await`, but it does not start the program. The generator builds
-one larger description. Its success comes from `parsePort`, and its error
-channel contains the failures from both steps.
+This looks like `await`, but it does not start the program. The generator builds
+one larger description. Its success value comes from `parsePort`. Its error
+channel holds the failures from both steps.
 
-Expected failures do not need `throw`. Constructors can place them in `E`, and
-handlers can make typed decisions later. Requirements do not need to be passed
-through every intermediate function. They remain in `R` until code near the
-entry point supplies them.
+Expected failures do not need `throw`. Constructors can put them in `E`, and
+handlers can deal with each one later. Dependencies do not need to be passed
+through every function in between. They stay in `R` until code near the entry
+point supplies them.
 
 ## Cleanup belongs to the runtime
 
-`finally` combines two jobs: describe cleanup and hope control reaches the
-place that performs it. Asynchronous programs make that fragile. Work can fail,
-be interrupted, or be cancelled while a resource is in use.
+`finally` has two jobs: it describes the cleanup, and it relies on the program
+reaching the code that runs it. This is fragile in asynchronous programs,
+because work can fail, be interrupted, or be cancelled while a resource is in
+use.
 
-Effect uses a scope to tie acquisition and release together. The runtime then
-runs the release action when that scope closes, including after failure or
-interruption. This track stops at the idea. The later course shows the APIs.
+Effect uses a scope to link opening a resource with releasing it. The runtime
+runs the release action when the scope closes, even after a failure or an
+interruption. This track covers only the idea. A later course shows the APIs.
 
-The same rule still applies: opening a resource is part of a description, not a
-side effect that happens while the program is being assembled.
+The rule from the first page still applies: opening a resource is part of a
+description. It is not a side effect that happens while you build the program.
 
-## The boundary map
+## The map from ordinary code to Effect
 
-Use this translation when reading ordinary TypeScript, not as a mechanical
-rewrite recipe:
+Use this table to read ordinary TypeScript. Do not use it as a recipe for
+rewriting code line by line:
 
 | Ordinary code | Question to ask in Effect |
 | --- | --- |
 | call an async function | Am I describing this work, or starting it now? |
-| `await` a Promise | What Effect success value should flow to the next step? |
-| `throw` an expected outcome | What named value belongs in `E`? |
-| `catch` an unknown value | Where should this foreign failure be translated? |
-| import a stateful client | Should this requirement appear in `R`? |
-| cast outside data | Where is the boundary that must decode it? |
-| clean up in `finally` | What lifetime should own this resource? |
+| `await` a Promise | What success value should the next step get from this Effect? |
+| `throw` an expected failure | What named value belongs in `E`? |
+| `catch` an unknown value | Where should I turn this outside failure into a named failure? |
+| import a stateful client | Should this dependency appear in `R`? |
+| cast outside data | Where should I decode this data as it enters the program? |
+| clean up in `finally` | Which scope should own this resource? |
 
-Do not replace keywords one at a time and call the job done. Start with the
-contract. Name the success, expected failures, and requirements. Then write a
-description that keeps those promises until the application supplies `R` and
-runs it.
+Do not swap keywords one at a time and call the job done. Start with the
+signature. Name the success value, the expected failures, and the dependencies.
+Then write a description that keeps to that signature, until the application
+supplies `R` and runs it.
 
-You now have enough of the mental model to start
+You now know enough of the mental model to start
 [Basic Effect](/learn/basic-effect). That course teaches the constructors,
-combinators, services, and runtime calls that implement this map.
+combinators, services, and run functions behind this map.

@@ -1,19 +1,19 @@
 ---
-title: Dependencies Live in the Type
+title: Dependencies live in the type
 order: 3
 slug: 03-dependencies-in-the-type
-summary: An import can hide what a function needs. The R channel writes that requirement where callers can see it.
+summary: An import can hide what a function needs. The R channel puts that dependency where callers can see it.
 ---
 
 A function can have a simple signature and still depend on a database, the
-clock, environment variables, or a global HTTP client. Those requirements live
+clock, environment variables, or a global HTTP client. Those dependencies live
 in its body, usually behind imports.
 
-The function works, but its type tells only half the story. You learn what goes
-in and what comes out. You do not learn what must exist for the function to do
-its job.
+The function works, but its type shows only part of what it does. You can see
+what goes in and what comes out. You cannot see what must exist for the
+function to do its job.
 
-Effect records those requirements in the `R` channel.
+Effect records these dependencies in the `R` channel.
 
 ## Before reading on
 
@@ -32,35 +32,35 @@ Could you call it in a unit test without a database? Does it read the current
 time? Will it send an HTTP request? Does it depend on a module-level cache?
 
 The signature cannot answer. An `id` goes in and a Promise of `User` comes out.
-Everything needed in between is hidden.
+Everything it needs in between is hidden.
 
-Reading the body may reveal the dependencies, but every caller should not need
-to inspect an implementation to understand its contract.
+Reading the body may show the dependencies. But callers should not have to read
+the implementation to know what a function needs.
 
-## Imports choose dependencies early
+## Imports pick the dependency early
 
-Imports are not the problem by themselves. Importing types, constants, and
-pure helpers is ordinary module design.
+Imports are not the problem by themselves. Importing types, constants, and pure
+helpers is ordinary module design.
 
-The trouble starts when an import selects a stateful dependency for the whole
-module. If `loadUser` imports one database client directly, then production and
-tests both get that client unless the test runner intercepts the module.
+The trouble starts when an import picks a stateful dependency for the whole
+module. Say `loadUser` imports one database client directly. Then production and
+tests both get that client, unless the test runner replaces the module.
 
-That leads to familiar machinery: module mocks, patched globals, reset hooks,
-and rules about import order. The tests are working around a decision that the
-function's type never admitted existed.
+That leads to familiar workarounds: module mocks, patched globals, reset hooks,
+and rules about import order. These tests work around a decision that the
+function's type never showed.
 
-Passing every dependency as a normal argument makes the requirement visible,
-but it also threads infrastructure through functions that do not use it.
-Dependency containers hide the threading, though they often move the contract
-into runtime configuration.
+You can pass every dependency as a normal argument. That makes each one visible,
+but it also forces functions that do not use a dependency to pass it along.
+Dependency containers hide this passing, but they often move the list of
+dependencies into runtime configuration.
 
-Effect takes a different route. Requirements remain in the program's type while
-Effect supplies their values separately.
+Effect does it differently. The dependencies stay in the program's type, and you
+supply their values separately.
 
 ## The R channel is what the program needs
 
-Read the three channels as a sentence:
+Read the three channels as one sentence:
 
 ```text
 Effect<A, E, R>
@@ -69,7 +69,7 @@ Effect<A, E, R>
 The program may succeed with `A`, may fail with `E`, and needs `R` before it can
 run.
 
-A database requirement can appear like this:
+A database dependency can look like this:
 
 ```ts twoslash
 import { Context, Effect } from 'effect'
@@ -97,9 +97,9 @@ declare const loadUser: (
 ) => Effect.Effect<User, UserReadFailed, Database>
 ```
 
-Ignore how `Database` is declared for now. The last line is the useful part.
-`loadUser` cannot run with an ID alone. Somebody must also provide a `Database`.
-That fact is visible without opening the function.
+Ignore how `Database` is declared for now. Look at the last line. `loadUser`
+cannot run with an ID alone. Someone must also provide a `Database`. You can see
+this without opening the function.
 
 ```mermaid
 flowchart LR
@@ -109,41 +109,42 @@ flowchart LR
   P --> E["E: UserReadFailed"]
 ```
 
-Requirements combine as programs combine. If a later step needs a clock, the
-larger program's `R` contains both `Database` and `Clock`. You do not maintain
-that list by hand. The type follows what the program uses.
+When you combine programs, their dependencies combine too. If a later step needs
+a clock, the larger program's `R` contains both `Database` and `Clock`. You do
+not keep that list by hand. The type tracks what the program uses.
 
-## Providing is an edge decision
+## You choose the implementation at the entry point
 
-Describing a requirement and choosing its implementation are separate jobs.
-The inner program says, "I cannot load a user without a database." Code near
+Describing a dependency and choosing its implementation are separate jobs. The
+`loadUser` program says, "I cannot load a user without a database." Code near
 the application entry point decides which database implementation to provide.
 
 A test can provide an in-memory implementation. Production can provide one
-backed by a real server. The program between them does not change, and neither
-does its success or failure contract.
+backed by a real server. The program in between does not change, and neither do
+its success and failure types.
 
-This gives a test a clean question to answer: "What should this dependency do
-for this case?" It no longer has to replace a module that was selected before
-the test started.
+Now a test only has to answer one question: "What should this dependency do in
+this case?" It does not have to replace a module that was chosen before the test
+started.
 
-When every requirement has been supplied, `R` becomes `never`. In this position,
-`never` means the program needs nothing else from its environment. It is ready
-to reach a run function.
+When you have supplied every dependency, `R` becomes `never`. Here, `never`
+means the program needs nothing else from its environment. It is ready for a run
+function.
 
-Basic Effect teaches services, layers, and the APIs used to provide them. The
-mental model comes first: a dependency is part of what a program is. Hiding it
-in a body does not make it disappear.
+Basic Effect teaches services, layers, and the APIs that provide them. For now,
+remember this: a program needs its dependencies whether or not the type shows
+them. Hiding one in the body does not remove it.
 
-## What to carry forward
+## What to remember
 
-Before reading an Effect implementation, read `R`. It answers, in types, the
-question ordinary code often leaves to setup notes: "What must exist before
-this can work?"
+Before you read the body of an Effect function, read `R`. It answers, in the
+type, a question that ordinary code leaves to setup notes: "What must exist
+before this can work?"
 
-Then ask whether each requirement is real. A database, clock, or HTTP client has
-behavior worth replacing. A pure formatting function usually does not. Putting
-every helper into `R` creates ceremony without buying a useful choice.
+Then ask whether each dependency belongs in `R`. A database, a clock, or an HTTP
+client has behavior you may want to replace. A pure formatting function usually
+does not. If you put every helper into `R`, you add extra work and gain no
+useful choice.
 
 Next, [Unlearning try, catch and await](/learn/mental-model/04-unlearning-the-keywords)
-puts descriptions, failures, and requirements into one boundary map.
+puts descriptions, failures, and dependencies into one map.
