@@ -297,6 +297,30 @@ const heavyQuery = semaphore.withPermits(2)(expensiveOperation)
 const opportunistic = semaphore.withPermitsIfAvailable(1)(optionalWork)
 ```
 
+### Holding Permits for a Scope
+
+`Semaphore.takeScoped(semaphore, n)` (4.0.7) takes permits and returns them when the current
+`Scope` closes. Use it when permits should live as long as a leased resource, not as long as one
+effect. The wait can be interrupted. The take and the release registration happen in one
+uninterruptible step, so permits are never leaked:
+
+```typescript
+const leaseConnection = Effect.gen(function* () {
+    yield* semaphore.takeScoped(1) // released when the scope closes
+    return yield* openConnection
+})
+
+yield* Effect.scoped(Effect.gen(function* () {
+    const conn = yield* leaseConnection
+    yield* conn.query("select 1")
+})) // permit returned here
+```
+
+Prefer `withPermits` when one effect holds the permit. Reach for `takeScoped` only when the permit
+must outlive the call that acquired it. Waiters are served in order: since 4.0.7 a later `take`
+cannot overtake an eligible queued request, though a smaller request may still pass a larger one
+that cannot be satisfied yet.
+
 For per-key limiting (for example one permit per tenant), use `PartitionedSemaphore`. The permits
 are shared, and released permits go to waiting keys in round-robin order:
 
@@ -453,6 +477,10 @@ const data = yield* Effect.race(
 )
 ```
 
+`Effect.race`, `raceFirst`, `raceAll`, and `raceAllFirst` interrupt the losers even when the race
+settles or is interrupted while some contenders are still starting (4.0.7). Losers can rely on
+their finalizers running.
+
 ### Effect.timeout
 
 ```typescript
@@ -593,6 +621,7 @@ const repeatWhileOutput = Effect.repeat(
 | `Schedule.spaced(d)` | Wait `d` between end of one execution and start of next |
 | `Schedule.fixed(d)` | Run at fixed intervals (accounts for execution time) |
 | `Schedule.exponential(d)` | Double the delay each time: `d`, `2d`, `4d`, `8d`... |
+| `Schedule.fibonacci(d)` | Fibonacci delays that repeat the first one: `d`, `d`, `2d`, `3d`, `5d`... (the repeat is new in 4.0.7) |
 | `Schedule.recurs(n)` | Repeat at most `n` times |
 | `Schedule.once` | Recur once, so the effect runs twice in total |
 | `Schedule.min([a, b])` | Fastest-delay composition, one array argument |

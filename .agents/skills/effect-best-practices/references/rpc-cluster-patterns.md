@@ -455,6 +455,38 @@ root with `ClusterWorkflowEngine.layer` from `effect/cluster`. That layer needs 
 `MessageStorage`, and registers the durable clock entity. Workflows registered with `toLayer` run
 on it.
 
+## Changes Since 4.0.0
+
+Most cluster and workflow patch releases are bug fixes with no API change. These ones alter what
+you write or deploy:
+
+- **`Digest.Digest` replaces `Crypto.Crypto`** as a requirement of `SqlMessageStorage` and
+  `SingleRunner` (4.1.0). Provide a platform `Digest` layer such as `NodeCrypto.layerDigest`, or
+  `Digest.layerWebCrypto`. Existing workflow IDs and activity idempotency keys are unchanged. See
+  `crypto-patterns.md`.
+- **Custom message storage** must honor the optional expected reply ID on `clearReplies` (4.0.0), so
+  a stale concurrent workflow resume cannot clear a newer completed reply.
+- **`ShardingConfig.runnerJoinDebounce`** (4.1.0, default zero) holds a joining runner out of shard
+  assignments until the healthy set has stayed unchanged for that long. Set it for scale-ups and
+  surge deployments so each shard moves once instead of once per joining runner.
+- **`ClusterSchema.WithTransaction`** handlers no longer store a success reply after the request
+  transaction rolled back (4.1.1). A failed reply save inside the transaction is not retried, and
+  the request replays instead. The runner notification for a discarded persisted send made inside
+  the handler waits until the transaction commits (4.1.2).
+- **Redis `PersistedQueue`** settlements and lock refreshes are fenced per acquisition (4.1.0). The
+  lock format is incompatible with older workers on the same prefix, so stop every old worker and
+  let its locks expire before starting upgraded ones.
+- **RPC server and client.** `RpcServer.make` accepts `onDisconnect` to observe client disconnects
+  without taking from `Protocol.disconnects` (4.1.0). `RpcClient.layerProtocolHttp` accepts an
+  opt-in `batch` option that sends concurrent requests in one HTTP request (4.0.6). A call made
+  with `discard: true` completes when the server acknowledges it, not when the request is written
+  (4.1.0), and SchemaBinary peers must upgrade together because the envelope fingerprint changed.
+  `Rpc.ParseOptions` sets schema parse options such as `concurrency` for payloads and responses.
+- **Interrupts on the wire.** The encoded interrupt `fiberId` can be `null` after JSON encoding
+  (4.0.0), so handle `null` as well as `undefined` when reading encoded interrupts.
+- **Socket clients** fail in-flight calls when a pong is missed, even with transient connection
+  retries on (4.0.0). Use `onPingTimeout` to tell ping timeouts from other socket failures.
+
 ## Import Reference
 
 | Module   | Path               | Exports                                                                                                |

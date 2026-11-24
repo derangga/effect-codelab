@@ -437,6 +437,11 @@ Because `UserService.layer` bakes in the production `IdGenerator.layer` and `Ran
 the test rebuilds the layer from `UserService.make` with test dependencies instead. The `make`
 effect is exposed as a static, so each test can rewire it freely.
 
+When the dependency is `effect/crypto`, do not wrap your own `IdGenerator` around it just to make
+tests deterministic. Keep the real `Digest`, `Mac`, and `Aead` layers, and replace only
+`SecureRandom` with `Layer.mock(SecureRandom.SecureRandom, { ... })`. `TestCrypto` was removed in
+4.1.0. See `crypto-patterns.md`.
+
 ### Wrong Pattern
 
 ```typescript

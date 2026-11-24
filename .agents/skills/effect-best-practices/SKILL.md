@@ -1,7 +1,7 @@
 ---
 name: effect-best-practices
-description: Enforces Effect v4 patterns for services, errors, layers, atoms, streams, SQL, and transactional state. Use when writing code with Context.Service, Schema.TaggedError, Layer composition, Stream, @effect/sql, or @effect/atom React components.
-version: 3.0.0
+description: Enforces Effect v4 patterns for services, errors, layers, atoms, streams, SQL, crypto, and transactional state. Use when writing code with Context.Service, Schema.TaggedError, Layer composition, Stream, @effect/sql, effect/crypto, or @effect/atom React components.
+version: 3.1.0
 ---
 
 # Effect-TS Best Practices
@@ -10,18 +10,19 @@ This skill enforces opinionated, consistent patterns for Effect-TS codebases. Th
 
 ## Version: Effect v4
 
-This skill targets **Effect v4 stable** (`4.0.0`). Install from the default `latest` tag:
+This skill targets **Effect v4 stable** and was checked against `4.1.2`. Install from the default `latest` tag:
 
 ```bash
 pnpm add effect
 ```
 
-Two facts that shape everything below:
+Three facts that shape everything below:
 
-- **Package layout.** HTTP, HttpApi, RPC, cluster, workflow, SQL, reactivity, and related modules live in core `effect` as subpaths: `effect/http`, `effect/http-api`, `effect/rpc`, `effect/cluster`, `effect/workflow`, `effect/sql`, `effect/reactivity`. The `effect/unstable/*` paths from the betas and release candidates no longer exist. Stability is a per-API `@stability` tag, not part of the import path. Separate packages: `@effect/platform-*`, `@effect/sql-*`, `@effect/ai-*`, `@effect/atom-*`, `@effect/opentelemetry`, `@effect/vitest`.
-- **Single version number.** Every `effect` / `@effect/*` package shares one version. If you use `effect@4.0.0`, use `@effect/sql-pg@4.0.0`.
+- **Package layout.** HTTP, HttpApi, RPC, cluster, workflow, SQL, reactivity, crypto, and related modules live in core `effect` as subpaths: `effect/http`, `effect/http-api`, `effect/rpc`, `effect/cluster`, `effect/workflow`, `effect/sql`, `effect/reactivity`, `effect/crypto`. The `effect/unstable/*` paths from the betas and release candidates no longer exist. Stability is a per-API `@stability` tag, not part of the import path. Separate packages: `@effect/platform-*`, `@effect/sql-*`, `@effect/ai-*`, `@effect/atom-*`, `@effect/opentelemetry`, `@effect/vitest`.
+- **Single version number.** Every `effect` / `@effect/*` package shares one version. If you use `effect@4.1.2`, use `@effect/sql-pg@4.1.2`.
+- **Minor releases can break unstable modules.** 4.1.0 moved `fromFileSystem` out of `effect/sql/Migrator`, required non-empty arrays for `sql.insert`, replaced `effect/Crypto` with `effect/crypto/*`, and changed the `KeyValueStore` key layout. Read the release notes before bumping a minor version that touches HTTP, SQL, RPC, cluster, atoms, or crypto.
 
-See `references/v4-semantics.md` for core semantics (what can be yielded, structural equality, fiber keep-alive, stability policy, `effect/unstable/*` migration).
+See `references/v4-semantics.md` for core semantics (what can be yielded, structural equality, fiber keep-alive, stability policy, `effect/unstable/*` migration, behavior changes since 4.0.0).
 
 ## Effect Language Server (Required)
 
@@ -97,7 +98,9 @@ See `references/language-server.md` for configuration options and CLI tools.
 | Functions           | `Effect.fn("Service.method")`                           | Anonymous generators                             |
 | Happy Path          | gen body is the call graph, error transform is the E    | `catchTag`/`retry` inlined in the gen body       |
 | Error Scoping       | Each layer maps what it received to its own error       | Leaking `SqlError` past the service that made it |
+| Dropping Failures   | `Effect.ignore({ log: "Unhandled" })`                   | Bare `Effect.ignore` on a failure worth knowing  |
 | Logging             | `Effect.log` with structured data                       | `console.log`                                    |
+| Secrets & Tokens    | `SecureRandom`, `Mac.verify`, `Aead`, `Kdf`             | `Math.random`, `===` on tags, bare SHA for passwords |
 | Config              | `Config.*` with schema checks                           | `process.env` directly                           |
 | Options             | `Option.match` with both cases                          | `Option.getOrThrow`                              |
 | Nullability         | `Option<T>` in domain types                             | `null`/`undefined`                               |
@@ -117,6 +120,7 @@ See `references/language-server.md` for configuration options and CLI tools.
 | HTTP Auth           | `HttpApiSecurity.bearer` + middleware                   | Manual header parsing per route                  |
 | HTTP Client         | `HttpApiClient.make(AppApi)` derived from the contract  | Hand-rolled `fetch` / manual URL + JSON wrappers |
 | Client Interceptors | `HttpClient.transformResponse` / `transformClient`      | Ad-hoc retry/refresh logic per call site         |
+| Client Resilience   | `HttpClient.timeout` + `retryTransient` once on client  | A timeout and retry at every call site           |
 
 ## Service Definition Pattern
 
@@ -342,7 +346,7 @@ const transfer = Effect.fn('AccountService.transfer')(function* (
 })
 ```
 
-Use `Effect.fnUntraced` for hot paths, or for functions that only wrap an `Effect.gen` and don't need their own span.
+Use `Effect.fnUntraced` for hot paths, or for functions that only wrap an `Effect.gen` and don't need their own span. Both `Effect.fn` and `Effect.fnUntraced` take `{ self }` before the generator to bind `this`.
 
 ### The gen body is A, the pipe is E
 
@@ -667,7 +671,29 @@ const program = Effect.gen(function* () {
 })
 ```
 
-See `references/http-api-patterns.md` for middleware, authentication, CORS, rate limiting, OpenAPI/Swagger setup, and the full **Deriving an HTTP Client** section (base URL, `transformClient` interceptors, auth-refresh, typed error extraction, Promise bridging).
+See `references/http-api-patterns.md` for middleware, authentication, CORS, rate limiting, RFC 9457 problem details, streaming request payloads, OpenAPI/Swagger setup, and the full **Deriving an HTTP Client** section (base URL, `transformClient` interceptors, auth-refresh, timeouts, retries and circuit breaking, typed error extraction, Promise bridging).
+
+## Crypto
+
+**Use `effect/crypto` services** for hashing, HMAC, encryption, signatures, key derivation, and secure randomness. Each family is a `Context.Service`, so tests swap the layer and platforms supply native code:
+
+```typescript
+import { Effect } from 'effect'
+import { Aead, SecureRandom } from 'effect/crypto'
+import { NodeCrypto } from '@effect/platform-node'
+
+const seal = Effect.fn('Vault.seal')(function* (key: Aead.Key, data: Uint8Array) {
+  const aead = yield* Aead.Aead
+  const random = yield* SecureRandom.SecureRandom
+  const nonce = yield* random.randomBytes(24) // fresh nonce for every message
+  return { nonce, sealed: yield* aead.encrypt(key, data, { nonce }) }
+})
+
+// Crypto is not in NodeServices. Provide it: NodeCrypto.layer covers every family.
+const program = seal(key, data).pipe(Effect.provide(NodeCrypto.layer))
+```
+
+Verify tags with `mac.verify`, never `===`. Hash passwords with `Kdf`, never `Digest`. Failures arrive as `CryptoError` with a `reason`, handled with `Effect.catchReason`. Everything in `effect/crypto` is `@stability unstable`. See `references/crypto-patterns.md`.
 
 ## Anti-Patterns (Forbidden)
 
@@ -710,6 +736,9 @@ for (let i = 0; i < 3; i++) { try { ... } catch { ... } } // Use Effect.retry + 
 
 // FORBIDDEN - prop-drilling dependencies through function args
 const fn = (db: DB, logger: Logger, mailer: Mailer) => ... // Use Context.Service + Layer
+
+// FORBIDDEN - Math.random for tokens and IDs
+const token = Math.random().toString(36) // Use SecureRandom.randomBytes
 ```
 
 See `references/anti-patterns.md` for the complete list with rationale.
@@ -743,20 +772,21 @@ See `references/observability-patterns.md` for metrics and tracing patterns.
 
 For detailed patterns, consult these reference files in the `references/` directory:
 
-- `v4-semantics.md` - what can be yielded, structural equality, fiber keep-alive, stability policy, `effect/unstable/*` migration
+- `v4-semantics.md` - what can be yielded, structural equality, fiber keep-alive, stability policy, `effect/unstable/*` migration, behavior changes since 4.0.0
 - `language-server.md` - Effect Language Service setup, diagnostics, refactors, CLI tools
 - `service-patterns.md` - Context.Service, Effect.fn, services without `make`, Context.Reference
 - `error-patterns.md` - Schema.TaggedError, error remapping, retry patterns, flattened Cause
-- `schema-patterns.md` - Branded types, checks, transforms, Schema.Class
+- `schema-patterns.md` - Branded types, checks, transforms, Schema.Class, TaggedUnion matching, Match.literals
 - `layer-patterns.md` - Dependency composition, memoization, testing layers
 - `testing-patterns.md` - @effect/vitest, stateful mocks, Exit/Cause assertions, TestClock
 - `rpc-cluster-patterns.md` - RpcGroup, Workflow, Activity patterns
 - `effect-atom-patterns.md` - Atom, families, React hooks, AsyncResult handling
 - `concurrency-patterns.md` - Fork/Fiber, parallel execution, Queue, PubSub, Semaphore, Deferred, Latch, and polling patterns
 - `streams-patterns.md` - Stream sources, transformations, merging, buffers, Sinks, scoped bridges
-- `sql-patterns.md` - SQL providers, tagged template statements, SqlSchema, SqlResolver, Migrator
-- `stm-patterns.md` - Effect.tx, TxRef, TxHashMap, TxQueue, transactional patterns
-- `resource-patterns.md` - acquireRelease, scoped, resource hierarchies, pooling, ManagedRuntime
-- `http-api-patterns.md` - HttpApi, endpoints, middleware, auth, CORS, rate limiting, OpenAPI
+- `sql-patterns.md` - SQL providers, tagged template statements, transactions, afterCommit, SqlSchema, SqlResolver, Migrator
+- `stm-patterns.md` - Effect.tx, TxRef, TxHashMap, TxQueue, transaction attempt metadata
+- `resource-patterns.md` - acquireRelease, scoped, resource hierarchies, pooling and Pool.stats, ManagedRuntime
+- `http-api-patterns.md` - HttpApi, endpoints, problem details, streaming payloads, middleware, auth, CORS, rate limiting, client timeouts and circuit breaking, OpenAPI
+- `crypto-patterns.md` - effect/crypto services, platform layers, SecureRandom, Digest, Mac, Aead, Kdf, key handling, testing
 - `anti-patterns.md` - Complete list of forbidden patterns
 - `observability-patterns.md` - Logging, metrics, config patterns

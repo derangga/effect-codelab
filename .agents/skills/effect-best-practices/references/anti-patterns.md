@@ -734,6 +734,11 @@ const TestIdGenerator = Layer.succeed(IdGenerator, {
 })
 ```
 
+For IDs, tokens, and anything an attacker must not guess, skip the hand-written wrapper. Since
+4.1 the `SecureRandom` service from `effect/crypto` already provides `uuidV4`, `uuidV7`, `ulid`,
+`randomBytes`, and `intBetween` behind a layer. Tests replace it with `Layer.mock`. See
+`crypto-patterns.md`.
+
 ## FORBIDDEN: Fork + Immediate Join (Pointless Fork)
 
 ```typescript
@@ -784,3 +789,54 @@ import { SqlClient } from "effect/sql"
 ```
 
 The `@stability unstable` tag still applies to these modules. See `v4-semantics.md`.
+
+## FORBIDDEN: Hand-Rolled Crypto and Timing-Unsafe Comparison
+
+```typescript
+// FORBIDDEN
+import { createHmac, randomBytes } from "node:crypto"
+
+const token = Math.random().toString(36).slice(2)                 // guessable
+const tag = createHmac("sha256", secret).update(payload).digest("hex")
+const valid = tag === providedTag                                  // leaks timing
+const stored = sha256(password)                                    // fast hash for passwords
+```
+
+**Why:** `Math.random` is not secure. `===` on a tag stops at the first differing byte, which leaks
+how many leading bytes matched. A fast hash lets an attacker test billions of passwords a second.
+`node:crypto` calls inside services are untestable and do not run in browsers or workers.
+
+**Correct:**
+
+```typescript
+const mac = yield* Mac.Mac
+const random = yield* SecureRandom.SecureRandom
+const kdf = yield* Kdf.Kdf
+
+const token = yield* random.randomBytes(32)
+const valid = yield* mac.verify(key, providedTag, payload)      // constant time
+const hash = yield* kdf.derive(Kdf.pbkdf2Sha256, passwordBytes, { salt, length: 32 })
+```
+
+Provide `NodeCrypto.layer` (or the Bun, Deno, or browser equivalent) at the root. See
+`crypto-patterns.md`.
+
+## FORBIDDEN: Silently Ignoring a Failure You Should Know About
+
+```typescript
+// FORBIDDEN
+yield* sendReceipt(order).pipe(Effect.ignore)
+```
+
+**Why:** `Effect.ignore` discards the failure with no trace. A receipt service that has been down
+for a week looks identical to one that works.
+
+**Correct:**
+
+```typescript
+yield* sendReceipt(order).pipe(Effect.ignore({ log: "Unhandled" }))
+```
+
+`log: "Unhandled"` writes the failure at `References.UnhandledLogLevel`, so one reference sets how
+loud dropped failures are across the app. Use a bare `Effect.ignore` only when the failure carries
+nothing worth recording. For a failure that matters to the caller, model it in `E` instead.

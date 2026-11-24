@@ -265,6 +265,13 @@ const pool = yield* Pool.makeWithTTL({
 
 Both constructors require a `Scope`. The pool is torn down when the enclosing scope closes.
 
+`Pool.stats(pool)` returns `Effect<Pool.Stats>` with `idle`, `used`, `pending`, `min`, and `max`
+(`@stability unstable`). Sample it for metrics. `idle` and `used` count acquired items, not
+borrowers, and `pending` counts borrowers still waiting. A sustained `pending > 0` with
+`used === max` means callers queue for connections. `idle + used` can briefly exceed `max` while
+an invalidated item is replaced. Since 4.0.7, freed capacity goes to the longest-waiting borrower,
+so a busy pool no longer starves older waiters.
+
 ### Pool versus Manual Management
 
 | Approach | Use Case |
@@ -452,6 +459,10 @@ Facts about `ManagedRuntime` in Effect v4:
 - `runtime.contextEffect` and `runtime.context` expose the built context.
 - `dispose` interrupts fibers started through the runtime and waits for them before it runs the
   layer finalizers. Use `runtime.disposeEffect` from inside an Effect.
+- Overlapping `dispose` and `disposeEffect` calls wait for the disposal in progress (4.0.6), so
+  a second caller never sees a half-torn-down runtime. Disposing from one of the runtime's own
+  fibers no longer deadlocks (4.0.2), and requests that dispose it before their first async step
+  are no longer interrupted.
 - `ManagedRuntime.make(layer, { memoMap })` accepts a shared memo map.
 - `ManagedRuntime.ManagedRuntime.Services<T>` extracts the service type.
 

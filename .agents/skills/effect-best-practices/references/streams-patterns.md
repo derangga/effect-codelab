@@ -334,6 +334,12 @@ const program = Effect.gen(function* () {
 The run family covers most needs. Reach for explicit sinks when a consumer
 needs leftovers or early exit.
 
+Sink error handlers see only sink failures. Since 4.0.7, an upstream stream failure passes through
+`Stream.run`, `Stream.peel`, `Stream.aggregate`, and `Stream.aggregateWithin` unchanged. It is not
+remapped or recovered by `Sink.mapError`, `Sink.catch`, `Sink.catchCause`, or `Sink.orElse`, and
+`Sink.onExit` observes it as an interruption. Recover from source failures on the stream with
+`Stream.catchTag` or `Stream.catchCause` before the sink, not inside the sink.
+
 ## Scheduling, retry and time
 
 ```typescript
@@ -507,6 +513,16 @@ const program = Effect.gen(function* () {
 
 `Stream.onError` receives the `Cause` and can log or report. See
 `error-patterns.md` for `Cause` and tagged error design.
+
+To drop a stream failure while still recording it, use `Stream.ignore({ log: "Unhandled" })`
+(4.1.0), which reports at `References.UnhandledLogLevel`.
+
+Buffered operators emit what they hold before they fail. A failing upstream no longer loses
+elements held by `Stream.grouped`, `Stream.rechunk` (4.0.7), `Stream.groupAdjacentBy` (the last
+group is emitted before the error, 4.1.2), or `Stream.scan` (emits its initial state for an empty
+stream, 4.0.1). `Stream.groupBy` and `Stream.groupByKey` groups end when the upstream ends or
+fails. `Stream.callback` and `Channel.callback` start their registration before the first pull, so
+a listener attached synchronously no longer misses early events.
 
 ## Anti-patterns
 

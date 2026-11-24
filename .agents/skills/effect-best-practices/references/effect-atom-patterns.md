@@ -492,6 +492,50 @@ callback builds an Effect and throws it away, so the update silently never happe
 TypeScript will not flag it. Inside a batch, reach for `registry.set` / `registry.update`, which
 return `void`.
 
+## SSR Hydration and Subscriptions
+
+Mark an atom as hydratable with `Atom.serializable({ key, schema })`. The key identifies the atom in
+dehydrated state, and the schema is converted to a JSON codec for synchronous encode and decode:
+
+```typescript
+import { Atom, AsyncResult } from "effect/reactivity"
+
+// fetchUser: Effect<User, UserNotFoundError>, so the atom holds an AsyncResult
+const UserResult = AsyncResult.Schema({ success: User, error: UserNotFoundError })
+
+const userAtom = Atom.make(fetchUser).pipe(
+    Atom.serializable({ key: "user", schema: UserResult }),
+)
+```
+
+By default a hydrated effect or stream atom still runs its effect on mount, because the
+dependencies it reads are only known after it has run. That repeats the fetch the server already
+did. Pass `skipInitialRun: true` to `Atom.serializable` (or to `Atom.initialValue`) to keep the
+seeded value until the atom is refreshed or one of its dependencies changes:
+
+```typescript
+Atom.serializable({ key: "user", schema: UserResult, skipInitialRun: true })
+```
+
+Only the first effect or stream run is skipped. The atom factory still builds, so `get(...)` calls
+and `withReactivity` keys are tracked. Dependencies read inside the effect are tracked from its
+first real run. An `Initial` seed never skips the effect. Hydration does not replace a newer
+`AsyncResult` with older dehydrated state, and `Hydration.hydrate` notifies existing subscribers
+immediately.
+
+The `Atom.Serializable` encoded type is `Schema.Json`. Code that reads the encoded value may need
+to narrow it. Runtime behavior is unchanged.
+
+`AtomRegistry.subscribe(atom, listener)` without `immediate` builds the atom first (4.1.1), so the
+listener hears every later change even for an atom nobody has read yet. Before that fix it never
+fired. The same holds for `get.subscribe`, `get.stream` with `withoutInitialValue`, and
+`useAtomSubscribe` in `@effect/atom-react`. A failed build no longer makes `subscribe` throw: the
+next read reports the failure and the listener hears the recovery.
+
+Atom scope finalizer failures are logged at `References.UnhandledLogLevel` when an atom is
+disposed. A stream atom invalidates its mutation reactivity keys only after the stream completes
+successfully, not on failure, defect, interruption, or replacement by a newer write.
+
 ## localStorage Persistence
 
 ```typescript
@@ -512,6 +556,14 @@ const themeAtom = Atom.kvs({
 ```
 
 `Schema.Literals` takes one array argument. `Schema.Literal` takes exactly one value.
+
+`KeyValueStore` changed in 4.1.0. It gained a `keys` effect (a snapshot of the keys in the store,
+in no order) and `clearPrefix`, and `KeyValueStore.prefix(...)` now scopes `keys`, `size`,
+`isEmpty`, and `clear` to keys under the prefix. A store built with `KeyValueStore.make` or
+`makeStringOnly` must provide `keys`. `Persistence.layerKvs` now stores entries under
+`<storeId>:<key>`, so entries written by earlier versions are not read back, and
+`Chat.layerPersisted` on a `KeyValueStore` loses its stored histories. Plan for a one-time cache
+refill after upgrading, because old entries are neither migrated nor removed.
 
 ## Anti-Patterns
 

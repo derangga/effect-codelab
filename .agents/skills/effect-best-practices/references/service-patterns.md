@@ -189,6 +189,19 @@ const processPayment = Effect.fn("PaymentService.processPayment")(
 Use `Effect.fnUntraced` for hot paths where the span overhead is not worth it, or for functions
 that only wrap an `Effect.gen` and do not need their own span.
 
+Since 4.1.0, `Effect.fnUntraced` and `Effect.fnUntracedEager` accept `{ self }` before the generator
+body to bind `this`, the same way `Effect.fn` does:
+
+```typescript
+class Counter {
+    count = 0
+    readonly increment = Effect.fnUntraced({ self: this }, function* (this: Counter, by: number) {
+        this.count += by
+        return this.count
+    })
+}
+```
+
 ### Second Argument Transforms Errors
 
 Arguments after the generator body act as pipe transforms. Each transform receives the

@@ -398,6 +398,8 @@ const withRetry = <A, E extends { retryable?: boolean }, R>(
 yield* callExternalApi(request).pipe(withRetry)
 ```
 
+`Schedule.fibonacci(base)` repeats its first delay since 4.0.7: a base of `"100 millis"` waits 100, 100, 200, 300, 500 ms. Earlier versions skipped the repeat (100, 200, 300, 500, 800), so retries tuned against the old curve now fire sooner.
+
 `Schedule.while` continues while a predicate over `meta.input` and `meta.output` returns true. For "retry N times with backoff while X", the options object above is the direct route.
 
 ## Working with Cause
@@ -443,6 +445,31 @@ const describe = (cause: Cause.Cause<AppError>) => {
 
 `findError` and `findDefect` return `Result`; use `findErrorOption` when you want an `Option`.
 See `testing-patterns.md` for asserting on tagged errors via `Exit` and `Cause`.
+
+`Exit.hasFails`, `Exit.hasDies`, `Exit.hasInterrupts`, and `AsyncResult.isInterrupted` return a
+plain `boolean`, like the `Cause` checks. When they return `false` they no longer narrow the
+failure away (4.0.7). Narrow with `Exit.isFailure` or `AsyncResult.isFailure` instead.
+
+When the runtime combines a typed failure with a defect, the defect takes precedence (4.0.6). A
+`catchTag` on the typed error can no longer swallow a crashing finalizer or a sibling that died.
+Do not rely on typed-error recovery to hide a defect.
+
+### Ignoring failures on purpose
+
+`Effect.ignore` and `Effect.ignoreCause` discard the result and the failure. Pass `log` to keep a
+record of what was dropped. `log: "Unhandled"` (4.1.0) reports the failure at
+`References.UnhandledLogLevel`, so one reference controls how loud all unobserved failures are,
+and setting it to `undefined` silences them:
+
+```typescript
+yield* sendAnalyticsEvent(event).pipe(
+    Effect.ignore({ log: "Unhandled", message: "analytics event dropped" })
+)
+```
+
+`log` also accepts `true` or a severity such as `"Warn"`. The same option exists on the `Stream`
+and `Channel` variants. A bare `Effect.ignore` is acceptable only for a failure that carries no
+information worth recording.
 
 ## Error Unions for Activities
 

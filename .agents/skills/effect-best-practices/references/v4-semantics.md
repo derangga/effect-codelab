@@ -73,6 +73,8 @@ Plain objects, arrays, `Map`, `Set`, `Date`, and `RegExp` are compared by value.
 
 `Equal.equals(NaN, NaN)` is `true`.
 
+`Ref` and `MutableRef` are the exception. Since 4.0.7 they compare by reference, so two refs holding equal contents are not `Equal` and do not collapse into one `HashSet` or `HashMap` key. Compare the values you read from them, not the refs.
+
 ### Opting out
 
 ```typescript
@@ -112,21 +114,28 @@ Use `runMain` for any real application entry point. Scripts and tests stay alive
 
 ## Unstable Modules
 
-Stability is a per-API tag, not an import path. In Effect 4.0.0 the `effect/unstable/*` namespace
+Stability is a per-API tag, not an import path. Since 4.0.0 the `effect/unstable/*` namespace
 no longer exists, and there are no compatibility exports for it. Unstable modules sit at plain
-`effect/<area>` paths and say so in their JSDoc with `@stability unstable`.
+`effect/<area>` paths and say so in their JSDoc with `@stability unstable`. Since 4.0.2 every
+module and every directly importable export carries an explicit tag.
 
-- **No tag**: strict semver. Breaking changes wait for a major release.
+- **`@stability stable`**: strict semver. Breaking changes wait for a major release.
 - **`@stability unstable`**: may receive breaking changes in minor releases.
 - **`@stability experimental`**: may receive breaking changes in patch releases.
 
-Modules tagged unstable in `effect` 4.0.0: `ai`, `cli`, `cluster`, `devtools`, `encoding`,
-`eventlog`, `http`, `http-api`, `net`, `observability`, `persistence`, `process`, `reactivity`,
-`rpc`, `schema`, `socket`, `sql`, `testing/TestSchema`, `workers`, `workflow`, and the top-level
-`Arbitrary` module. `Schema`, `JsonSchema`, `Config`, `Stream`, `Layer`, `Cause`,
-`testing/TestClock` and the rest of the core are stable. `effect/schema` is the small unstable one:
-it holds `Model`, `VariantSchema` and the JIT and AOT schema compilers. The `Schema` module itself
-is stable at `effect/Schema`, with a few unstable exports such as the `NetAddress` schemas.
+Subpaths tagged unstable in `effect` 4.1.2: `ai`, `cli`, `cluster`, `crypto`, `devtools`,
+`encoding` (mostly), `eventlog`, `graphql`, `http`, `http-api`, `jose`, `net`, `observability`,
+`persistence`, `process`, `reactivity`, `rpc`, `schema`, `socket`, `sql`, `testing/TestSchema`,
+`workers`, `workflow`. Some top-level modules are unstable too: `Arbitrary`, `Bytes`, `ByteSize`,
+`ChannelSchema`, `ErrorReporter`, `ExecutionPlan`, `FileSystem`, `Graph`, `HashRing`, `LayerMap`,
+`LayerRef`, `Newtype`, `PartitionedSemaphore`, `Path`, `PlatformError`, `SemVer`, `SemVerRange`,
+`Stdio`, `Terminal`, `TxChunk`, `Version`. `Glob` and `TextDiff` are experimental. `Schema`,
+`JsonSchema`, `Config`, `Stream`, `Layer`, `Cause`, `testing/TestClock` and the rest of the core are
+stable. `effect/schema` is the small unstable subpath: it holds `Model`, `VariantSchema` and the JIT
+and AOT schema compilers. The `Schema` module itself is stable at `effect/Schema`, with a few
+unstable exports such as the `NetAddress` and crypto key schemas. A stable module can still hold
+a tagged export, so check the tag on the function you call (`Pool.stats` is unstable inside the
+`Pool` module, `HttpClient.withCircuitBreaker` is experimental).
 
 APIs that wrap a third-party dependency are tagged unstable too, because that dependency can
 change underneath them. That covers the Redis clients, the `@effect/platform-node/Undici` and `ws`

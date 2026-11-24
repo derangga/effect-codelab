@@ -73,9 +73,9 @@ The callable client carries helpers as properties:
 | `sql.literal(raw)` | inline a literal SQL fragment |
 | `sql.in(values)` | array helper, compiles to a placeholder group |
 | `sql.in(column, values)` | `column IN (...)` fragment, `1=0` for an empty list |
-| `sql.insert(rows)` | insert helper for one or many records |
+| `sql.insert(rows)` | insert helper for one record or a non-empty array of records |
 | `sql.update(record, omit?)` | `SET` assignments for a single row |
-| `sql.updateValues(rows, alias)` | multi row update, not supported in sqlite |
+| `sql.updateValues(rows, alias)` | multi row update from a non-empty array, not supported in sqlite |
 | `sql.and(clauses)` | `AND` chain, `1=1` when empty |
 | `sql.or(clauses)` | `OR` chain, `1=1` when empty |
 | `sql.csv(values)` | comma separated fragment, useful after `ORDER BY` |
@@ -112,6 +112,7 @@ Ordinary interpolation always binds. Build dynamic clauses from fragments, ident
 and the array helpers:
 
 ```typescript
+import { Array as Arr, Effect } from "effect"
 import { Statement } from "effect/sql"
 
 const findActive = (statuses: ReadonlyArray<string>) =>
@@ -122,9 +123,14 @@ const findActive = (statuses: ReadonlyArray<string>) =>
               sql`deleted_at IS NULL`,
           ])}`
 
-// For bulk inserts, interpolate the insert helper and compose returning
-const insertAll = (rows: ReadonlyArray<NewUser>) =>
+// For bulk inserts, interpolate the insert helper and compose returning.
+// Since 4.1.0 sql.insert and sql.updateValues take a non-empty array at the type level
+const insertAll = (rows: Arr.NonEmptyReadonlyArray<NewUser>) =>
     sql`INSERT INTO ${sql("users")} ${sql.insert(rows).returning("*")}`
+
+// Narrow an ordinary array first. An empty batch is a no-op, not an invalid statement
+const insertMany = (rows: ReadonlyArray<NewUser>) =>
+    Arr.isReadonlyArrayNonEmpty(rows) ? insertAll(rows) : Effect.succeed([])
 
 // For updates, pass columns to omit, such as the primary key
 const updateUser = (id: number, patch: UserPatch) =>
@@ -181,6 +187,59 @@ Semantics, verified in `SqlClient.makeWithTransaction`:
 
 Because nested calls are savepoints, an effect composed of smaller transactional
 functions still produces one physical transaction.
+
+Since 4.1.2, `BEGIN`, `COMMIT`, `ROLLBACK`, and savepoint statements are traced as child spans of
+the `sql.transaction` span. They replace the `effect.sql.transaction.commit`, `savepoint`, and
+`rollback` span events, so dashboards that matched those events need the span names instead. With
+`Statement.SpanPropagationEnabled`, the transaction span also parents the connection spans and
+records `db.client.connection.wait_time_ms`.
+
+### Work after commit
+
+`sql.afterCommit(effect)` (4.0.6) runs an effect once the outermost transaction commits, or
+immediately when no transaction is open. Use it for signals that must not fire for a rolled back
+write, such as waking a worker, invalidating a cache, or notifying subscribers:
+
+```typescript
+const createOrder = Effect.fn("OrderRepo.create")(function* (order: NewOrder) {
+    const sql = yield* SqlClient.SqlClient
+    return yield* sql.withTransaction(
+        Effect.gen(function* () {
+            const [row] = yield* sql`INSERT INTO ${sql("orders")} ${sql.insert(order).returning("*")}`
+            yield* sql.afterCommit(notifyWarehouse(row))
+            return row
+        })
+    )
+})
+```
+
+Callbacks are discarded on rollback, run in registration order, and run uninterruptibly before
+`withTransaction` returns, so keep them short and fork long work. They run on a new connection,
+since the transaction is removed from their context. A callback that dies is logged at
+`References.UnhandledLogLevel` and the rest still run. A crash between `COMMIT` and the callback
+loses it, so anything that must happen belongs in a row written by the same transaction.
+
+### Isolation level and retrying serialization failures
+
+Provide `SqlClient.BeginTransaction` (4.0.6) to replace the statement that starts a top-level
+transaction. That sets the isolation level without a separate round trip. To retry serialization
+failures or deadlocks, put `Effect.retry` outside the outermost `withTransaction`, so every
+attempt starts a fresh transaction:
+
+```typescript
+sql.withTransaction(transfer).pipe(
+    Effect.provideService(SqlClient.BeginTransaction, "BEGIN ISOLATION LEVEL SERIALIZABLE"),
+    Effect.retry({
+        while: (e) => e.reason._tag === "SerializationError" || e.reason._tag === "DeadlockError",
+        times: 5,
+        schedule: Schedule.exponential("10 millis").pipe(Schedule.jittered),
+    })
+)
+```
+
+Two limits. Retrying a nested transaction only retries its savepoint, which cannot recover an
+outer transaction the database has already aborted. And never retry `ConnectionError`: a `COMMIT`
+that lost its connection may have committed, and a retry would apply the writes twice.
 
 ## SqlSchema: Typed Queries
 
@@ -289,16 +348,18 @@ caching at the fiber level.
 ## Migrations
 
 The core `Migrator.make` builds a migrator from a loader. Loaders read migration files
-named `<id>_<name>.ts` and sort by id. `Migrator.fromFileSystem` reads a directory with
-the `FileSystem` and `Path` services:
+named `<id>_<name>.ts` and sort by id. `fromFileSystem` reads a directory with the `FileSystem`
+and `Path` services. Since 4.1.0 it lives in `effect/sql/MigratorFileSystem`, not in
+`effect/sql/Migrator` or the `effect/sql` barrel, so React Native apps can bundle those under
+Metro. Every driver migrator except `@effect/sql-sqlite-react-native` re-exports it, so import it
+from the driver:
 
 ```typescript
 import { Effect } from "effect"
-import { Migrator } from "effect/sql"
 import { PgMigrator } from "@effect/sql-pg"
 
 const runMigrations = PgMigrator.run({
-    loader: Migrator.fromFileSystem("./migrations"),
+    loader: PgMigrator.fromFileSystem("./migrations"),
     table: "my_app_migrations", // defaults to "effect_sql_migrations"
 })
 // Effect<ReadonlyArray<readonly [id, name]>, MigrationError | SqlError,
@@ -307,7 +368,7 @@ const runMigrations = PgMigrator.run({
 
 // Or run during layer construction
 const MigrationsLive = PgMigrator.layer({
-    loader: Migrator.fromFileSystem("./migrations"),
+    loader: PgMigrator.fromFileSystem("./migrations"),
 })
 // Layer<never, MigrationError | SqlError, SqlClient | PgClient | FileSystem | Path | ...>
 ```
@@ -431,6 +492,11 @@ const AppLive = RepoLive.pipe(
 Layers memoize construction, so all repos that yield the same context key get the same
 pool. `PgClient.layerFrom(acquire)` is the escape hatch when the client is built by a
 custom effect, and it still provides both context keys.
+
+To export connection pool metrics, read `PgClient.poolStats` (or `PgPool.stats`). It returns an
+`Effect<Pool.Stats>` with `idle`, `used`, `pending`, `min`, and `max`. `used` counts acquired
+items, not borrowers. `pending` counts borrowers waiting for an item, so a growing `pending` with
+`used === max` means the pool is the bottleneck. `Pool.stats` is tagged unstable.
 
 For concrete config without environment variables, use `PgClient.layer`:
 

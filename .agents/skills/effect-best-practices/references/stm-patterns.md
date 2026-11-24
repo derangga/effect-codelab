@@ -332,6 +332,27 @@ Verified from the implementation of `Effect.tx`:
 - **Failure before retry.** When the body fails after calling `Effect.txRetry`, the
   transaction first waits for pending commits on the refs it journaled, then re-runs. This is
   how suspension works internally, and why a failure inside a blocking loop does not spin.
+  A failure raised while the transaction is retrying is preserved and reaches the `E` channel
+  instead of triggering another run (4.0.2).
+
+### Reading attempt metadata
+
+Yield `Effect.Transaction` inside the body to see how the transaction got here (4.0.5). It exposes
+`attempt` (1 on the first run), `retryReason` (`undefined` on the first run, `"retry"` after `Effect.txRetry`, `"conflict"` after
+another transaction committed first), and the same timing fields as a schedule: `start`, `now`, `elapsed`, and
+`elapsedSincePrevious`. Use it to log contention or to give up on a transaction that keeps losing:
+
+```typescript
+yield* Effect.tx(Effect.gen(function* () {
+    const tx = yield* Effect.Transaction
+    if (tx.attempt > 50) {
+        return yield* Effect.fail(new TooMuchContention({ attempts: tx.attempt }))
+    }
+    // ... TxRef operations
+}))
+```
+
+Reading these fields is safe. Writing the journal by hand is not, see the anti-patterns below.
 
 Because `Effect.tx` accepts arbitrary `R` and `E`, nothing in the type system stops you from
 putting asynchronous IO in the body. The type parameters show the effect flows through
@@ -386,8 +407,9 @@ the `Effect.tx` block and have the block return whether the debit went through.
 
 ### Reaching into journal state by hand
 
-`Effect.Transaction` is a real `Context.Service` with `retry` and `journal` fields, and the
-module docs show it can be provided by hand. Treat that as an implementation detail.
+`Effect.Transaction` is a real `Context.Service` whose `journal` map holds the observed versions
+and pending writes. Its attempt and timing fields are fine to read. The journal is an
+implementation detail, even though the module docs show the service can be provided by hand.
 Application code should read and write `Tx*` values only through the module combinators, which
 keep the version bookkeeping correct.
 

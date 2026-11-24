@@ -171,6 +171,76 @@ It does not work in a class heritage clause. `status` returns `S["Rebuild"]`, so
 > See also: [Duplicating Error Handling in Every Route Handler] in `anti-patterns.md`
 > See also: [HTTP Status Codes (Without Generic Errors)] in `error-patterns.md`
 
+### Problem Details (RFC 9457)
+
+Opt in to `application/problem+json` when clients outside your codebase consume the API.
+Without the opt-in, errors and decoding failures keep their existing response shapes. All of
+this is `@stability unstable`.
+
+`HttpApiError.Problem<Self>()(tag, { type, status, title }, fields?)` declares a typed problem as a
+yieldable error class. Endpoints render, document, and decode it as `application/problem+json`.
+Problems that share a status are told apart by `type`, and `Effect.catchTag(tag)` works as usual:
+
+```typescript
+import { Schema } from 'effect'
+import { HttpApiEndpoint, HttpApiError } from 'effect/http-api'
+
+class OutOfCredit extends HttpApiError.Problem<OutOfCredit>()(
+  'OutOfCredit',
+  { type: 'https://example.com/probs/out-of-credit', status: 403, title: 'You do not have enough credit.' },
+  { balance: Schema.Number } // extension fields, validated on both sides
+) {}
+
+const buy = HttpApiEndpoint.post('buy', '/buy', { error: OutOfCredit })
+// Effect.fail(new OutOfCredit({ balance: 30 })) responds 403 with
+// { type, status: 403, title, balance: 30 }
+```
+
+Extension fields cannot replace `type`, `status`, or `title`, and unknown extensions are dropped.
+`detail` and `instance` are optional on every problem. `error.message` is `detail` when set,
+otherwise `title`. Client errors under 500 are not sent to the error reporter.
+
+Two more pieces cover the rest of the API:
+
+- `HttpApiSchema.asProblem({ title, type? })` renders a built-in error such as
+  `HttpApiError.NotFound` as a problem: `error: HttpApiError.NotFound.pipe(HttpApiSchema.asProblem({ title: 'Not Found' }))`.
+- `HttpApiMiddleware.ProblemDetails` plus `HttpApiMiddleware.layerProblemDetails()` render
+  request decoding failures as a generic `400` problem and response encoding failures as a `500`
+  problem. Pass `{ includeDetails: true }` for per-field `errors` with the request slot as the first
+  path segment (`params`, `headers`, `query`, `payload`). Leave it off in production, since it
+  echoes schema details to callers.
+
+```typescript
+const Api = HttpApi.make('api').add(Users).middleware(HttpApiMiddleware.ProblemDetails)
+
+const ServerLive = HttpApiBuilder.layer(Api).pipe(
+  Layer.provide(HttpApiMiddleware.layerProblemDetails())
+)
+```
+
+### Streaming Request Payloads
+
+An endpoint can take a request body as a lazy `Stream` that reads as the handler pulls (4.0.6).
+Declare `HttpApiSchema.StreamNdjson({ schema })` for newline-delimited JSON, or
+`HttpApiSchema.StreamUint8Array()` for raw bytes:
+
+```typescript
+import { Schema } from 'effect'
+import { HttpApiEndpoint, HttpApiSchema } from 'effect/http-api'
+
+const Event = Schema.Struct({ id: Schema.Number })
+
+const importEvents = HttpApiEndpoint.post('importEvents', '/events', {
+  payload: HttpApiSchema.StreamNdjson({ schema: Event, maxBytes: '100 MiB' }),
+  success: Schema.Number,
+})
+// The handler receives Stream<Event, ...>. Run it with Stream.runCount or Stream.runForEach.
+```
+
+Set limits on every streaming payload. `maxBytes` has no default, and `maxElementBytes` defaults to
+1 MiB for NDJSON. A bad line fails the stream with `HttpApiSchemaError` (400), and a payload over
+a limit fails it too. An oversized multipart streaming upload returns 413.
+
 ## HttpApiBuilder Handlers
 
 ### Implementing Handlers
@@ -298,7 +368,7 @@ const refreshTokens = semaphore
   .withPermits(1)(
     baseHttpClient.post('/api/auth/refresh', { body: HttpBody.jsonUnsafe({}) }).pipe(Effect.scoped)
   )
-  .pipe(Effect.ignore)
+  .pipe(Effect.ignore({ log: 'Unhandled' })) // a failed refresh is dropped, but still logged
 
 // HttpClient never fails on non 2xx. The 401 arrives as a successful Response value.
 // On a 401: refresh once, then re-issue the original request exactly once.
@@ -318,6 +388,68 @@ const client =
 ```
 
 A retried response that is still 401 flows back through `HttpApiClient`, which maps it to the contract's typed `Unauthorized` error. Callers see a tagged error, not a raw status code.
+
+### Timeouts, Retries, and Circuit Breaking
+
+Layer resilience onto the base `HttpClient` once, then derive the API client from it. Order matters:
+the timeout goes innermost so each attempt gets its own deadline, retries wrap the timeout, and the
+circuit breaker wraps both so it sees one outcome per call.
+
+```typescript
+import { Effect } from 'effect'
+import { HttpClient } from 'effect/http'
+import type { CircuitBreaker } from 'effect/persistence'
+
+const resilient = (breaker: CircuitBreaker.CircuitBreaker) =>
+  Effect.map(HttpClient.HttpClient, (base) =>
+    base.pipe(
+      HttpClient.timeout('5 seconds'),
+      HttpClient.retryTransient({ times: 3 }),
+      HttpClient.withCircuitBreaker({ breaker })
+    )
+  )
+```
+
+- `HttpClient.timeout(duration)` (4.1.0) fails with an `HttpClientError` wrapping a `TransportError`,
+  so the client keeps the `HttpClient` service type and `retryTransient` retries it. It covers the
+  wait for the response head. Body reads after that are not covered, so add `Effect.timeout` to
+  the body read when a slow body matters.
+- `HttpClient.retryTransient` retries timeouts, network failures, and responses with status 408,
+  429, 500, 502, 503, or 504. A `Retry-After` header sets the minimum delay. `HttpClient.isTransientError` and
+  `isTransientResponse` (4.1.0) are the predicates it uses, so reuse them in a custom `while`.
+- `HttpClient.withCircuitBreaker({ breaker, key?, classify? })` guards each request with a
+  `CircuitBreaker` from `effect/persistence`. The key defaults to the request origin, so one
+  breaker covers many hosts. It is `@stability experimental`, which means a patch release can
+  break it. Create the breaker with `CircuitBreaker.make({ tripPolicy: CircuitBreaker.consecutive(5), openDuration: '30 seconds' })`
+  and provide `CircuitBreaker.layerStoreMemory()`, or `layerStoreRedis` to share state between
+  processes. An open circuit fails with `CircuitBreakerError` whose `reason._tag` is `CircuitOpen`,
+  `CircuitHalfOpen`, or `CircuitBreakerStoreError`.
+- `classify` receives `(exit, { probe })` since 4.1.1. Return `CircuitBreaker.failure()` for an
+  outcome the default ignores, such as a 200 body that says `degraded`. `probe` is `true` for the
+  HalfOpen probe call, so a rate-limited response can count as a failure that reopens the circuit.
+- A call that must always run passes `onRejection: 'allow'` to `breaker.execute` (4.1.1). It is recorded when
+  the circuit would admit it and runs unrecorded when the circuit would refuse it.
+
+The breaker never waits, so retry rejections outside it, with `Effect.retry` and a schedule that
+waits at least `reason.retryAfter` for `CircuitOpen`. Put `Effect.retry` and `Effect.timeout`
+inside the breaker, never around it. Use one policy per key, since breakers sharing a key and a
+store share one circuit. Cap an exponential `openDuration` with `Schedule.upTo`, or a flapping
+dependency keeps lengthening it.
+
+### Other Client Changes
+
+- `HttpApiClient.decodeResponse(Api, { group, endpoint })` (4.0.7) decodes a raw response with the
+  endpoint's success and error schemas. Call the endpoint with `responseMode: 'response-only'`, then
+  decode when you are ready to read the body.
+- `HttpApiSchema.Upgrade` can sit beside ordinary success responses for servers that decline the
+  upgrade. Narrow the client result with `HttpApiClient.isUpgraded(result)` (4.1.0). Hand-built
+  `Upgraded` values, such as client mocks, need `[HttpApiClient.UpgradedTypeId]: HttpApiClient.UpgradedTypeId`.
+- `HttpClient.withCookiesRef` takes a `Ref<ReadonlyArray<Cookie>>` (4.1.0) and sends stored cookies
+  only to a matching host, path, and scheme. Since 4.1.2 it selects cookies for the final URL, so a
+  `baseUrl` added by `HttpApiClient` after the cookie middleware still works. Seed the ref with
+  `Cookies.mergeIntoArray`.
+- `request.method` is typed `string` since 4.1.0, so methods like `PROPFIND` are representable.
+  An exhaustive `switch` over methods needs a default branch, or a guard with `HttpMethod.isHttpMethod`.
 
 ### Extracting the Typed Error Union
 
@@ -895,5 +1027,11 @@ when it is `requiredForClient`.
 | `HttpApiTest.groups(api, names)`          | `effect/http-api`       | In process test client                 |
 | `HttpClient.transformResponse(fn)`        | `effect/http`           | Interceptor wrapping every response    |
 | `HttpClient.mapRequest(fn)`               | `effect/http`           | Interceptor shaping outbound calls     |
+| `HttpClient.timeout(duration)`            | `effect/http`           | Fail slow responses, retryable         |
+| `HttpClient.retryTransient(opts)`         | `effect/http`           | Retry timeouts, 408/429/5xx responses  |
+| `HttpClient.withCircuitBreaker(opts)`     | `effect/http`           | Guard requests with a circuit breaker  |
+| `HttpApiError.Problem<Self>()(...)`       | `effect/http-api`       | Typed RFC 9457 problem error class     |
+| `HttpApiMiddleware.layerProblemDetails()` | `effect/http-api`       | Render decode failures as problems     |
+| `HttpApiSchema.StreamNdjson({ schema })`  | `effect/http-api`       | Streaming NDJSON request payload       |
 | `HttpClientRequest.prependUrl(url)`       | `effect/http`           | Prepend a base URL to a request        |
 | `HttpBody.jsonUnsafe(value)`              | `effect/http`           | JSON request body                      |

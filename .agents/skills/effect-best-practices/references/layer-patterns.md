@@ -213,6 +213,12 @@ const AppLive = RepoLive.pipe(
 )
 ```
 
+Since 4.0.6 this also holds for composed layers. `Layer.provide`, `Layer.provideMerge`, and
+`Layer.mergeAll` check the `MemoMap` by layer identity, as in v3. A composed layer such as
+`InfraLive = DatabaseLive.pipe(Layer.provideMerge(ConfigLive))` that several parents reference is
+built once per memo map, not once per path. Bind a composed layer to one `const` and reuse that
+value. Two separate expressions that build the same graph are different layers and build twice.
+
 ### Shared memoization across `Effect.provide` calls
 
 The `MemoMap` is shared across provide calls on the same fiber, so overlapping layers build

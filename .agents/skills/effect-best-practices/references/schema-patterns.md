@@ -1,6 +1,6 @@
 # Schema Patterns
 
-> **Effect v4 (4.0.0).** Schema defines codecs with Type and Encoded forms. Refinements are checks applied with `.check(...)`. Transformations are defined with `decodeTo` and `SchemaTransformation` or `SchemaGetter`. Failures are expressed with `SchemaIssue` and reported as `Schema.SchemaError`. `Schema.brand`, `Schema.Struct`, `Schema.Class`, and `Schema.TaggedError` define nominal types, structs, classes, and errors.
+> **Effect v4 (4.1).** Schema defines codecs with Type and Encoded forms. Refinements are checks applied with `.check(...)`. Transformations are defined with `decodeTo` and `SchemaTransformation` or `SchemaGetter`. Failures are expressed with `SchemaIssue` and reported as `Schema.SchemaError`. `Schema.brand`, `Schema.Struct`, `Schema.Class`, and `Schema.TaggedError` define nominal types, structs, classes, and errors.
 
 ## Branded Types for IDs
 
@@ -83,7 +83,8 @@ Apply refinements as checks with `.check(...)`, which accepts several checks at 
 | `Schema.isMinSize(n)`, `Schema.isMaxSize(n)`, `Schema.isBetweenSize(min, max)` | `Map` and `Set` size (anything with `size`) |
 | `Schema.isStartingWith(s)`, `Schema.isEndingWith(s)`, `Schema.isIncluding(s)` | String affix and substring |
 | `Schema.isNonEmpty()` | Non empty string or array |
-| `Schema.isInt()` | Integer numbers |
+| `Schema.isAscii()` | String of ASCII characters only (unstable) |
+| `Schema.isInt()` | Integer numbers, bounded by `Number.MIN_SAFE_INTEGER` and `MAX_SAFE_INTEGER` |
 | `Schema.isGreaterThan(n)` | Numbers above `n`, positive numbers with `Schema.isGreaterThan(0)` |
 | `Schema.isBetween({ minimum, maximum })` | Numbers within inclusive bounds |
 | `Schema.check(Schema.makeFilter(predicate))` | Custom predicate |
@@ -368,6 +369,61 @@ const processPayment = (details: PaymentDetails) => {
 `Schema.TaggedStruct(tag, fields)` is the shorthand for a `_tag`-discriminated struct.
 `Schema.Tuple` takes one array: `Schema.Tuple([A, B])`.
 
+### Matching with TaggedUnion
+
+`Schema.TaggedUnion({ Case: fields })` builds the union and ships `match`, `matchOrElse`, `guards`,
+`isAnyOf`, and `cases` next to it. `Schema.Union([...]).pipe(Schema.toTaggedUnion("_tag"))` adds
+the same helpers to a union you already have. Both fail at construction when two members share a
+discriminant, and `1` and `"1"` count as duplicates. The selected tag key is available as `.tag`.
+
+```typescript
+const Shape = Schema.TaggedUnion({
+    Circle: { radius: Schema.Number },
+    Rectangle: { width: Schema.Number, height: Schema.Number },
+})
+
+const area = Shape.match(shape, {
+    Circle: (c) => Math.PI * c.radius ** 2,
+    Rectangle: (r) => r.width * r.height,
+})
+
+// matchOrElse takes the fallback as a third argument, narrowed to the variants you left out
+const label = Shape.matchOrElse(
+    shape,
+    { Circle: () => "round" },
+    (other) => other._tag // other: Rectangle
+)
+```
+
+Since 4.1.0 the return type of `match` and `matchOrElse` is inferred from the handlers. Remove any
+explicit output type argument from existing calls, and annotate the handler return types when you
+need a specific output type.
+
+### Match on literal unions
+
+For a union of string or number literals that is not a tagged struct, `Match.literals` and
+`Match.literalsExhaustive` (4.1.0, unstable) take a record of handlers:
+
+```typescript
+import { Match } from "effect"
+
+type Status = "draft" | "review" | "published"
+
+const label = Match.type<Status>().pipe(
+    Match.literalsExhaustive({
+        draft: () => "Draft",
+        review: () => "In review",
+        published: () => "Live",
+    })
+)
+```
+
+`Match.literals` leaves the matcher open, so finish it with `Match.orElse`. A missing literal in the
+exhaustive form is a compile error. Unions holding both `1` and `"1"` are rejected, since they
+share a runtime key. Other `Match` changes: `Match.when`, `whenOr`, `whenAnd`, and `not` reject
+object patterns whose keys the input type does not have (4.0.5), and array patterns no longer
+match arrays shorter than the pattern (4.0.7).
+
 ## Enums and Literals
 
 ```typescript
@@ -433,6 +489,27 @@ const encoded = yield* encodeUser(user) // Effect<UserEncoded, SchemaError>
 The failure type is `Schema.SchemaError`, so a decode failure is caught with
 `Effect.catchTag("SchemaError", ...)`. Inside a service, a decode failure is often **your**
 bug, not the caller's, so `Effect.die` it rather than surfacing it. See `error-patterns.md`.
+
+A synchronous throw inside a transformation, filter, middleware, or custom declaration parser is
+a **defect**, not a `SchemaError` (4.0.6). That holds at the root schema too, and the `Exit`,
+`Effect`, and `Promise` parsers report the defect through their result instead of throwing before
+they return. Return a `SchemaIssue` from a fallible transform for an expected failure, and throw
+only for a bug.
+
+### Durations on the wire
+
+`Schema.DurationFromIsoString` (4.1.0) decodes an ISO 8601 string such as `"PT1H30M"` or `"P1W2D"`
+into a `Duration`, and encodes a finite `Duration` back with `Duration.formatIso`. Use it for
+interchange formats that standardize on ISO 8601. Years and months are rejected because they have
+no fixed length, and encoding `Duration.infinity` fails. `Schema.DurationFromString` keeps the
+`"5 seconds"` format for config and human input. `Duration.fromIso` and `Duration.formatIso` return
+`Option`, and `Duration.toMicros` converts to microseconds.
+
+### Secrets and keys
+
+Crypto key schemas (`Schema.AeadKey`, `Schema.MacKey`, `Schema.SignaturePrivateKey`, and their
+`FromBytes` and `FromFormat` variants) decode keys but refuse to encode secret or private keys
+unless the schema is built with `{ allowEncode: true }`. See `crypto-patterns.md`.
 
 ## Structural Field Operations
 
