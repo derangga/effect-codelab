@@ -176,7 +176,7 @@ const demo = () => {
 demo()
 ```
 
-Run it with `bun mini-effect.ts`.
+Run it the way the track overview shows (`bun mini-effect.ts` under bun).
 
 ```sh
 built 3 effects, fired 0

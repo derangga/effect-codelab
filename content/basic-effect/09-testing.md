@@ -187,21 +187,52 @@ confidence a bare `Promise<Product>` gave you in chapter one.
 
 ## Setup
 
-This chapter needs a test runner and the Effect adapter for it. Pin both:
-
-```sh
-bun add --exact --dev vitest@5.0.3 @effect/vitest@4.0.0
-```
-
+This chapter needs a test runner and the Effect adapter for it. Pin both.
 `@effect/vitest@4.0.0` requires vitest 5, which is why the version is not an
 older one. Vitest needs no config here. It runs every `*.test.ts` file, so the
-tests in this chapter go in `product.test.ts`, next to `product.ts`, and
-`bunx vitest run` runs them. Nothing touches the network or a server. The
-catalog is in memory, so there is nothing to mock.
+tests in this chapter go in `product.test.ts`, next to `product.ts`. Nothing
+touches the network or a server. The catalog is in memory, so there is nothing
+to mock.
 
 Each block below shows the imports it uses. When you add a block to
 `product.test.ts`, merge its import lines into the ones already there. The
-chapter ends with the whole file.
+chapter ends with the whole file. Install the packages and run the tests with
+the commands for your package manager.
+
+#### Tab: bun
+
+```sh
+bun add --exact --dev vitest@5.0.3 @effect/vitest@4.0.0
+bunx vitest run
+```
+
+#### Tab: npm
+
+```sh
+npm install --save-dev --save-exact vitest@5.0.3 @effect/vitest@4.0.0
+npx vitest run
+```
+
+#### Tab: pnpm
+
+```sh
+pnpm add --save-dev --save-exact vitest@5.0.3 @effect/vitest@4.0.0
+pnpm exec vitest run
+```
+
+#### Tab: yarn
+
+```sh
+yarn add --dev --exact vitest@5.0.3 @effect/vitest@4.0.0
+yarn vitest run
+```
+
+#### Tab: deno
+
+```sh
+deno add --save-exact npm:vitest@5.0.3 npm:@effect/vitest@4.0.0
+deno run --allow-all npm:vitest run
+```
 
 ## it.effect
 
@@ -1238,7 +1269,7 @@ it.effect('rejects creation once the catalog is full', () =>
 )
 ```
 
-`bunx vitest run`:
+The output of `vitest run`:
 
 ```
  RUN  v5.0.3 /.../learning-effect

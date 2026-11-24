@@ -68,7 +68,15 @@ a chapter is copied from a real run of the five files above.
 
 Nothing here needs a database driver, an HTTP server, or a test runner. The
 `Database` service in this track logs instead of connecting, because the point
-is the wiring around it rather than the SQL inside it. One package:
+is the wiring around it rather than the SQL inside it. One package, plus the
+compiler to check it with. `--exact` matters. A version range moves the types
+out from under code that compiled yesterday.
+
+`typescript@7.0.2` is the rewritten compiler. It still installs a command called
+`tsc`, and running `tsc --version` through your package manager should print
+`Version 7.0.2`.
+
+#### Tab: bun
 
 ```sh
 mkdir effect-feed
@@ -78,11 +86,59 @@ bun add --exact effect@4.0.0
 bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 
-`--exact` matters. A version range moves the types out from under code that
-compiled yesterday.
+#### Tab: npm
 
-`typescript@7.0.2` is the rewritten compiler. It still installs a command called
-`tsc`, and `bunx tsc --version` should print `Version 7.0.2`.
+`tsx` runs the TypeScript files, since node cannot resolve imports like
+`./database` without a file extension.
+
+```sh
+mkdir effect-feed
+cd effect-feed
+npm init -y
+npm install --save-exact effect@4.0.0
+npm install --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.23.15
+```
+
+#### Tab: pnpm
+
+`tsx` runs the TypeScript files, since node cannot resolve imports like
+`./database` without a file extension.
+
+```sh
+mkdir effect-feed
+cd effect-feed
+pnpm init
+pnpm add --save-exact effect@4.0.0
+pnpm add --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.23.15
+```
+
+#### Tab: yarn
+
+`tsx` runs the TypeScript files, since node cannot resolve imports like
+`./database` without a file extension.
+
+```sh
+mkdir effect-feed
+cd effect-feed
+yarn init -y
+yarn add --exact effect@4.0.0
+yarn add --dev --exact @effect/tsgo@0.45.0 typescript@7.0.2 tsx@4.23.15
+```
+
+#### Tab: deno
+
+Deno reads its compiler options from `deno.json`, is strict by default, and
+type checks with its own compiler, so skip the `tsconfig.json` below. Create
+`src/main.ts` yourself, because `deno init` makes `main.ts` at the top.
+
+```sh
+mkdir effect-feed
+cd effect-feed
+deno init
+deno add --save-exact npm:effect@4.0.0
+```
+
+### The compiler options
 
 In `tsconfig.json`:
 
@@ -105,7 +161,8 @@ In `tsconfig.json`:
 parameters and almost every lesson in this track is read off one of them, so
 without `strict` you are reading numbers that are not true.
 
-Two environment variables, in `.env`:
+Two environment variables, in `.env`. Bun reads this file by itself. The run
+commands below load it for the other runtimes:
 
 ```sh
 DATABASE_URL=sqlite://feed.db
@@ -126,7 +183,39 @@ const program = Effect.gen(function* () {
 Effect.runPromise(program).then(console.log)
 ```
 
-Run it with `bun run src/main.ts`. A timestamped log line and then `2`.
+Run it with the command for your runtime. You should see a timestamped log line
+and then `2`.
+
+#### Tab: bun
+
+```sh
+bun run src/main.ts
+```
+
+#### Tab: npm
+
+```sh
+npx tsx --env-file=.env src/main.ts
+```
+
+#### Tab: pnpm
+
+```sh
+pnpm exec tsx --env-file=.env src/main.ts
+```
+
+#### Tab: yarn
+
+```sh
+yarn tsx --env-file=.env src/main.ts
+```
+
+#### Tab: deno
+
+```sh
+deno run --unstable-sloppy-imports --allow-env --allow-read --env-file=.env src/main.ts
+```
+
 
 ## How the chapters work
 

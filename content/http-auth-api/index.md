@@ -59,24 +59,35 @@ through a chapter.
 
 ## Setting up a project
 
-These steps assume [Bun](https://bun.sh), which this track needs for two
-things: the sqlite driver, and the password hashing built into its runtime.
+This track runs on [Bun](https://bun.sh), so install it first whatever else you
+use. It needs two things from the runtime: the sqlite driver, and the password
+hashing built into it. The packages themselves install with any package
+manager, so pick the one you already use.
 
-### 1. Create the project
-
-```sh
-mkdir effect-auth-api
-cd effect-auth-api
-bun init -y
-```
-
-### 2. Install the packages
+### 1. Create the project and install the packages
 
 Every `effect` and `@effect/*` package shares one version number, and they must
 match exactly. Mixing them is not a warning, it is a type error somewhere
 confusing.
 
+`--exact` matters. A version range can move the types out from under code that
+compiled yesterday, and the HTTP and SQL modules may change in a minor release.
+
+`typescript@7.0.2` is the rewritten compiler. It still installs a command called
+`tsc`, and running `tsc --version` through your package manager should print
+`Version 7.0.2`.
+
+`jose` is the only dependency here that is not Effect or Bun. It signs and
+verifies the token in
+[Signing the token](/learn/http-auth-api/05-signing-the-token). Nothing in
+Effect does JSON Web Tokens, and this is not a thing to write yourself.
+
+#### Tab: bun
+
 ```sh
+mkdir effect-auth-api
+cd effect-auth-api
+bun init -y
 bun add --exact effect@4.0.0
 bun add --exact @effect/platform-bun@4.0.0
 bun add --exact @effect/sql-sqlite-bun@4.0.0
@@ -84,18 +95,37 @@ bun add --exact jose@6.2.12
 bun add -d --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
 ```
 
-`--exact` matters. A version range can move the types out from under code that
-compiled yesterday, and the HTTP and SQL modules may change in a minor release.
+#### Tab: npm
 
-`typescript@7.0.2` is the rewritten compiler. It still installs a command called
-`tsc`, and `bunx tsc --version` should print `Version 7.0.2`.
+```sh
+mkdir effect-auth-api
+cd effect-auth-api
+npm init -y
+npm install --save-exact effect@4.0.0 @effect/platform-bun@4.0.0 @effect/sql-sqlite-bun@4.0.0 jose@6.2.12
+npm install --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
+```
 
-`jose` is the only dependency here that is not Effect or Bun. It signs and
-verifies the token in
-[Signing the token](/learn/http-auth-api/05-signing-the-token). Nothing in
-Effect does JSON Web Tokens, and this is not a thing to write yourself.
+#### Tab: pnpm
 
-### 3. Turn on strict mode
+```sh
+mkdir effect-auth-api
+cd effect-auth-api
+pnpm init
+pnpm add --save-exact effect@4.0.0 @effect/platform-bun@4.0.0 @effect/sql-sqlite-bun@4.0.0 jose@6.2.12
+pnpm add --save-dev --save-exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
+```
+
+#### Tab: yarn
+
+```sh
+mkdir effect-auth-api
+cd effect-auth-api
+yarn init -y
+yarn add --exact effect@4.0.0 @effect/platform-bun@4.0.0 @effect/sql-sqlite-bun@4.0.0 jose@6.2.12
+yarn add --dev --exact @effect/tsgo@0.45.0 typescript@7.0.2 @types/bun@1.4.2
+```
+
+### 2. Turn on strict mode
 
 Effect works out what your code can fail with and what it depends on by reading
 the types. Without `strict` those conclusions are wrong in ways that are hard
@@ -123,7 +153,7 @@ mistakes TypeScript alone cannot see. Point your editor at the workspace
 TypeScript or it will not load: in VS Code, run
 `TypeScript: Select TypeScript Version` and choose `Use Workspace Version`.
 
-### 4. Set the signing secret
+### 3. Set the signing secret
 
 The app reads one environment variable, and refuses to start without it. Put it
 in `.env`:
@@ -135,7 +165,7 @@ JWT_SECRET=change-me-to-something-long-and-random
 [Signing the token](/learn/http-auth-api/05-signing-the-token) explains why it
 is read the way it is, and why it never reaches a log line.
 
-### 5. Check it works
+### 4. Check it works
 
 Put this in `src/main.ts`:
 
@@ -150,7 +180,8 @@ const program = Effect.gen(function* () {
 Effect.runPromise(program).then(console.log)
 ```
 
-Run it with `bun run src/main.ts`. You should see a timestamped log line and
+Run it with Bun, whichever package manager installed the packages:
+`bun run src/main.ts`. You should see a timestamped log line and
 then `2`.
 
 ## The shape of the project

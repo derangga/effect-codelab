@@ -669,7 +669,7 @@ const main = program.pipe(
 main.then(console.log)
 ```
 
-`bun run main.ts` prints the log line from `create`, then the product:
+Running `main.ts` the way the setup page showed (`bun run main.ts` under bun) prints the log line from `create`, then the product:
 
 ```
 [11:54:56.750] INFO (#1): Product created {

@@ -22,7 +22,7 @@ const product = fetchProduct(1)
 console.log('requests so far:', requests)
 ```
 
-Run it with `bun index.ts`.
+Run it the way the track overview shows (`bun index.ts` under bun).
 
 ```sh
 GET /products/1

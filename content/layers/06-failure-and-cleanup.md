@@ -400,7 +400,7 @@ Effect.runPromiseExit(Effect.void.pipe(Effect.provide(Broken.layer))).then(
 )
 ```
 
-`bun run experiment.ts`:
+The output of `experiment.ts`:
 
 ```
 [11:40:02.517] INFO (#1): acquire Database

@@ -26,8 +26,9 @@ wider type allows.
 
 ## What you build
 
-One file, `mini-effect.ts`, with no dependencies. It runs with `bun`, and it
-grows chapter by chapter until it has the parts you will meet in Effect:
+One file, `mini-effect.ts`, with no dependencies. It runs with any TypeScript
+runner, and it grows chapter by chapter until it has the parts you will meet in
+Effect:
 
 ```mermaid
 flowchart LR
@@ -45,7 +46,27 @@ library, and the comparison is mostly a rename.
 
 Every chapter opens with a problem in code you could have written yourself, and
 only then defines the thing that fixes it. Each ends with the file as it stands
-and a short demo you can run with `bun mini-effect.ts`.
+and a short demo you can run.
+
+#### Tab: bun
+
+```sh
+bun mini-effect.ts
+```
+
+#### Tab: npm, pnpm, yarn
+
+```sh
+npx tsx mini-effect.ts
+```
+
+#### Tab: deno
+
+```sh
+deno run mini-effect.ts
+```
+
+### Typing it out
 
 Type the code instead of pasting it. The point is to feel how little each piece
 is.

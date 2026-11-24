@@ -239,7 +239,7 @@ Effect.runPromise(program.pipe(Effect.provide(FeedService.layer))).then(
 )
 ```
 
-`bun run src/main.ts`:
+The output of `src/main.ts`:
 
 ```
 [10:59:19.587] INFO (#2): opening sqlite://feed.db

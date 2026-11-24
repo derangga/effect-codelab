@@ -140,7 +140,7 @@ const runnable = feedForUser.pipe(Effect.provideService(Database, stub))
 ```
 
 `R` is now `never`, and `never` is the precondition for running anything. Run
-this with `bun run src/main.ts` after adding a `console.log` and it works. For a
+this with the command from the setup page after adding a `console.log` and it works. For a
 stub, this is the right tool and there is nothing above it.
 
 ## Where that runs out

@@ -24,25 +24,131 @@ you again.
 
 ## What you need
 
-Start in an empty folder with `bun init -y`, which creates `index.ts` and a
-`tsconfig.json` that already has `strict` on. Then one package and the compiler
-to check it with, both pinned:
+Pick the package manager you already use. The commands below pin `effect` and
+the compiler to exact versions. A version range moves the types out from under
+code that compiled yesterday. Every `effect` and `@effect/*` package shares one
+version number, and they must match exactly.
+
+Start in an empty folder, then run the commands for your package manager.
+Whatever you pick, `strict` has to be on in `tsconfig.json`. Effect reads the
+failure and requirement channels off your code, and without `strict` those
+readings are wrong in ways that are hard to notice. Bun writes a suitable
+`tsconfig.json` for you. For the other package managers, use this one:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  }
+}
+```
+
+#### Tab: bun
+
+`bun init -y` creates `index.ts` and a `tsconfig.json` that already has `strict`
+on.
 
 ```sh
+bun init -y
 bun add --exact effect@4.0.0
 bun add -d --exact typescript@7.0.2
 ```
 
-A version range moves the types out from under code that compiled yesterday.
-Every `effect` and `@effect/*` package shares one version number, and they must
-match exactly.
+#### Tab: npm
 
-Run any file here with `bun run index.ts`, or with
-`node --experimental-strip-types index.ts` if you prefer node. Chapter one is
-the one place where those two runtimes disagree, and it says so. Whatever you
-run it in, turn `strict` on in `tsconfig.json`. Effect reads the failure and
-requirement channels off your code, and without `strict` those readings are
-wrong in ways that are hard to notice.
+`npm init -y` creates only a `package.json`. Create an empty `index.ts` and the
+`tsconfig.json` shown above. `tsx` runs TypeScript
+files directly, including the extensionless imports like `./product` that later
+chapters use.
+
+```sh
+npm init -y
+npm install --save-exact effect@4.0.0
+npm install --save-dev --save-exact typescript@7.0.2 tsx@4.23.15
+```
+
+#### Tab: pnpm
+
+`pnpm init` creates only a `package.json`. Create an empty `index.ts` and the
+`tsconfig.json` shown above. `tsx` runs TypeScript
+files directly, including the extensionless imports like `./product` that later
+chapters use.
+
+```sh
+pnpm init
+pnpm add --save-exact effect@4.0.0
+pnpm add --save-dev --save-exact typescript@7.0.2 tsx@4.23.15
+```
+
+#### Tab: yarn
+
+`yarn init -y` creates only a `package.json`. Create an empty `index.ts` and the
+`tsconfig.json` shown above. `tsx` runs TypeScript
+files directly, including the extensionless imports like `./product` that later
+chapters use.
+
+```sh
+yarn init -y
+yarn add --exact effect@4.0.0
+yarn add --dev --exact typescript@7.0.2 tsx@4.23.15
+```
+
+#### Tab: deno
+
+`deno init` creates `main.ts` and a `deno.json`. Create `index.ts` next to it and
+use that file for the chapters. Deno type checks with its own compiler and
+runs in `strict` mode by default, so there is no `typescript` package or
+`tsconfig.json` to add.
+
+```sh
+deno init
+deno add --save-exact npm:effect@4.0.0
+```
+
+### Run a file
+
+Deno blocks network and environment access unless you allow it, and chapters
+one and seven need both. The Deno flag `--unstable-sloppy-imports` lets it
+resolve imports like `./product` that have no file extension.
+
+#### Tab: bun
+
+```sh
+bun run index.ts
+```
+
+#### Tab: npm
+
+```sh
+npx tsx index.ts
+```
+
+#### Tab: pnpm
+
+```sh
+pnpm exec tsx index.ts
+```
+
+#### Tab: yarn
+
+```sh
+yarn tsx index.ts
+```
+
+#### Tab: deno
+
+```sh
+deno run --unstable-sloppy-imports --allow-net --allow-env index.ts
+```
+
+### Packages and runtimes
+
+Chapter one is the one place where the runtimes disagree, and it says so.
 
 Packages arrive when a chapter needs them. Chapter nine installs a test runner.
 Chapter seven reads an environment variable, but it has a default, so there is
