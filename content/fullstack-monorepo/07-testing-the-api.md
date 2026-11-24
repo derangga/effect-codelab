@@ -2,20 +2,20 @@
 title: Testing the API
 order: 7
 slug: 07-testing-the-api
-summary: Run the real server in a test with an in-memory database, call it through a client made from the description, and learn why the tests run under Bun.
+summary: Run the real server in a test with an in-memory database, call it with a client made from the API description, and see why the tests run under Bun.
 ---
 
-The curl commands from the last chapter proved the server works, once, on
-your machine. They do not run by themselves when someone changes the code next
-month. A test should do the same thing curl did: start the server, send real
-requests, check the answers. And it should do it without touching the real
-database file.
+The curl commands in [Serving it](/learn/fullstack-monorepo/06-serving-it)
+showed that the server works, once, on your machine. They do not run again when
+someone changes the code next month. A test should do what curl did: start the
+server, send real requests, and check the answers. It should do this without
+touching the real database file.
 
 ## Same program, different parts
 
-Look back at the stack from the last chapter. The handlers asked for a
-`SqlClient` and never said which one. `main.ts` gave them the real file. A test
-gives them something else:
+Look back at the stack from [Serving it](/learn/fullstack-monorepo/06-serving-it).
+The handlers ask for a `SqlClient` and never say which one. `main.ts` gives them
+the real database file. A test gives them something else:
 
 ```
 production                          test
@@ -24,11 +24,11 @@ ApiLayer                            ApiLayer                    same
   ServerLayer Bun on PORT             BunHttpServer.layerTest   swapped
 ```
 
-The routes, the handlers and the repository are the exact same code. Only the
+The routes, the handlers, and the repository are the same code in both. Only the
 two layers at the bottom change. `":memory:"` is a SQLite database that lives
-in memory and is gone when the test ends. `BunHttpServer.layerTest` starts a
-real server on a random free port, and also provides an HTTP client already
-pointed at it.
+in memory. It is gone when the test ends. `BunHttpServer.layerTest` starts a
+real server on a random free port. It also provides an HTTP client that already
+points at that server.
 
 In code, that is one value:
 
@@ -161,13 +161,13 @@ const TodosHandlers = HttpApiBuilder.group(
     const repo = yield* TodoRepo
     return handlers.handle("list", () => repo.findAll()).handle("create", ({ payload }) => repo.insert(payload))
   }),
-)
+).pipe(Layer.provide(TodoRepo.layer))
 
 // Requires SqlClient; the entry point decides which database backs it.
 export const ApiLayer = Layer.mergeAll(
   HttpApiBuilder.layer(TodosApi, { openapiPath: "/api/openapi.json" }),
   HttpApiScalar.layer(TodosApi, { path: "/api/docs" }),
-).pipe(Layer.provide(TodosHandlers), Layer.provide(TodoRepo.layer))
+).pipe(Layer.provide(TodosHandlers))
 // @filename: apps/server/src/Sql.ts
 import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-bun"
 import { Config, Effect, FileSystem, Layer, Path } from "effect"
@@ -215,22 +215,23 @@ const TestLayer = HttpRouter.serve(ApiLayer, { disableLogger: true, disableListe
 )
 ```
 
-It reuses `MigratorLayer` from `Sql.ts`, so the test database gets its table
-from the same migration as production. The `disableLogger` options keep the
-test output quiet. `Layer.provideMerge` is used for the server, instead of
+The test layer reuses `MigratorLayer` from `Sql.ts`, so the test database gets
+its table from the same migration as production. The `disableLogger` options
+keep the test output quiet. The server uses `Layer.provideMerge` instead of
 `Layer.provide`, so the HTTP client it creates stays available to the tests.
 
-The "R" in the comment is the third slot in `Effect<Success, Error,
-Requirements>`, the list of things an effect needs. Swapping what fills that
-slot is the whole trick of testing with Effect, and [Swapping the
-graph](/learn/layers/08-swapping-the-graph) shows it in more detail.
+The "R" in the code comment is the third slot of `Effect<Success, Error,
+Requirements>`. That slot lists what an effect needs before it can run. Swapping
+what fills that slot is how you test with Effect.
+[Swapping the graph](/learn/layers/08-swapping-the-graph) covers it in more
+detail.
 
 ## The test file
 
 [@effect/vitest](https://github.com/Effect-TS/effect) adds Effect helpers to
 vitest. Two of them matter here:
 
-- `layer(TestLayer)(name, ...)` builds the layer once for a group of tests,
+- `layer(TestLayer)(name, ...)` builds the layer once for a group of tests
   and cleans it up when the group finishes.
 - `it.effect(name, ...)` runs an effect as a test. The test passes when the
   effect succeeds.
@@ -366,13 +367,13 @@ const TodosHandlers = HttpApiBuilder.group(
     const repo = yield* TodoRepo
     return handlers.handle("list", () => repo.findAll()).handle("create", ({ payload }) => repo.insert(payload))
   }),
-)
+).pipe(Layer.provide(TodoRepo.layer))
 
 // Requires SqlClient; the entry point decides which database backs it.
 export const ApiLayer = Layer.mergeAll(
   HttpApiBuilder.layer(TodosApi, { openapiPath: "/api/openapi.json" }),
   HttpApiScalar.layer(TodosApi, { path: "/api/docs" }),
-).pipe(Layer.provide(TodosHandlers), Layer.provide(TodoRepo.layer))
+).pipe(Layer.provide(TodosHandlers))
 // @filename: apps/server/src/Sql.ts
 import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-bun"
 import { Config, Effect, FileSystem, Layer, Path } from "effect"
@@ -460,18 +461,18 @@ layer(TestLayer)("TodosApi", (it) => {
 })
 ```
 
-The first test introduces the star of the next chapter.
-`HttpApiClient.make(TodosApi)` reads the same description the server was built
-from and gives back a typed client: `client.todos.create(...)` and
-`client.todos.list()`. There is no URL in the test, and `first` is a real
-`Todo` with a real `DateTime` in `createdAt`, decoded from the JSON response.
+The first test uses `HttpApiClient.make(TodosApi)`. It reads the same
+description the server was built from and returns a typed client, with
+`client.todos.create(...)` and `client.todos.list()`. The next chapter builds
+the same kind of client for the browser. The test contains no URL. `first` is a real `Todo`, and
+its `createdAt` is a real `DateTime` decoded from the JSON response.
 
-The other two tests use a plain HTTP request instead of the client, with the
-JSON body built by hand. The comment says why: the typed client checks a
-payload before sending it, and `"  spaced  "` is not a valid title until the
-server trims it. That is the "trimming only works one way" note from [The
-Todo in Schema](/learn/fullstack-monorepo/02-the-todo-in-schema). To test what
-the server does with messy input, you have to send messy input past the
+The other two tests send a plain HTTP request instead, with a JSON body built by
+hand. The code comment gives the reason. The typed client checks a payload
+before it sends it, and `"  spaced  "` is not a valid title until the server
+trims it. This is the "trimming only works one way" note from
+[The todo in Schema](/learn/fullstack-monorepo/02-the-todo-in-schema). To test
+how the server handles messy input, you must send that input without the typed
 client.
 
 ## Check it works
@@ -493,14 +494,14 @@ $ bun --bun vitest run
    Duration  166ms (import 67%, transform 17%, tests 15%, worker 1%)
 ```
 
-Three tests, a real HTTP server, a fresh database, well under a second. From
-the repository root, `bun run test` runs this too.
+Three tests pass against a real HTTP server and a fresh database, in well under
+a second. `bun run test` from the repository root runs them too.
 
 ## What people get wrong
 
-**Running vitest with Node.** The `test` script is `bun --bun vitest run`, not
-`vitest run`. Vitest normally runs your tests in Node, and the SQLite driver
-used here is built into Bun, so Node cannot load it:
+The first mistake is running vitest with Node. The `test` script is
+`bun --bun vitest run`, not `vitest run`. Vitest normally runs tests in Node.
+The SQLite driver used here is built into Bun, so Node cannot load it:
 
 ```
 Error: Only URLs with a scheme in: file, data, and node are supported by the
@@ -509,21 +510,21 @@ default ESM loader. Received protocol 'bun:'
 
 `bun --bun` makes vitest itself run inside Bun, where `bun:sqlite` exists.
 
-**Trusting the clock in tests.** `it.effect` gives every test a fake clock
-that does not move unless the test moves it. That keeps tests repeatable, but
-it means `DateTime.now` returns `1970-01-01T00:00:00.000Z` for every todo in
-this file. Both todos get the same `createdAt`. The list still comes back in
-the right order only because the query sorts by `created_at desc, id desc`,
-and the id breaks the tie. Take away `id desc` and the first test can fail.
+The second mistake is trusting the clock in tests. `it.effect` gives every test a
+fake clock. The fake clock does not move unless the test moves it, which keeps
+tests repeatable. It also means `DateTime.now` returns
+`1970-01-01T00:00:00.000Z` for every todo in this file. Both todos get the same
+`createdAt`. The list still comes back in the right order only because the query
+sorts by `created_at desc, id desc`, and the id breaks the tie. Remove
+`id desc` and the first test can fail.
 
-**Expecting a fresh database per test.** The layer is built once for the whole
-`layer(...)` group, so all three tests share one in-memory database. The first
-test checks the ids it created instead of the total count, so it passes no
-matter which tests ran before it. When a test really needs an empty database,
-give it its own `layer(...)` group.
+The third mistake is expecting a fresh database for each test. The layer is
+built once for the whole `layer(...)` group, so all three tests share one
+in-memory database. The first test compares the full list of todos. It passes
+only because it runs first, before the other tests add todos. When a test needs
+an empty database, give it its own `layer(...)` group.
 
 ## Next
 
-The server is done and tested. [The Typed
-Client](/learn/fullstack-monorepo/08-the-typed-client) moves to the browser
-and builds the same kind of client for React.
+The server is done and tested. [The typed client](/learn/fullstack-monorepo/08-the-typed-client)
+moves to the browser and builds the same kind of client for React.

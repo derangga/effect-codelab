@@ -1,49 +1,47 @@
 ---
-title: The Repo Over Sqlite
+title: The repo over SQLite
 order: 4
 slug: 04-the-repo-over-sqlite
-summary: A SQLite connection built from config, one migration to create the table, and a TodoRepo service so nothing else in the server knows there is a database.
+summary: A SQLite connection built from config, one migration that creates the table, and a TodoRepo service, so nothing else in the server knows a database exists.
 ---
 
-The handler for `POST /api/todos` needs to save a todo. The quick way is to
-write the SQL right inside the handler. That works until a second handler needs
-the same query, or a test wants to run the handler without a real database
-file, or you want to see every query the app makes in one place.
+The handler for `POST /api/todos` must save a todo. The quick way is to write
+the SQL inside the handler. That works until a second handler needs the same
+query. It also breaks when a test must run the handler without a real database
+file. And you cannot see every query the app makes in one place.
 
-So the SQL goes behind a **repository**: an object with a couple of named
-methods, `findAll` and `insert`, that the rest of the server calls without
-knowing a database exists. This chapter builds the connection, the table and
-the repository. Everything lives in `apps/server/src`.
+So the SQL goes behind a **repository**. A repository is an object with named
+methods, here `findAll` and `insert`, that hides the database from the rest of
+the server. This chapter builds the connection, the table, and the repository.
+All of it lives in `apps/server/src`.
 
 ## Three Effect words first
 
-The server code uses three ideas from Effect all the time. Here they are in one
-sentence each, and the [Basic Effect](/learn/basic-effect) track has the long
-version.
+The server code uses three Effect ideas all the time. Each gets one sentence
+here. The [Basic Effect](/learn/basic-effect) track has the full version.
 
-- An **effect** is a description of work that has not run yet, like a recipe.
-  Its type, `Effect<Success, Error, Requirements>`, says what it produces, how
-  it can fail, and what it needs before it can run.
-- A **service** is a named slot for something the app needs, like "the
-  database" or "the todo repository". Code asks for it by name, and gets
-  whatever was put in the slot.
-- A **layer** is a recipe that builds a service. Swapping the layer swaps what
-  the service really is, which is how a test can use a different database.
+- An **effect** is a description of work that has not run yet. Its type,
+  `Effect<Success, Error, Requirements>`, shows what it produces, how it can
+  fail, and what it needs before it can run.
+- A **service** is something the app needs, such as the database or the todo
+  repository, that code asks for by name.
+- A **layer** is a recipe that builds a service. A test can swap in a different
+  layer to get a different database.
 
 `Effect.gen` lets you write the steps of an effect one after another, like
-normal code. Inside it, `yield*` means "run this and give me its result".
+normal code. Inside it, `yield*` means "run this effect and give me its result".
 
 ## The connection and the table
 
-Start with `apps/server/src/Sql.ts`. It has two jobs: open the SQLite file,
-and make sure the `todos` table exists.
+Start with `apps/server/src/Sql.ts`. It has two jobs: open the SQLite file, and
+make sure the `todos` table exists.
 
-A **migration** is a numbered change to the database, like "create the todos
-table". Each one runs once, and the migrator writes down which ones already ran
-in a table of its own. Next week you add `0002_add_due_date`, and only that one
-runs on the existing database. That is the reason to use migrations instead of
-a `CREATE TABLE IF NOT EXISTS` at startup: the second change to the table has
-somewhere to go.
+A **migration** is a numbered change to the database, such as "create the todos
+table". Each migration runs once. The migrator records which ones already ran in
+a table of its own. Say you add `0002_add_due_date` next week. Only that
+migration runs on the existing database. This is why you use migrations instead
+of `CREATE TABLE IF NOT EXISTS` at startup. The second change to the table has a
+place to go.
 
 ```ts twoslash
 // apps/server/src/Sql.ts
@@ -80,34 +78,34 @@ const ClientLayer = Layer.unwrap(
 export const SqlLayer = MigratorLayer.pipe(Layer.provideMerge(ClientLayer))
 ```
 
-Going from the top:
+Read the code from the top:
 
-- `sql` is a service too. `yield* SqlClient.SqlClient` asks for it. Writing a
-  query as ``sql`...` `` is safe against SQL injection, because any value you
-  put in `${}` is sent separately from the SQL text, never pasted into it.
-- SQLite has no true/false column type, so `completed` is stored as `0` or
-  `1`. The repository will turn it back into a boolean.
-- `Config.String("DATABASE_PATH")` reads an environment variable, with a
-  default for when it is not set. The Effect version of `process.env` fails
-  clearly when a value is missing or malformed, instead of handing you
-  `undefined`.
+- `sql` is a service too. `yield* SqlClient.SqlClient` asks for it. A query
+  written as ``sql`...` `` is safe against SQL injection. Any value you put in
+  `${}` is sent separately from the SQL text, never pasted into it.
+- SQLite has no true/false column type, so `completed` is stored as `0` or `1`.
+  The repository turns it back into a boolean.
+- `Config.String("DATABASE_PATH")` reads an environment variable, with a default
+  for when it is not set. This is the Effect version of `process.env`. When a
+  value is missing or malformed, it fails with a clear error instead of giving
+  you `undefined`.
 - `fs.makeDirectory` creates the `data/` folder. SQLite creates the database
   file, but not the folders around it.
-- `Layer.unwrap` means "run this effect, and the layer it returns is the real
-  layer". It lets the SQLite layer depend on a config value that is only known
-  at startup.
-- `SqlLayer` joins the two: open the database, then run the migrations on it.
-  `Layer.provideMerge` feeds the connection into the migrator and also keeps
+- `Layer.unwrap` means "run this effect, and use the layer it returns as the
+  real layer". It lets the SQLite layer depend on a config value that is only
+  known at startup.
+- `SqlLayer` joins the two: it opens the database, then runs the migrations on
+  it. `Layer.provideMerge` feeds the connection into the migrator. It also keeps
   the connection available to everything built on top.
 
-## Rows are foreign data
+## Rows are untrusted data
 
-A row from the database is just an object to TypeScript. Nothing proves that
-`title` is a string or that `completed` is `0` or `1`. That is the same problem
+To TypeScript, a row from the database is just an object. Nothing proves that
+`title` is a string or that `completed` is `0` or `1`. This is the same problem
 as JSON from the network, and it has the same answer: decode it with a schema.
 
 `SqlSchema` pairs a query with a schema for its result. Here is the list query
-on its own, to look at its type:
+on its own, so you can see its type:
 
 ```ts twoslash
 import { Schema } from "effect"
@@ -123,19 +121,18 @@ const rows = selectAll(undefined)
 //    ^?
 ```
 
-`TodoRow` is the `Todo` schema with one field swapped: `Schema.BooleanFromBit`
-reads `0` and `1` from the database as `false` and `true`. The rest of the
-fields come straight from `Todo.fields`, so the row shape cannot drift from
-the todo.
+`TodoRow` is the `Todo` schema with one field swapped. `Schema.BooleanFromBit`
+reads `0` and `1` from the database as `false` and `true`. The other fields come
+straight from `Todo.fields`, so the row shape always matches the todo.
 
-Now read the type. The middle part, `SqlError | SchemaError`, lists the two
-ways this can fail: the database breaks, or a row does not match the schema.
+Now read the type. Its middle part, `SqlError | SchemaError`, lists the two ways
+this can fail: the database breaks, or a row does not match the schema.
 TypeScript knows both. Nobody had to write a comment saying "may throw".
 
 ## The repository
 
-Now `apps/server/src/TodoRepo.ts`. It is a service with a `make` recipe that
-builds the two methods, and a `layer` that the rest of the app will use.
+Now `apps/server/src/TodoRepo.ts`. It is a service with a `make` effect that
+builds the two methods, and a `layer` that the rest of the app uses.
 
 ```ts twoslash
 // @allowImportingTsExtensions
@@ -229,42 +226,43 @@ export class TodoRepo extends Context.Service<TodoRepo>()("TodoRepo", {
 }
 ```
 
-A few things are worth slowing down for.
+These details are worth a closer look.
 
-**The query aliases a column.** The database column is `created_at`, but the
-`Todo` schema calls it `createdAt`. Writing `created_at as createdAt` in the
-select renames it on the way out, so the row fits the schema as is. Both
-queries need that same column list, so it lives in `selectColumns`, and
-`sql.literal` pastes it into the query as plain SQL text. That is the one place
-where text goes into the query unescaped, so only ever give `sql.literal` a
-fixed string you wrote yourself, never anything from a user.
+The query aliases a column. The database column is `created_at`, but the `Todo`
+schema calls it `createdAt`. Writing `created_at as createdAt` in the select
+renames it on the way out, so the row fits the schema as is. Both queries need
+the same column list, so it lives in `selectColumns`. `sql.literal` pastes it
+into the query as plain SQL text. This is the one place where text goes into the
+query unescaped. Only give `sql.literal` a fixed string you wrote yourself,
+never anything from a user.
 
-**`insert ... returning`** saves the row and reads it back in one query, so the
-todo you return has the id SQLite just made up. `SqlSchema.findOne` expects
-exactly one row, and fails with `NoSuchElementError` if there is none.
+`insert ... returning` saves the row and reads it back in one query, so the todo
+you return has the id that SQLite just assigned. `SqlSchema.findOne` expects
+exactly one row. It fails with `NoSuchElementError` if there is none.
 
-**The server sets the time.** `DateTime.now` reads the clock. The browser never
-sends `createdAt`, so a user cannot make a todo that claims to be from last
-year.
+The server sets the time. `DateTime.now` reads the clock. The browser never
+sends `createdAt`, so a user cannot make a todo that claims to be from last year.
 
-**`Effect.fn` takes two functions.** The first is the happy path, the steps
-when everything works. The second receives that effect and decides what
-happens to each failure. Keeping them apart means you can read the first
-function top to bottom without stepping over error handling. `Effect.fn` also
-gives the step a name, `"TodoRepo.insert"`, that shows up in traces.
+`Effect.fn` builds a named function that returns an effect, and here it takes two
+functions. The first holds the happy path, the steps that run when everything
+works. The second receives that effect and decides what happens to each failure.
+Keeping them apart lets you read the first function top to bottom without
+stepping over error handling. `Effect.fn` also gives the step a name,
+`"TodoRepo.insert"`, that shows up in traces, which are records of what the
+program ran.
 
-**Each failure gets a decision.** `Effect.catchTags` looks at the `_tag` of the
+Each failure gets a decision. `Effect.catchTags` looks at the `_tag` of the
 error and picks a handler:
 
-- `SqlError` becomes `TodoPersistenceError`, the error the API declared. The
-  code above the repository never sees a raw database error.
-- `SchemaError` and `NoSuchElementError` use `Effect.die`. A **defect** is a
-  failure that means the program itself is wrong, like a row from our own table
-  not matching our own schema. There is nothing sensible a caller could do
-  about it, so it is not put in the error type at all. The request crashes and
-  the server logs it.
+- `SqlError` becomes `TodoPersistenceError`, the error the API declared. Code
+  above the repository never sees a raw database error.
+- `SchemaError` and `NoSuchElementError` become defects with `Effect.die`. A
+  **defect** is a failure that means the program itself is wrong. An example is
+  a row from our own table that does not match our own schema. A caller cannot
+  do anything sensible about it, so it stays out of the error type. The request
+  fails and the server logs it.
 
-Here is what someone using the repository sees:
+Here is what a caller of the repository sees:
 
 ```ts twoslash
 // @allowImportingTsExtensions
@@ -362,13 +360,14 @@ const program = Effect.gen(function* () { const repo = yield* TodoRepo; return y
 //    ^?
 ```
 
-A `Todo` if it works, a `TodoPersistenceError` if it does not, and it needs a
-`TodoRepo` to run. No SQL anywhere in that type.
+The type says three things. The program returns a `Todo` if it works. It fails
+with a `TodoPersistenceError` if it does not. It needs a `TodoRepo` to run. No
+SQL appears anywhere in that type.
 
 ## Check it works
 
 There is no HTTP server yet, but you can run the repository directly against an
-in-memory database. Make `apps/server/try.ts`:
+in-memory database. Create `apps/server/try.ts`:
 
 ```ts
 // apps/server/try.ts
@@ -390,10 +389,10 @@ const program = Effect.gen(function* () {
 program.pipe(Effect.provide(TodoRepo.layer.pipe(Layer.provide(TestSql))), Effect.runPromise)
 ```
 
-`":memory:"` asks SQLite for a database that lives in memory and disappears
-when the program ends. The migrator still runs on it, so the table exists.
-`Effect.provide` hands the layers to the program, and `Effect.runPromise` is
-the moment the recipe finally runs.
+`":memory:"` asks SQLite for a database that lives in memory and disappears when
+the program ends. The migrator still runs on it, so the table exists.
+`Effect.provide` hands the layers to the program. `Effect.runPromise` is the
+point where the program finally runs.
 
 ```sh
 cd apps/server
@@ -404,25 +403,25 @@ bun try.ts
 [23:45:43.051] INFO (#1): [ "write docs", "buy milk" ]
 ```
 
-Newest first, as the `order by` asked. Delete `try.ts`, then run
+The newest todo comes first, as the `order by` asked. Delete `try.ts`, then run
 `bun run typecheck`.
 
 ## What people get wrong
 
-**Lowercase config names.** `Config.string` and `Config.int` do not exist in
-Effect v4. They are `Config.String` and `Config.Int`, with a capital letter.
+Lowercase config names. `Config.string` and `Config.int` do not exist in Effect
+v4. They are `Config.String` and `Config.Int`, with a capital first letter.
 
-**Letting `SqlError` escape.** If the repository returned `SqlError` as is,
-every handler and eventually the browser would have to know about database
-errors. Turn it into your own error at the edge of the repository, where you
-still know what the query was for.
+Letting `SqlError` escape. If the repository returned `SqlError` as is, every
+handler, and eventually the browser, would have to know about database errors.
+Turn it into your own error at the edge of the repository, where you still know
+what the query was for.
 
-**Expecting the folder to exist.** Point `DATABASE_PATH` at a folder that is
-not there and SQLite fails at startup with an "unable to open database file"
-error. That is the reason for the `makeDirectory` line.
+Expecting the folder to exist. If `DATABASE_PATH` points at a folder that is not
+there, SQLite fails at startup with an "unable to open database file" error.
+That is why the code has the `makeDirectory` line.
 
 ## Next
 
-There is somewhere to keep todos. [Implementing the
-Handlers](/learn/fullstack-monorepo/05-implementing-the-handlers) connects the
-API description from `domain` to this repository.
+The server now has somewhere to keep todos.
+[Implementing the handlers](/learn/fullstack-monorepo/05-implementing-the-handlers)
+connects the API description from `domain` to this repository.

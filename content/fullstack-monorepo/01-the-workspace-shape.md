@@ -1,19 +1,19 @@
 ---
-title: The Workspace Shape
+title: The workspace shape
 order: 1
 slug: 01-the-workspace-shape
-summary: Create the empty monorepo, three packages that can import each other by name, and the tooling that checks it all.
+summary: Create the empty monorepo, with three packages that import each other by name, and the tools that check it.
 ---
 
-Put a backend and a frontend in two separate repositories and they drift. The
-backend renames `done` to `completed`, ships it, and the frontend keeps reading
-`done` until someone notices the checkboxes are all empty. Each side compiles
-fine on its own. The mistake lives in the gap between them.
+Put a backend and a frontend in two separate repositories and they drift apart.
+The backend renames `done` to `completed` and ships it. The frontend keeps
+reading `done` until someone notices that every checkbox is empty. Each side
+compiles on its own. The mistake sits in the gap between them.
 
-A **monorepo** closes the gap. It is one repository holding several packages,
-so a change to the shared part is checked against everyone who uses it, in the
-same build. This chapter builds the empty shape of that repository. No Effect
-code yet, just folders, config files and one install.
+A **monorepo** closes that gap. It is one repository that holds several
+packages. A change to the shared part is checked against everything that uses
+it, in the same build. This chapter builds the empty shape of that repository.
+It has no Effect code yet, only folders, config files and one install.
 
 ## The three packages
 
@@ -27,10 +27,10 @@ monorepo/
     └── web/              the React page
 ```
 
-There is one rule, and it matters more than any tool: `server` and `web` may
-import `domain`, and nothing else imports anything. `domain` imports neither of
-them. If the server ever imported from `web`, a change to a button could break
-the backend, and the whole point of the split would be gone.
+There is one rule, and it matters more than any tool. `server` and `web` may
+import `domain`. Nothing else imports anything. `domain` imports neither of
+them. If the server imported from `web`, a change to a button could break the
+backend, and the split would have no point.
 
 Make the folders:
 
@@ -42,8 +42,8 @@ git init
 
 ## The root package.json
 
-The root is not a package anyone imports. Its job is to list where the packages
-are, and to hold the commands you run from the top.
+The root is not a package that anyone imports. It lists where the packages are
+and holds the commands you run from the top.
 
 ```json
 {
@@ -70,21 +70,22 @@ are, and to hold the commands you run from the top.
 }
 ```
 
-`workspaces` is the important line. It tells Bun that every folder under
-`apps/` and `packages/` is a package, and that they can depend on each other by
-name. `bun --filter` runs a script in several packages at once, so
-`bun run dev` will later start the server and the web page together.
+`workspaces` is the key line. It tells Bun that every folder under `apps/` and
+`packages/` is a package, and that packages can depend on each other by name.
+`bun --filter` runs a script in several packages at once. Later, `bun run dev`
+will start the server and the web page together.
 
 ## TypeScript 7 and the Effect checker
 
 `typescript@7.0.2` is the new TypeScript compiler, rewritten to be much faster.
 It still installs a command called `tsc`.
 
-`@effect/tsgo` adds Effect-specific checks on top. Plain TypeScript cannot tell
-that you created an Effect and then forgot to run it, because to TypeScript it
-is just an unused value. The Effect checker knows better and reports it. The
-`postinstall` script patches the installed `tsc` so these checks run every time
-you typecheck, with no extra command to remember.
+`@effect/tsgo` adds Effect-specific checks on top. An Effect is a value that
+describes work to do, and nothing happens until you run it. Plain TypeScript
+cannot tell that you created an Effect and forgot to run it. To TypeScript, that
+is just an unused value. The Effect checker reports it. The `postinstall` script
+patches the installed `tsc`, so these checks run on every typecheck. You have no
+extra command to remember.
 
 The shared compiler settings go in `tsconfig.base.json`:
 
@@ -108,19 +109,19 @@ The shared compiler settings go in `tsconfig.base.json`:
 }
 ```
 
-Three lines are worth knowing about.
+Three settings matter most.
 
 - `strict: true` is required. Effect writes the ways a step can fail into its
-  type, and without `strict` TypeScript reads those types wrong.
-- `noEmit` and `allowImportingTsExtensions` say that TypeScript only checks the
-  code, it never outputs JavaScript. Bun and Vite run `.ts` files directly, so
-  there is nothing to build.
+  type. Without `strict`, TypeScript reads those types wrong.
+- `noEmit` and `allowImportingTsExtensions` make TypeScript check the code only.
+  It never writes JavaScript. Bun and Vite run `.ts` files directly, so there is
+  nothing to build.
 - The `plugins` entry turns on the Effect checker. Its errors fail the
-  typecheck, its warnings only show in your editor.
+  typecheck. Its warnings show only in your editor.
 
 ## Biome and .gitignore
 
-[Biome](https://biomejs.dev) formats and lints the code in one tool. Save this
+[Biome](https://biomejs.dev) formats and lints the code with one tool. Save this
 as `biome.json`:
 
 ```json
@@ -144,8 +145,8 @@ as `biome.json`:
 }
 ```
 
-And `.gitignore`. The `apps/server/data` line keeps the SQLite database out of
-git:
+Next, create `.gitignore`. The `apps/server/data` line keeps the SQLite database
+out of git:
 
 ```
 node_modules
@@ -157,12 +158,12 @@ apps/server/data
 
 ## The three package.json files
 
-Each package gets its own `package.json`. Writing all three now means one
+Each package gets its own `package.json`. Write all three now, so that one
 install covers the whole track.
 
-`packages/domain/package.json` is the shared package. Look at `exports`: it
-points straight at a TypeScript file. There is no build step, because both Bun
-and Vite read `.ts` source directly.
+`packages/domain/package.json` is the shared package. Look at `exports`. It
+points straight at a TypeScript file. There is no build step, because Bun and
+Vite both read `.ts` source directly.
 
 ```json
 {
@@ -181,9 +182,9 @@ and Vite read `.ts` source directly.
 }
 ```
 
-`apps/server/package.json`. The line `"@todo/domain": "workspace:*"` is how a
-package depends on another package in the same repository. The test script
-runs vitest through Bun, and [testing the
+Next is `apps/server/package.json`. The line `"@todo/domain": "workspace:*"`
+is how one package depends on another package in the same repository. The test
+script runs vitest through Bun. [Testing the
 API](/learn/fullstack-monorepo/07-testing-the-api) explains why.
 
 ```json
@@ -211,7 +212,7 @@ API](/learn/fullstack-monorepo/07-testing-the-api) explains why.
 }
 ```
 
-`apps/web/package.json`:
+Last is `apps/web/package.json`:
 
 ```json
 {
@@ -242,7 +243,7 @@ API](/learn/fullstack-monorepo/07-testing-the-api) explains why.
 }
 ```
 
-Each package also needs a `tsconfig.json` that reuses the base. For
+Each package also needs a `tsconfig.json` that reuses the base. Start with
 `packages/domain/tsconfig.json`:
 
 ```json
@@ -280,8 +281,9 @@ For `apps/web/tsconfig.json`, which adds the browser types and JSX:
 
 ## Importing by name
 
-Here is what `workspaces` buys you. Give `domain` something to export, in
-`packages/domain/src/index.ts`:
+Here is what `workspaces` gives you. Give `domain` something to export. Later,
+you will add `export const greeting = "hello from domain"` to
+`packages/domain/src/index.ts`. This throwaway line in the server imports it:
 
 ```ts twoslash
 // @filename: node_modules/@todo/domain/index.ts
@@ -296,27 +298,28 @@ const message = greeting
 ```
 
 The server imports `@todo/domain` as if it came from npm. Bun links the folder
-into `node_modules`, and TypeScript follows the `exports` field to the source
-file. No relative path like `../../packages/domain/src` anywhere, and no build
-in between.
+into `node_modules`. TypeScript follows the `exports` field to the source file.
+There is no relative path like `../../packages/domain/src`, and no build step in
+between.
 
 ## Check it works
 
-From the repository root:
+From the repository root, run:
 
 ```sh
 bun install
 ```
 
-Near the end you should see the patch run:
+Near the end of the output, you should see the patch run:
 
 ```
 $ effect-tsgo patch --typescript
 Patched typescript at .../node_modules/@typescript/typescript-darwin-arm64/lib/tsc
 ```
 
-If that line is there, every future `tsc` run includes the Effect checks. Then
-type the throwaway export above into `packages/domain/src/index.ts` and run:
+If you see that line, every future `tsc` run includes the Effect checks. Next,
+add the throwaway export `export const greeting = "hello from domain"` to
+`packages/domain/src/index.ts`. Then run:
 
 ```sh
 bun --filter @todo/domain typecheck
@@ -327,24 +330,25 @@ bun --filter @todo/domain typecheck
 ```
 
 `tsc` itself prints nothing when the code is clean. The line above comes from
-`bun --filter`, which reports each package when its script finishes. Code 0 is
-success. Delete the `greeting` line again before moving on. The next chapter
+`bun --filter`, which reports each package when its script finishes. Code 0
+means success. Delete the `greeting` line before you move on. The next chapter
 replaces it.
 
 ## What people get wrong
 
-**Mixing Effect versions.** `bun add effect@rc` in one package and a pinned
-version in another installs two copies of `effect`. The types from one copy do
-not match the other, and you get errors like "Type 'Effect' is not assignable
-to type 'Effect'". Pin the exact same version everywhere, as above.
+Mixing Effect versions causes errors that are hard to read. Run
+`bun add effect@rc` in one package and pin a version in another, and Bun
+installs two copies of `effect`. The types from one copy do not match the other.
+You get errors like "Type 'Effect' is not assignable to type 'Effect'". Pin the
+exact same version everywhere, as above.
 
-**Forgetting the patch.** If `bun install` ran before `@effect/tsgo` was in the
-root `package.json`, the patch never happened. Run
+Forgetting the patch is easy to do. If `bun install` ran before `@effect/tsgo`
+was in the root `package.json`, the patch never happened. Run
 `bunx effect-tsgo patch --typescript` once by hand.
 
 ## Next
 
-The workspace is empty but wired. [The Todo in
+The workspace is empty but wired. [The todo in
 Schema](/learn/fullstack-monorepo/02-the-todo-in-schema) puts the first real
-thing in `domain`: a description of a todo that works as a type and as a
-runtime check.
+piece in `domain`: a description of a todo that works as a type and as a check
+on real data.

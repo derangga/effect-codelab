@@ -1,14 +1,14 @@
 ---
-title: Serving It
+title: Serving it
 order: 6
 slug: 06-serving-it
-summary: One small main file picks the real database and the real port, starts the server, and you make your first requests with curl.
+summary: One small main file picks the real database and port and starts the server, and you send your first requests with curl.
 ---
 
 Every piece of the server exists, but none of it runs. `ApiLayer` still needs
-a database, and nothing listens on a port yet. Those are the two choices that
-depend on where the code runs: which SQLite file, which port. They belong in
-one place, the entry point, so that nothing else in the server has to know.
+a database, and nothing listens on a port yet. Both choices depend on where the
+code runs: which SQLite file, and which port. Put them in one place, the entry
+point, so nothing else in the server needs to know.
 
 ## The main file
 
@@ -143,13 +143,13 @@ const TodosHandlers = HttpApiBuilder.group(
     const repo = yield* TodoRepo
     return handlers.handle("list", () => repo.findAll()).handle("create", ({ payload }) => repo.insert(payload))
   }),
-)
+).pipe(Layer.provide(TodoRepo.layer))
 
 // Requires SqlClient; the entry point decides which database backs it.
 export const ApiLayer = Layer.mergeAll(
   HttpApiBuilder.layer(TodosApi, { openapiPath: "/api/openapi.json" }),
   HttpApiScalar.layer(TodosApi, { path: "/api/docs" }),
-).pipe(Layer.provide(TodosHandlers), Layer.provide(TodoRepo.layer))
+).pipe(Layer.provide(TodosHandlers))
 // @filename: apps/server/src/Sql.ts
 import { SqliteClient, SqliteMigrator } from "@effect/sql-sqlite-bun"
 import { Config, Effect, FileSystem, Layer, Path } from "effect"
@@ -198,22 +198,26 @@ const ServerLayer = BunHttpServer.layerConfig({
 HttpRouter.serve(ApiLayer).pipe(Layer.provide(SqlLayer), Layer.provide(ServerLayer), Layer.launch, BunRuntime.runMain)
 ```
 
-Biome puts the whole pipe on one line because it fits in 120 columns. Line by line:
+Biome, the code formatter, puts the whole pipe on one line because it fits in
+120 columns. Here is each part:
 
-- `BunHttpServer.layerConfig` is the HTTP server that Bun provides, with its
-  port read from the `PORT` environment variable, or `3000` if that is not set.
+- `BunHttpServer.layerConfig` is the HTTP server that Bun provides. It reads
+  its port from the `PORT` environment variable, and uses `3000` if that is not
+  set.
 - `HttpRouter.serve(ApiLayer)` says "answer requests with these routes". It
   still needs a server to attach to.
-- `Layer.provide(SqlLayer)` fills in the `SqlClient` that the last chapter left
-  open, with the real SQLite file and its migrations.
-- `Layer.provide(ServerLayer)` fills in the server.
-- `Layer.launch` turns the finished layer into an effect that builds
-  everything and then keeps running until it is told to stop.
-- `BunRuntime.runMain` is where the program actually starts. It also listens
-  for `Ctrl+C`, and when you press it, it shuts things down in reverse order:
-  the server stops taking requests, then the database connection closes. You
-  never write a shutdown hook, because every layer already knows how to clean
-  up what it opened.
+- `Layer.provide(SqlLayer)` fills in the `SqlClient` that
+  [Implementing the handlers](/learn/fullstack-monorepo/05-implementing-the-handlers)
+  left open. It uses the real SQLite file and its migrations.
+- `Layer.provide(ServerLayer)` fills in the server. It comes second on purpose.
+  `SqlLayer` needs the file system to create the `data/` folder, and the Bun
+  server layer supplies it.
+- `Layer.launch` turns the finished layer into an effect. That effect builds
+  everything and keeps running until you stop it.
+- `BunRuntime.runMain` starts the program. It also listens for `Ctrl+C`. When
+  you press it, it shuts down in reverse order: the server stops taking
+  requests, then the database connection closes. You never write a shutdown
+  hook, because every layer already knows how to clean up what it opened.
 
 The whole program is now one stack of layers:
 
@@ -226,8 +230,9 @@ BunRuntime.runMain
 ```
 
 Only this file knows about the port and the database file. The handlers and
-the repository have no idea where they are running, which is exactly what the
-test in the next chapter relies on.
+the repository do not know where they run. The test in
+[Testing the API](/learn/fullstack-monorepo/07-testing-the-api) relies on
+exactly that.
 
 ## What happens on a request
 
@@ -246,8 +251,8 @@ curl sends {"title": "  buy milk  "}
   -> HttpApi encodes the Todo as JSON, status 201
 ```
 
-Each "fails" line is a decision made in an earlier chapter, and each one ends
-in a specific status code instead of a crash.
+Each "fails" line is a decision made in an earlier chapter. Each one ends in a
+specific status code instead of a crash.
 
 ## Check it works
 
@@ -262,8 +267,9 @@ bun run dev
 [23:45:26.948] INFO (#2): Listening on http://[::]:3000
 ```
 
-`bun --watch` restarts the server whenever you save a file, so leave it running.
-Open a second terminal and add two todos. Notice the spaces in the first title:
+`bun --watch` restarts the server whenever you save a file, so leave it
+running. Open a second terminal and add two todos. The first title has extra
+spaces around it:
 
 ```sh
 curl -s -X POST localhost:3000/api/todos \
@@ -280,9 +286,9 @@ curl -s -X POST localhost:3000/api/todos \
 {"id":2,"title":"write docs","completed":false,"createdAt":"2026-09-23T16:24:45.193Z"}
 ```
 
-The title came back trimmed, the id and time were filled in by the server, and
-`createdAt` is a string again because that is how the schema encodes a date.
-Now list them:
+The title came back trimmed. The server filled in the id and the time.
+`createdAt` is a string again, because the schema encodes a date as a string.
+Now list the todos:
 
 ```sh
 curl -s localhost:3000/api/todos
@@ -292,7 +298,7 @@ curl -s localhost:3000/api/todos
 [{"id":2,"title":"write docs",...},{"id":1,"title":"buy milk",...}]
 ```
 
-Newest first. Now send a title of only spaces, with `-i` to see the status:
+The newest todo comes first. Now send a title of only spaces. Add `-i` to see the status:
 
 ```sh
 curl -si -X POST localhost:3000/api/todos \
@@ -319,44 +325,46 @@ The handler never ran. Look at the first terminal, where the server logged why:
 }
 ```
 
-The block after the message is the request: method, url and the status that went
-out. Every request logs one of these, including the successful ones. The two
-`curl` calls that created todos are in that terminal too, as `Sent HTTP response`
-lines with status 201.
+The block after the message describes the request: method, URL, and the status
+the server sent. Every request logs one of these blocks, including successful
+ones. The two `curl` calls that created todos also appear in that terminal, as
+`Sent HTTP response` lines with status 201.
 
-Finally, open [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
-in a browser. That page was generated from the description in `domain`. You
-can send requests from it too.
+Last, open [http://localhost:3000/api/docs](http://localhost:3000/api/docs)
+in a browser. Effect generated that page from the description in `domain`. You
+can also send requests from it.
 
 Stop the server with `Ctrl+C`. The todos are still in
-`apps/server/data/todos.db`, and they will be there when you start it again,
-because the migration only runs once.
+`apps/server/data/todos.db`. They will be there when you start the server
+again, because the migration runs only once.
 
 ## What people get wrong
 
-**Starting the server from the wrong folder.** `data/todos.db` is relative to
-the folder you start in. Run `bun src/main.ts` from `apps/server` and the file
-lands in `apps/server/data`. Run it from the repository root and you get a
+Starting the server from the wrong folder. `data/todos.db` is relative to the
+folder you start in. If you run `bun src/main.ts` from `apps/server`, the file
+lands in `apps/server/data`. If you run it from the repository root, you get a
 second, empty database in `./data`. The `bun run dev` script always runs inside
 `apps/server`, which is one more reason to use it.
 
-**Expecting an error message in the 400 body.** The response body is empty on
-purpose. It tells the caller the request was bad without echoing their input
-back. The details are in the server log, which is where you look while
-developing.
+Expecting an error message in the 400 body. The response body is empty on
+purpose. The caller learns that the request was bad, and the server does not
+echo their input back. Look in the server log for the details while you
+develop.
 
-**Curl answering with a web page.** If `curl localhost:3000/api/todos` prints
-HTML instead of JSON, another program already owns port 3000, often another dev
-server. [The React Page](/learn/fullstack-monorepo/09-the-react-page) explains
-how to find it. Until then, start the server with `PORT=3100 bun run dev` and
-curl that port.
+Curl answering with a web page. If `curl localhost:3000/api/todos` prints HTML
+instead of JSON, another program is already using port 3000, often another dev
+server. [The React page](/learn/fullstack-monorepo/09-the-react-page) explains
+how to find it. Until you read it, start the server with
+`PORT=3100 bun run dev` and send your curl requests to that port.
 
-**Forgetting the `/api` prefix.** `curl localhost:3000/todos` answers
-`404 Not Found`. The prefix from [Declaring the API as a
-Value](/learn/fullstack-monorepo/03-declaring-the-api) is part of every path.
+Forgetting the `/api` prefix. `curl localhost:3000/todos` answers
+`404 Not Found`. The prefix from
+[Declaring the API as a value](/learn/fullstack-monorepo/03-declaring-the-api)
+is part of every path.
 
 ## Next
 
-The server works when you poke it by hand. [Testing the
-API](/learn/fullstack-monorepo/07-testing-the-api) turns those curl commands
-into a test that runs the real server against a throwaway database.
+The server works when you test it by hand.
+[Testing the API](/learn/fullstack-monorepo/07-testing-the-api) turns those
+curl commands into a test. The test runs the real server against a temporary
+database.

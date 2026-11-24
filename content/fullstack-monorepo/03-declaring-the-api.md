@@ -1,24 +1,24 @@
 ---
-title: Declaring the API as a Value
+title: Declaring the API as a value
 order: 3
 slug: 03-declaring-the-api
-summary: HttpApiEndpoint, HttpApiGroup and HttpApi describe both endpoints as plain data in the shared package, before any server exists.
+summary: Describe both endpoints as plain data in the shared package, using HttpApiEndpoint, HttpApiGroup and HttpApi, before any server exists.
 ---
 
-In most backends the list of routes only exists inside the server. You call
-`app.get("/todos", handler)` and the route is born together with its code. The
-frontend then writes its own copy: the same path, the same method, the same
-response type, typed out again by hand. Three things that can each be wrong on
-their own.
+In most backends, the list of routes lives only inside the server. You write
+`app.get("/todos", handler)`, and the route is created together with its code.
+Then the frontend writes its own copy: the same path, the same method, and the
+same response type, typed out again by hand. Each of those three copies can be
+wrong on its own.
 
-Effect flips the order. You first describe the API as a plain value, a bit
-like a table of contents. The description holds the path, the method, what the
-request carries and what comes back. It lives in `packages/domain`, so the
-server and the web page both read the same one.
+Effect reverses the order. You first describe the API as a plain value, with no
+code that runs. The description holds the path, the method, what the request
+carries, and what comes back. It lives in `packages/domain`, so the server and
+the web page read the same one.
 
 ## One endpoint
 
-Start with listing todos.
+Start with the endpoint that lists todos.
 
 ```ts twoslash
 import { Schema } from "effect"
@@ -35,20 +35,19 @@ const list = HttpApiEndpoint.get("list", "/todos", {
 })
 ```
 
-Read it out loud: an endpoint named `list`, answering `GET /todos`, that
-succeeds with an array of todos and may fail with a `TodoPersistenceError`.
+Read it aloud. It is an endpoint named `list` that answers `GET /todos`. It
+succeeds with an array of todos, and it may fail with a `TodoPersistenceError`.
 
-The `success` and `error` are the schemas from the last chapter, not types.
-That is what makes the rest of this track work. The server will use them to
-turn its values into JSON, and the client will use them to check the JSON it
-gets back.
+The `success` and `error` fields are schemas, not plain types. They come from
+[The todo in Schema](/learn/fullstack-monorepo/02-the-todo-in-schema). The rest
+of this track depends on that. The server uses them to turn its values into
+JSON. The client uses them to check the JSON it gets back.
 
-The failure is part of the description too. In plain TypeScript an API's
-errors are whatever the code happens to throw. Here the endpoint says up front
-which errors it can return, and the `httpApiStatus: 500` on
-`TodoPersistenceError` picks the status code. The
-[Errors](/learn/basic-effect/03-typed-errors) chapter explains why Effect keeps
-failures in the type, and this is the same idea applied to HTTP.
+The failure is part of the description too. In plain TypeScript, an API's errors
+are whatever the code happens to throw. Here the endpoint states which errors it
+can return. The `httpApiStatus: 500` on `TodoPersistenceError` sets the status
+code. [Typed errors and recovery](/learn/basic-effect/03-typed-errors) explains
+why Effect keeps failures in the type. This is the same idea applied to HTTP.
 
 ## An endpoint with a body
 
@@ -73,31 +72,33 @@ const create = HttpApiEndpoint.post("create", "/todos", {
 
 `payload` is the request body. When a request arrives, the server decodes the
 body with `CreateTodoPayload` before your code sees it. So the title is already
-trimmed and checked by the time any of your code runs, and a bad title is
-turned away with a `400 Bad Request` automatically.
+trimmed and checked when your code runs. A bad title gets a `400 Bad Request`
+automatically.
 
-`HttpApiSchema.status(201)` changes the success status from the default `200`
-to `201 Created`, the usual answer when something new was made.
+`HttpApiSchema.status(201)` changes the success status from the default `200` to
+`201 Created`. This is the usual answer when the server made something new.
 
 ## Grouping and naming the API
 
-Endpoints go into a **group**, and groups go into the **API**:
+A **group** is a named set of endpoints, and the **API** is a set of groups. Add
+the endpoints to a group, then add the group to the API:
 
 ```ts
 const TodosGroup = HttpApiGroup.make("todos").add(list).add(create)
 const TodosApi = HttpApi.make("TodosApi").add(TodosGroup).prefix("/api")
 ```
 
-The group name, `todos`, becomes part of how you call it later. On the client
-it will be `client.todos.list()` and `client.todos.create(...)`. The
-`.prefix("/api")` puts every path under `/api`, so the real URLs are
-`/api/todos`. That prefix will make the browser setup simple in the last
-chapter, because everything under `/api` can be sent to the server in one rule.
+The group name, `todos`, becomes part of how you call the API later. On the
+client, the calls will be `client.todos.list()` and `client.todos.create(...)`.
+The `.prefix("/api")` puts every path under `/api`, so the real URLs are
+`/api/todos`. The prefix keeps the browser setup simple in
+[The React page](/learn/fullstack-monorepo/09-the-react-page), because one rule
+can send everything under `/api` to the server.
 
 ## The whole file
 
-Here is `packages/domain/src/TodosApi.ts` in full, importing from the file you
-wrote last chapter:
+Here is `packages/domain/src/TodosApi.ts` in full. It imports from the file you
+wrote in [The todo in Schema](/learn/fullstack-monorepo/02-the-todo-in-schema):
 
 ```ts twoslash
 // @allowImportingTsExtensions
@@ -150,7 +151,7 @@ export const TodosGroup = HttpApiGroup.make("todos")
 export const TodosApi = HttpApi.make("TodosApi").add(TodosGroup).prefix("/api")
 ```
 
-And add it to `packages/domain/src/index.ts`:
+Then add it to `packages/domain/src/index.ts`:
 
 ```ts
 // packages/domain/src/index.ts
@@ -158,24 +159,23 @@ export * from "./Todo.ts"
 export * from "./TodosApi.ts"
 ```
 
-That is the whole shared package. Two files, and no code that runs on its own.
+That is the whole shared package. It has two files and no code that runs on its
+own.
 
 ## What the description already gives you
 
-Nothing answers requests yet, but this value is already enough for three
-things:
+Nothing answers requests yet. Even so, this value is enough for three things:
 
-- **API documentation.** An OpenAPI document (the standard JSON format that
-  API tools read) can be generated from it, since it knows every path, body
-  and response.
-- **A client.** The web page will get a typed function per endpoint from it.
-- **A checklist for the server.** The server will have to provide a handler
-  for `list` and for `create`, and TypeScript will refuse to compile until it
-  does.
+- API documentation: you can generate an OpenAPI document from it. OpenAPI is a
+  standard JSON format that API tools read. The description already knows every
+  path, body, and response.
+- A client: the web page gets a typed function for each endpoint.
+- A checklist for the server: the server must provide a handler for `list` and
+  for `create`. TypeScript refuses to compile until it does.
 
 ## Check it works
 
-You can see the first one right now. Make `packages/domain/try.ts`:
+You can try the first one now. Create `packages/domain/try.ts`:
 
 ```ts
 // packages/domain/try.ts
@@ -197,24 +197,23 @@ bun try.ts
 /api/todos [ "get", "post" ]
 ```
 
-One path, two methods, generated entirely from the description. Delete
-`try.ts` and run `bun run typecheck` once more.
+The output shows one path and two methods. The description alone produced them.
+Delete `try.ts`, then run `bun run typecheck` once more.
 
 ## What people get wrong
 
-**Putting handler code in the shared package.** It is tempting to write the
-handlers right next to the endpoints. Don't. The web page imports
-`packages/domain`, and anything in it ends up in the browser bundle. If
+Putting handler code in the shared package. It is tempting to write the handlers
+right next to the endpoints. Do not do it. The web page imports
+`packages/domain`, and everything in it ends up in the browser bundle. If
 `domain` imported the database driver, Vite would try to bundle SQLite into a
 web page. Keep `domain` to schemas and descriptions only.
 
-**Forgetting the prefix is part of the path.** After `.prefix("/api")` the
-list endpoint is `GET /api/todos`, not `GET /todos`. When you test with `curl`
-later, include the `/api`.
+Forgetting that the prefix is part of the path. After `.prefix("/api")`, the list
+endpoint is `GET /api/todos`, not `GET /todos`. When you test with `curl` later,
+include the `/api`.
 
 ## Next
 
 The description says what a todo looks like and how to ask for one. Something
-has to actually store them. [The Repo Over
-Sqlite](/learn/fullstack-monorepo/04-the-repo-over-sqlite) starts the server
-with a database and a small service that hides it.
+still has to store the todos. [The repo over SQLite](/learn/fullstack-monorepo/04-the-repo-over-sqlite)
+starts the server with a database and a small service that hides it.

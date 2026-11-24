@@ -1,23 +1,25 @@
 ---
-title: Implementing the Handlers
+title: Implementing the handlers
 order: 5
 slug: 05-implementing-the-handlers
-summary: HttpApiBuilder connects each declared endpoint to the repository, and the compiler will not let you forget one.
+summary: HttpApiBuilder connects each endpoint to the repository, and the compiler reports any endpoint you forget.
 ---
 
-The API description in `domain` says there are two endpoints. The repository
-knows how to list and insert todos. Something has to connect the two: when
-`GET /api/todos` arrives, call `findAll`, and when `POST /api/todos` arrives,
-call `insert`. That something is a **handler**, one per endpoint.
+The API description in `domain` declares two endpoints. The repository can
+list and insert todos. Something must connect the two. When `GET /api/todos`
+arrives, it must call `findAll`. When `POST /api/todos` arrives, it must call
+`insert`. That connector is a **handler**, a function that answers one
+endpoint. Each endpoint needs one.
 
-In a typical Node server, forgetting a handler means a route that answers
-`404` and nobody notices until a user clicks the button. Here it is a type
-error.
+In a typical Node server, a forgotten handler leaves a route that answers
+`404`. Nobody notices until a user clicks the button. Here the compiler
+reports a type error instead.
 
 ## The compiler keeps the checklist
 
-`HttpApiBuilder.group` takes the API, the name of a group, and a function that
-adds a handler for each endpoint in it. Try it with only one handler:
+`HttpApiBuilder.group` takes the API, a group name, and a function. That
+function adds one handler for each endpoint in the group. Try it with only one
+handler:
 
 ```ts twoslash
 // @allowImportingTsExtensions
@@ -154,9 +156,9 @@ const TodosHandlers = HttpApiBuilder.group(
 ```
 
 Read the end of that error: `"Endpoint not handled: create"`. The description
-said there is a `create` endpoint, so the server cannot be built without one.
-The error is long, like most errors about big generic types, but the useful
-part is always that last quoted string.
+declares a `create` endpoint, so the server cannot be built without a handler
+for it. The full error is long, as errors about large generic types often are.
+The useful part is always the last quoted string.
 
 ## Both handlers
 
@@ -166,28 +168,28 @@ Add the second one:
 return handlers.handle("list", () => repo.findAll()).handle("create", ({ payload }) => repo.insert(payload))
 ```
 
-Look at how little each handler does.
+Each handler does very little:
 
 - `list` takes no input and returns whatever `findAll` returns.
-- `create` receives `payload`, which is already decoded. The title is trimmed
-  and checked before this function runs, because the endpoint declared
-  `payload: CreateTodoPayload`. Its type is the schema's type, not `unknown`.
-- Both return a `Todo` or fail with `TodoPersistenceError`, and those are
-  exactly the success and error the endpoints declared. Return anything else,
-  a plain object missing `createdAt` for example, and it is a type error.
+- `create` receives `payload`, which is already decoded. The endpoint declared
+  `payload: CreateTodoPayload`, so the title is trimmed and checked before this
+  function runs. The type of `payload` is the schema's type, not `unknown`.
+- Both return a `Todo` or fail with `TodoPersistenceError`. These are exactly
+  the success and error types the endpoints declared. If you return anything
+  else, such as a plain object without `createdAt`, you get a type error.
 
-There is no `JSON.parse`, no `res.status(201)`, no validation, and no route
-matching. The description handles all of it. The handler only connects a
-request to the repository.
+The handlers contain no `JSON.parse`, no `res.status(201)`, no validation, and
+no route matching. The description handles all of that. A handler only connects
+a request to the repository.
 
 `Effect.fnUntraced` is `Effect.fn` without the tracing name. It is used here
-because this function only runs once, when the server starts, to build the
+because this function runs only once, when the server starts, to build the
 handlers. That is also when `yield* TodoRepo` asks for the repository. Every
 request after that reuses the same one.
 
 ## Stacking the layers
 
-Now `apps/server/src/Http.ts` in full:
+Here is `apps/server/src/Http.ts` in full:
 
 ```ts twoslash
 // @allowImportingTsExtensions
@@ -320,29 +322,29 @@ const TodosHandlers = HttpApiBuilder.group(
     const repo = yield* TodoRepo
     return handlers.handle("list", () => repo.findAll()).handle("create", ({ payload }) => repo.insert(payload))
   }),
-)
+).pipe(Layer.provide(TodoRepo.layer))
 
 // Requires SqlClient; the entry point decides which database backs it.
 export const ApiLayer = Layer.mergeAll(
   HttpApiBuilder.layer(TodosApi, { openapiPath: "/api/openapi.json" }),
   HttpApiScalar.layer(TodosApi, { path: "/api/docs" }),
-).pipe(Layer.provide(TodosHandlers), Layer.provide(TodoRepo.layer))
+).pipe(Layer.provide(TodosHandlers))
 ```
 
-`TodosHandlers` is a layer, and so is everything around it. Reading
-`ApiLayer` from the top:
+`TodosHandlers` is a layer, and so is everything around it. It already carries
+its own repository: the `Layer.provide(TodoRepo.layer)` on the end gives the
+handlers the `TodoRepo` they ask for. Now read `ApiLayer` from the top:
 
 - `HttpApiBuilder.layer(TodosApi, ...)` turns the description into real
-  routes. It also serves the OpenAPI document at `/api/openapi.json`, generated
-  from the description like the one you printed two chapters ago.
-- `HttpApiScalar.layer` adds a documentation page at `/api/docs`, built from
-  that same document, where you can read and try every endpoint in the
-  browser.
+  routes. It also serves the OpenAPI document at `/api/openapi.json`. Effect
+  generates that document from the description, like the one you printed in
+  [Declaring the API as a value](/learn/fullstack-monorepo/03-declaring-the-api).
+- `HttpApiScalar.layer` adds a documentation page at `/api/docs`. It uses that
+  same document, and you can read and try every endpoint in the browser.
 - `Layer.mergeAll` puts those two side by side.
 - `Layer.provide(TodosHandlers)` gives the routes their handlers.
-- `Layer.provide(TodoRepo.layer)` gives the handlers their repository.
 
-As a picture, each line needs the one below it:
+In this picture, each line needs the one below it:
 
 ```
 ApiLayer          routes + docs page
@@ -352,9 +354,10 @@ ApiLayer          routes + docs page
 ```
 
 `SqlClient` is missing on purpose. `ApiLayer` does not decide which database it
-talks to. The next chapter hands it the real SQLite file, and the test chapter
-hands it an in-memory one. The [Layers](/learn/layers) track is all about this
-kind of wiring if you want to go deeper.
+uses. [Serving it](/learn/fullstack-monorepo/06-serving-it) gives it the real
+SQLite file. [Testing the API](/learn/fullstack-monorepo/07-testing-the-api)
+gives it an in-memory one. The [Layers](/learn/layers) track covers this kind
+of wiring in more depth.
 
 ## Check it works
 
@@ -367,30 +370,31 @@ bun run typecheck
 $ tsc -p tsconfig.json
 ```
 
-That line is just `bun` echoing the script. `tsc` printed nothing after it, which
-means the package compiles. Then prove the checklist to yourself: delete the
-`.handle("create", ...)` part, run the typecheck again, and look for
-`Endpoint not handled: create` in the error. Put it back before moving on.
+That line is `bun` echoing the script. `tsc` printed nothing after it, so the
+package compiles. Now test the checklist yourself. Delete the
+`.handle("create", ...)` part and run the typecheck again. Look for
+`Endpoint not handled: create` in the error. Put the code back before you move
+on.
 
 ## What people get wrong
 
-**Validating the payload again.** It is a habit from other frameworks to check
-`payload.title.length` inside the handler. The endpoint's schema already did
-it, and the handler never runs for a bad payload. A second check is code that
-can drift from the schema.
+Validating the payload again. Other frameworks teach you to check
+`payload.title.length` inside the handler. Here the endpoint's schema already
+made that check, and the handler never runs for a bad payload. A second check
+can drift away from the schema.
 
-**Asking for the repository inside every handler.** Writing
-`yield* TodoRepo` inside each handler works too, but it hides the dependency
-inside the request code. Asking once, at the top of the build function, makes
-it obvious what the handlers need.
+Asking for the repository inside every handler. Writing `yield* TodoRepo`
+inside each handler also works. It hides the dependency inside the request
+code. Ask once, at the top of the build function, so it is clear what the
+handlers need.
 
-**Providing the database here.** It is tempting to add
-`Layer.provide(SqlLayer)` to `ApiLayer` and be done. Then a test can no longer
-swap in a different database without rebuilding the whole stack. Leave the
-real-world choices to the entry point.
+Providing the database here. It is tempting to add `Layer.provide(SqlLayer)`
+to `ApiLayer` and be done. Then a test cannot swap in a different database
+without rebuilding the whole stack. Leave the choice of database to the entry
+point.
 
 ## Next
 
 Everything is wired except the last two pieces: a database and a port.
-[Serving It](/learn/fullstack-monorepo/06-serving-it) adds both and makes the
+[Serving it](/learn/fullstack-monorepo/06-serving-it) adds both and makes the
 first real request.
