@@ -1,5 +1,7 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { siteUrl } from "../src/lib/shared.ts";
+import { toAgentMarkdown } from "./agent-markdown.ts";
 import { basicEffectRedirects } from "../src/lib/basic-effect-redirects.ts";
 
 const clientDir = join(import.meta.dirname, "..", "dist", "client");
@@ -49,3 +51,30 @@ await copyFile(
   join(clientDir, "404", "index.html"),
   join(clientDir, "404.html"),
 );
+
+/**
+ * One plain-markdown file per page, for the "Copy for your agent" prompt to
+ * link. A track's index.md becomes `learn/<track>.md`, so the url is the page
+ * url plus `.md`. The walk mirrors `prerenderPages` in vite.config.ts.
+ */
+const contentDir = join(import.meta.dirname, "..", "content");
+
+for (const track of await readdir(contentDir, { withFileTypes: true })) {
+  if (!track.isDirectory()) continue;
+  for (const file of await readdir(join(contentDir, track.name))) {
+    if (!file.endsWith(".md")) continue;
+    const slug = file.replace(/\.md$/, "");
+    const route =
+      slug === "index" ? `/learn/${track.name}` : `/learn/${track.name}/${slug}`;
+
+    const markdown = toAgentMarkdown(
+      await readFile(join(contentDir, track.name, file), "utf8"),
+      { siteUrl, pageUrl: `${siteUrl}${route}` },
+    );
+    if (markdown === undefined) continue;
+
+    const out = join(clientDir, `${route}.md`);
+    await mkdir(dirname(out), { recursive: true });
+    await writeFile(out, markdown);
+  }
+}

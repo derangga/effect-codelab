@@ -14,6 +14,8 @@ import { useFumadocsLoader } from "fumadocs-core/source/client";
 import { Suspense, use } from "react";
 import { Clock } from "lucide-react";
 import { useMDXComponents } from "@/components/mdx";
+import { CopyForAgent } from "@/components/copy-for-agent";
+import { chapterPrompt, trackPrompt } from "@/lib/agent-prompt";
 import { redirectBasicEffectPath } from "@/lib/basic-effect-redirects";
 import { siteDescription } from "@/lib/shared";
 import { chapterJsonLd, jsonLdScript, pageHead } from "@/lib/seo";
@@ -83,23 +85,46 @@ const serverLoader = createServerFn({
     };
   });
 
+// A draft has no .md file for the prompt to link, so it gets no button.
+function agentPrompt(path: string) {
+  const page = source.getPages().find((p) => p.path === path);
+  if (!page || page.data.draft) return undefined;
+
+  const entry = { title: page.data.title, url: page.url };
+  if (!path.endsWith("index.md")) return chapterPrompt(entry);
+
+  const chapters = source
+    .getPages()
+    .filter(
+      (p) =>
+        p.slugs.length > 1 && p.slugs[0] === page.slugs[0] && !p.data.draft,
+    )
+    .sort((a, b) => a.url.localeCompare(b.url))
+    .map((p) => ({ title: p.data.title, url: p.url }));
+  return trackPrompt(entry, chapters);
+}
+
 function Content({ path }: { path: string }) {
   const page = docs.getPage(path);
   if (!page) throw new Error(`unknown page: ${path}`);
 
   const { toc } = use(page.load());
   const MDX = page.body;
+  const prompt = agentPrompt(path);
 
   return (
     <DocsPage toc={toc}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
-      {!path.endsWith("index.md") ? (
-        <div className="mt-3 flex items-center gap-1.5 text-fd-muted-foreground text-sm">
-          <Clock className="size-3.5" aria-hidden="true" />
-          <span>{`${page.minutes} min read`}</span>
-        </div>
-      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-fd-muted-foreground text-sm">
+        {!path.endsWith("index.md") ? (
+          <span className="flex items-center gap-1.5">
+            <Clock className="size-3.5" aria-hidden="true" />
+            {`${page.minutes} min read`}
+          </span>
+        ) : null}
+        {prompt !== undefined ? <CopyForAgent prompt={prompt} /> : null}
+      </div>
       <DocsBody>
         <MDX components={useMDXComponents()} />
       </DocsBody>
