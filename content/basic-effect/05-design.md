@@ -13,9 +13,9 @@ the error you defined belongs one level down. The dependency you need cannot be
 constructed at that point. The method you wrote returns something the caller
 cannot use.
 
-This chapter makes every decision on paper and introduces no new API. The
-result is a list precise enough that the next two chapters are mostly copying
-it into code.
+This chapter makes every decision on paper and uses no new API. The result is
+a list precise enough that the next two chapters mostly copy it into code.
+Chapter 08 then shows the finished module in one file.
 
 ## Start with what calls what
 
@@ -30,9 +30,22 @@ flowchart TD
   E --> G["ProductRepository.insert"]
 ```
 
-The graph has three public operations and one collaborator. `create` calls
-`list` before it inserts, because it must check a rule first. That already
-hints at where the rule lives.
+The graph has three public operations and one collaborator. `list` and
+`findById` each pass the call straight to the repository.
+
+`create` makes two calls. It lists the stored products, then inserts the new
+one. The `list` call serves one rule: the catalog has a maximum size. `create`
+counts the stored products and stops if the catalog is full. If there is room,
+it calls `insert`.
+
+`insert` only stores what it receives. It never checks the limit, so the check
+belongs in the service, not the repository.
+
+This chapter designs all three operations, but you write the code in two
+steps. [Services](/learn/basic-effect/06-services) covers `list` and
+`findById`. [Layers](/learn/basic-effect/07-layers) adds
+`ProductRepository.insert` and `ProductService.create`, along with the
+capacity rule. Until then, `insert` and `create` appear only in this diagram.
 
 The graph is small enough to seem pointless. Draw it anyway. It gives you a
 finite list of edges, and you ask each question below once per edge.
@@ -98,7 +111,7 @@ Before you implement each public operation, decide its `A`, `E` and `R`.
 | `findById` | `Product` | `ProductNotFoundError` | `ProductService` |
 | `create` | `Product` | `CatalogCapacityError` | `ProductService` |
 
-Written as types, this table is the target for the next three chapters.
+Written as types, this table is the target for the next two chapters.
 
 ```ts twoslash
 import { Schema } from 'effect'
@@ -196,7 +209,13 @@ one.
 ## Next
 
 The design is now a list: two services, three public operations, two failures,
-one setting and one piece of state. [Services with
-Context.Service](/learn/basic-effect/06-services) turns the first half of that
-list into code. It builds the pattern from the problem it solves, instead of
-presenting a form to fill in.
+one setting and one piece of state. Two chapters turn it into code.
+
+[Services with Context.Service](/learn/basic-effect/06-services) comes first.
+It writes the repository, `list`, `findById` and `ProductNotFoundError`. It
+builds the pattern from the problem it solves, instead of presenting a form to
+fill in.
+
+[Layers](/learn/basic-effect/07-layers) comes second. It adds `insert`,
+`create`, `CatalogCapacityError` and the catalog limit, so the diagram is
+complete by the end of that chapter.
